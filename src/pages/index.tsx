@@ -1,12 +1,14 @@
 import { useState } from "react";
 import Image from "next/image";
 import { searchRecipes, type Recipe } from "@/lib/spoonacular";
+import { useRouter } from "next/router";
 
 export default function Home() {
   const [query, setQuery] = useState("");
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,30 +61,16 @@ export default function Home() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {recipes.map((recipe) => (
-          <a 
-            key={recipe.id} 
-            href={`https://spoonacular.com/recipes/${recipe.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${recipe.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 transition-colors"
+          <div
+            key={recipe.id}
+            className="p-4 border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 transition-colors cursor-pointer"
+            onClick={() => router.push(`/recipe/${recipe.id}`)}
           >
-            <div className="relative aspect-[4/3]">
-              <Image
-                src={recipe.image}
-                alt={recipe.title}
-                fill
-                className="object-cover"
-              />
-            </div>
-            <div className="p-3">
-              <h2 className="font-mono text-sm truncate">{recipe.title}</h2>
-              {recipe.readyInMinutes && (
-                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                  {recipe.readyInMinutes} mins
-                </p>
-              )}
-            </div>
-          </a>
+            <h3 className="font-mono text-lg">{recipe.title}</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-mono">
+              {recipe.description}
+            </p>
+          </div>
         ))}
       </div>
 

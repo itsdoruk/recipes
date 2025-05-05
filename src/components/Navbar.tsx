@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/lib/auth';
 
 export default function Navbar() {
@@ -23,6 +22,12 @@ export default function Navbar() {
                   className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono"
                 >
                   create
+                </Link>
+                <Link
+                  href="/profile"
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono"
+                >
+                  profile
                 </Link>
                 <button
                   onClick={() => signOut()}

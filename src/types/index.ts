@@ -18,7 +18,7 @@ export interface Recipe {
     amount: number;
     unit: string;
   }
-  
+
   export interface User {
     id: string;
     email: string;
