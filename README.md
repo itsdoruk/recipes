@@ -1,6 +1,6 @@
 # [recipes]
 
-A simple app to create and manage your recipes, made for [neighborhood.hackclub.com]|Hack Club's neighborhood|
+A simple app to create and manage your recipes, made for Hack Club's neighborhood
 
 ## Features
 
