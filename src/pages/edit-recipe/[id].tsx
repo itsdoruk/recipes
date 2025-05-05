@@ -1,8 +1,8 @@
-import { useState } from "react";
-import Head from "next/head";
-import { useRouter } from "next/router";
-import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
 
 const CUISINE_TYPES = [
   'italian',
@@ -27,55 +27,101 @@ const COOKING_TIMES = [
   { label: '1 hour or less', value: '60' },
 ];
 
-export default function CreateRecipePage() {
+interface Recipe {
+  id: string;
+  title: string;
+  description: string;
+  image_url: string | null;
+  user_id: string;
+  cuisine_type: string | null;
+  cooking_time: string | null;
+  diet_type: string | null;
+}
+
+export default function EditRecipePage() {
   const router = useRouter();
+  const { id } = router.query;
   const { user } = useAuth();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [cuisineType, setCuisineType] = useState('');
-  const [cookingTime, setCookingTime] = useState('');
-  const [dietType, setDietType] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!id || !user) return;
+
+    const fetchRecipe = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('recipes')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (error) throw error;
+
+        if (data.user_id !== user.id) {
+          router.push('/');
+          return;
+        }
+
+        setRecipe(data);
+      } catch (err) {
+        console.error('Error fetching recipe:', err);
+        setError('Failed to load recipe');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRecipe();
+  }, [id, user, router]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user) return;
+    if (!recipe || !user) return;
 
-    setIsSubmitting(true);
+    setIsSaving(true);
     setError(null);
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('recipes')
-        .insert({
-          title,
-          description,
-          image_url: imageUrl || null,
-          user_id: user.id,
-          cuisine_type: cuisineType || null,
-          cooking_time: cookingTime || null,
-          diet_type: dietType || null,
+        .update({
+          title: recipe.title,
+          description: recipe.description,
+          image_url: recipe.image_url,
+          cuisine_type: recipe.cuisine_type,
+          cooking_time: recipe.cooking_time,
+          diet_type: recipe.diet_type,
+          updated_at: new Date().toISOString(),
         })
-        .select()
-        .single();
+        .eq('id', recipe.id)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
-      router.push(`/recipe/${data.id}`);
+      router.push(`/recipe/${recipe.id}`);
     } catch (err) {
-      console.error('Error creating recipe:', err);
-      setError('Failed to create recipe');
+      console.error('Error updating recipe:', err);
+      setError('Failed to update recipe');
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   };
 
-  if (!user) {
+  if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="font-mono">please sign in to create a recipe</p>
+        <p className="font-mono">loading...</p>
+      </div>
+    );
+  }
+
+  if (error || !recipe) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <p className="font-mono text-red-500">{error || 'Recipe not found'}</p>
       </div>
     );
   }
@@ -83,13 +129,13 @@ export default function CreateRecipePage() {
   return (
     <>
       <Head>
-        <title>create recipe | [recipes]</title>
+        <title>edit recipe | [recipes]</title>
       </Head>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
         <div className="space-y-8">
           <div className="flex justify-between items-center">
-            <h1 className="font-mono text-2xl">create recipe</h1>
+            <h1 className="font-mono text-2xl">edit recipe</h1>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -100,8 +146,8 @@ export default function CreateRecipePage() {
               <input
                 type="text"
                 id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                value={recipe.title}
+                onChange={(e) => setRecipe({ ...recipe, title: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
                 required
               />
@@ -113,8 +159,8 @@ export default function CreateRecipePage() {
               </label>
               <textarea
                 id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                value={recipe.description}
+                onChange={(e) => setRecipe({ ...recipe, description: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
                 required
               />
@@ -127,8 +173,8 @@ export default function CreateRecipePage() {
               <input
                 type="url"
                 id="image_url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
+                value={recipe.image_url || ''}
+                onChange={(e) => setRecipe({ ...recipe, image_url: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
               />
             </div>
@@ -136,8 +182,8 @@ export default function CreateRecipePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <select
                 id="cuisine_type"
-                value={cuisineType}
-                onChange={(e) => setCuisineType(e.target.value)}
+                value={recipe.cuisine_type || ''}
+                onChange={(e) => setRecipe({ ...recipe, cuisine_type: e.target.value })}
                 className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
               >
                 <option value="">any cuisine</option>
@@ -150,8 +196,8 @@ export default function CreateRecipePage() {
 
               <select
                 id="cooking_time"
-                value={cookingTime}
-                onChange={(e) => setCookingTime(e.target.value)}
+                value={recipe.cooking_time || ''}
+                onChange={(e) => setRecipe({ ...recipe, cooking_time: e.target.value })}
                 className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
               >
                 <option value="">any time</option>
@@ -164,8 +210,8 @@ export default function CreateRecipePage() {
 
               <select
                 id="diet_type"
-                value={dietType}
-                onChange={(e) => setDietType(e.target.value)}
+                value={recipe.diet_type || ''}
+                onChange={(e) => setRecipe({ ...recipe, diet_type: e.target.value })}
                 className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
               >
                 <option value="">any diet</option>
@@ -184,10 +230,10 @@ export default function CreateRecipePage() {
             <div className="flex gap-4">
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSaving}
                 className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono disabled:opacity-50"
               >
-                {isSubmitting ? 'creating...' : 'create recipe'}
+                {isSaving ? 'saving...' : 'save changes'}
               </button>
               <button
                 type="button"
@@ -202,4 +248,4 @@ export default function CreateRecipePage() {
       </main>
     </>
   );
-}
+} 

@@ -30,30 +30,51 @@ interface SearchOptions {
 
 export async function searchRecipes(query: string, options: SearchOptions = {}): Promise<Recipe[]> {
   if (!SPOONACULAR_API_KEY) {
-    throw new Error('Spoonacular API key is not configured');
+    console.error('Spoonacular API key is not configured');
+    return [];
   }
 
-  const params = new URLSearchParams({
-    apiKey: SPOONACULAR_API_KEY,
-    query,
-    addRecipeInformation: 'true',
-    number: '12',
-    ...(options.diet && { diet: options.diet }),
-    ...(options.cuisine && { cuisine: options.cuisine }),
-    ...(options.maxReadyTime && { maxReadyTime: options.maxReadyTime.toString() })
-  });
+  try {
+    const params = new URLSearchParams({
+      apiKey: SPOONACULAR_API_KEY,
+      query,
+      addRecipeInformation: 'true',
+      number: '12',
+      ...(options.diet && { diet: options.diet }),
+      ...(options.cuisine && { cuisine: options.cuisine }),
+      ...(options.maxReadyTime && { maxReadyTime: options.maxReadyTime.toString() })
+    });
 
-  const response = await fetch(`${SPOONACULAR_API_URL}/complexSearch?${params}`);
+    console.log('Fetching recipes from Spoonacular with params:', params.toString());
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch recipes');
+    const response = await fetch(`${SPOONACULAR_API_URL}/complexSearch?${params}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Spoonacular API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      return [];
+    }
+
+    const data = await response.json();
+    console.log('Spoonacular API response:', data);
+
+    if (!data.results || !Array.isArray(data.results)) {
+      console.error('Invalid response format from Spoonacular:', data);
+      return [];
+    }
+
+    return data.results;
+  } catch (error) {
+    console.error('Error fetching recipes from Spoonacular:', error);
+    return [];
   }
-
-  const data = await response.json();
-  return data.results;
 }
 
-export async function getRecipeById(id: number | string): Promise<Recipe> {
+export async function getRecipeById(id: number | string): Promise<Recipe | null> {
   // First try to get the recipe from Supabase
   try {
     const { data: supabaseRecipe, error: supabaseError } = await supabase
@@ -69,7 +90,7 @@ export async function getRecipeById(id: number | string): Promise<Recipe> {
         image: supabaseRecipe.image_url,
         instructions: supabaseRecipe.instructions.join('\n'),
         extendedIngredients: supabaseRecipe.ingredients.map((ing: string) => ({
-          id: Math.random(), // Generate a random ID since we don't have one
+          id: Math.random(),
           original: ing,
           amount: 0,
           unit: ''
@@ -83,7 +104,8 @@ export async function getRecipeById(id: number | string): Promise<Recipe> {
 
   // If not found in Supabase, try Spoonacular
   if (!SPOONACULAR_API_KEY) {
-    throw new Error('Spoonacular API key is not configured');
+    console.error('Spoonacular API key is not configured');
+    return null;
   }
 
   try {
@@ -92,16 +114,13 @@ export async function getRecipeById(id: number | string): Promise<Recipe> {
     );
 
     if (!response.ok) {
-      let errorMessage = `Failed to fetch recipe (Status: ${response.status})`;
-      try {
-        const errorData = await response.json();
-        if (errorData?.message) {
-          errorMessage = errorData.message;
-        }
-      } catch {
-        // If response is not JSON, use default error message
-      }
-      throw new Error(errorMessage);
+      const errorText = await response.text();
+      console.error('Spoonacular API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      return null;
     }
 
     const data = await response.json();
@@ -110,36 +129,55 @@ export async function getRecipeById(id: number | string): Promise<Recipe> {
       dateAdded: new Date().toISOString()
     };
   } catch (error) {
-    console.error('Error fetching recipe:', error);
-    throw error instanceof Error 
-      ? error 
-      : new Error('Failed to fetch recipe');
+    console.error('Error fetching recipe from Spoonacular:', error);
+    return null;
   }
 }
 
 export async function getPopularRecipes(): Promise<Recipe[]> {
   if (!SPOONACULAR_API_KEY) {
-    throw new Error('Spoonacular API key is not configured');
+    console.error('Spoonacular API key is not configured');
+    return [];
   }
 
-  const params = new URLSearchParams({
-    apiKey: SPOONACULAR_API_KEY,
-    number: '6',
-    sort: 'popularity',
-    addRecipeInformation: 'true'
-  });
+  try {
+    const params = new URLSearchParams({
+      apiKey: SPOONACULAR_API_KEY,
+      number: '6',
+      sort: 'popularity',
+      addRecipeInformation: 'true'
+    });
 
-  const response = await fetch(`${SPOONACULAR_API_URL}/complexSearch?${params}`);
+    console.log('Fetching popular recipes from Spoonacular');
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch popular recipes');
+    const response = await fetch(`${SPOONACULAR_API_URL}/complexSearch?${params}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Spoonacular API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      return [];
+    }
+
+    const data = await response.json();
+    console.log('Spoonacular API response:', data);
+
+    if (!data.results || !Array.isArray(data.results)) {
+      console.error('Invalid response format from Spoonacular:', data);
+      return [];
+    }
+
+    return data.results.map((recipe: Recipe) => ({
+      ...recipe,
+      dateAdded: new Date().toISOString()
+    }));
+  } catch (error) {
+    console.error('Error fetching popular recipes from Spoonacular:', error);
+    return [];
   }
-
-  const data = await response.json();
-  return data.results.map((recipe: Recipe) => ({
-    ...recipe,
-    dateAdded: new Date().toISOString()
-  }));
 }
 
 // Example usage:

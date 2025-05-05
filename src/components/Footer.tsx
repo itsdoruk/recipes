@@ -1,19 +1,36 @@
+import { useEffect, useState } from 'react';
+
 export default function Footer() {
+  const [commitHash, setCommitHash] = useState<string>('');
+
+  useEffect(() => {
+    const fetchCommitHash = async () => {
+      try {
+        const response = await fetch('/api/commit-hash');
+        const data = await response.json();
+        setCommitHash(data.hash);
+      } catch (error) {
+        console.error('Failed to fetch commit hash:', error);
+      }
+    };
+
+    fetchCommitHash();
+  }, []);
+
   return (
-    <footer className="border-t border-gray-200 dark:border-gray-800 py-4">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <p className="text-center text-sm text-gray-600 dark:text-gray-400 font-mono">
-          made by{' '}
-          <a
-            href="https://github.com/itsdoruk"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline"
-          >
-            doruk sarp aydın
-          </a>
-        </p>
-      </div>
+    <footer className="max-w-2xl mx-auto px-4 py-8 text-center">
+      <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
+        made by{' '}
+        <a
+          href="https://github.com/itsdoruk"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:underline"
+        >
+          doruk sarp aydın
+        </a>
+        {' '}• commit: {commitHash || 'loading...'}
+      </p>
     </footer>
   );
 }
