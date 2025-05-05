@@ -4,8 +4,25 @@ import Head from 'next/head';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import Image from 'next/image';
+import { getRecipeById } from '@/lib/spoonacular';
 
-interface Recipe {
+interface SpoonacularRecipe {
+  id: number;
+  title: string;
+  image: string;
+  readyInMinutes?: number;
+  description?: string;
+  extendedIngredients: Array<{
+    original: string;
+  }>;
+  analyzedInstructions: Array<{
+    steps: Array<{
+      step: string;
+    }>;
+  }>;
+}
+
+interface LocalRecipe {
   id: string;
   title: string;
   ingredients: string[];
@@ -19,6 +36,8 @@ interface Recipe {
   };
 }
 
+type Recipe = SpoonacularRecipe | LocalRecipe;
+
 export default function RecipePage() {
   const router = useRouter();
   const { id } = router.query;
@@ -26,13 +45,17 @@ export default function RecipePage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isSpoonacular, setIsSpoonacular] = useState(false);
 
   useEffect(() => {
     if (!id) return;
 
     const fetchRecipe = async () => {
       try {
-        const { data, error } = await supabase
+        console.log('Fetching recipe with ID:', id);
+        
+        // First try to fetch from our database
+        const { data: localData, error: localError } = await supabase
           .from('recipes')
           .select(`
             *,
@@ -44,11 +67,26 @@ export default function RecipePage() {
           .eq('id', id)
           .single();
 
-        if (error) throw error;
-        setRecipe(data);
+        if (localData) {
+          console.log('Found local recipe:', localData);
+          setRecipe(localData as LocalRecipe);
+          setIsSpoonacular(false);
+          return;
+        }
+
+        // If not found in our database, try Spoonacular
+        try {
+          const spoonacularData = await getRecipeById(Number(id));
+          console.log('Found Spoonacular recipe:', spoonacularData);
+          setRecipe(spoonacularData as SpoonacularRecipe);
+          setIsSpoonacular(true);
+        } catch (spoonacularError) {
+          console.error('Spoonacular error:', spoonacularError);
+          throw new Error('Recipe not found in either database');
+        }
       } catch (err) {
         console.error('Error fetching recipe:', err);
-        setError('Failed to load recipe');
+        setError(err instanceof Error ? err.message : 'Failed to load recipe');
       } finally {
         setIsLoading(false);
       }
@@ -73,6 +111,8 @@ export default function RecipePage() {
     );
   }
 
+  const isLocalRecipe = 'user_id' in recipe;
+
   return (
     <>
       <Head>
@@ -83,21 +123,34 @@ export default function RecipePage() {
         <div className="space-y-8">
           <div>
             <h1 className="font-mono text-2xl mb-2">{recipe.title}</h1>
-            <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
-              by{' '}
-              <button
-                onClick={() => router.push(`/profile?id=${recipe.user_id}`)}
-                className="hover:underline"
-              >
-                {recipe.profiles?.username || 'anonymous'}
-              </button>
-            </p>
+            {isLocalRecipe && (
+              <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
+                by{' '}
+                <button
+                  onClick={() => router.push(`/profile?id=${recipe.user_id}`)}
+                  className="hover:underline"
+                >
+                  {recipe.profiles?.username || 'anonymous'}
+                </button>
+              </p>
+            )}
           </div>
 
-          {recipe.image_url && (
+          {isLocalRecipe ? (
+            recipe.image_url && (
+              <div className="relative w-full h-64 border border-gray-200 dark:border-gray-800">
+                <Image
+                  src={recipe.image_url}
+                  alt={recipe.title}
+                  fill
+                  className="object-cover"
+                />
+              </div>
+            )
+          ) : (
             <div className="relative w-full h-64 border border-gray-200 dark:border-gray-800">
               <Image
-                src={recipe.image_url}
+                src={recipe.image}
                 alt={recipe.title}
                 fill
                 className="object-cover"
@@ -105,29 +158,54 @@ export default function RecipePage() {
             </div>
           )}
 
+          {!isLocalRecipe && recipe.description && (
+            <div>
+              <h2 className="font-mono text-lg mb-2">description</h2>
+              <p className="font-mono text-gray-500 dark:text-gray-400">
+                {recipe.description}
+              </p>
+            </div>
+          )}
+
           <div>
             <h2 className="font-mono text-lg mb-2">ingredients</h2>
             <ul className="list-none space-y-1">
-              {recipe.ingredients.map((ingredient, index) => (
-                <li key={index} className="font-mono">
-                  • {ingredient}
-                </li>
-              ))}
+              {isLocalRecipe ? (
+                recipe.ingredients.map((ingredient, index) => (
+                  <li key={index} className="font-mono">
+                    • {ingredient}
+                  </li>
+                ))
+              ) : (
+                recipe.extendedIngredients.map((ingredient, index) => (
+                  <li key={index} className="font-mono">
+                    • {ingredient.original}
+                  </li>
+                ))
+              )}
             </ul>
           </div>
 
           <div>
             <h2 className="font-mono text-lg mb-2">instructions</h2>
             <ol className="list-decimal list-inside space-y-2">
-              {recipe.instructions.map((instruction, index) => (
-                <li key={index} className="font-mono">
-                  {instruction}
-                </li>
-              ))}
+              {isLocalRecipe ? (
+                recipe.instructions.map((instruction, index) => (
+                  <li key={index} className="font-mono">
+                    {instruction}
+                  </li>
+                ))
+              ) : (
+                recipe.analyzedInstructions[0]?.steps.map((step, index) => (
+                  <li key={index} className="font-mono">
+                    {step.step}
+                  </li>
+                ))
+              )}
             </ol>
           </div>
 
-          {user?.id === recipe.user_id && (
+          {isLocalRecipe && user?.id === recipe.user_id && (
             <div className="pt-4">
               <button
                 onClick={() => router.push(`/edit/${recipe.id}`)}

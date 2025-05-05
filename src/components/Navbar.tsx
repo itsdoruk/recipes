@@ -21,7 +21,7 @@ export default function Navbar() {
                   href="/create"
                   className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono"
                 >
-                  create
+                  create new recipe
                 </Link>
                 <Link
                   href="/profile"
