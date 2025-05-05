@@ -7,10 +7,11 @@ import Image from 'next/image';
 
 interface Profile {
   id: string;
-  username: string;
-  bio: string;
-  avatar_url: string;
+  username: string | null;
+  bio: string | null;
+  avatar_url: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 interface Recipe {
@@ -22,78 +23,85 @@ interface Recipe {
 
 export default function Profile() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    username: "",
+    bio: "",
+  });
 
   useEffect(() => {
-    if (!user && !router.query.id) {
+    if (!user) {
       router.push('/login');
       return;
     }
 
-    const checkTableStructure = async () => {
-      try {
-        const { error } = await supabase
-          .from('profiles')
-          .select('id')
-          .limit(1);
+    fetchProfile();
+    fetchUserRecipes();
+  }, [user, router]);
 
-        if (error) {
-          console.error('Profiles table error:', error);
-          if (error.code === '42P01') {
-            setError('Profiles table does not exist. Please run the SQL setup script.');
-          } else {
-            setError(`Database error: ${error.message}`);
-          }
-        }
-      } catch (err) {
-        console.error('Error checking table structure:', err);
-      }
-    };
-
-    checkTableStructure();
-
-    const fetchProfile = async () => {
-      const profileId = router.query.id || user?.id;
-      if (!profileId) return;
-
+  const fetchProfile = async () => {
+    try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', profileId)
+        .eq('user_id', user?.id)
         .single();
 
-      if (data) {
-        setProfile(data);
-        setPreviewUrl(data.avatar_url || '');
-      }
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Profile doesn't exist, create it
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert([
+              {
+                user_id: user?.id,
+                username: null,
+                bio: null,
+                avatar_url: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }
+            ])
+            .select()
+            .single();
 
-      // Fetch user's recipes
-      const { data: recipesData, error: recipesError } = await supabase
+          if (createError) throw createError;
+          setProfile(newProfile);
+        } else {
+          throw error;
+        }
+      } else {
+        setProfile(data);
+        setForm({
+          username: data.username || "",
+          bio: data.bio || "",
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+      setError('Failed to load profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchUserRecipes = async () => {
+    try {
+      const { data, error } = await supabase
         .from('recipes')
         .select('*')
-        .eq('user_id', profileId)
+        .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
 
-      if (recipesData) {
-        setRecipes(recipesData);
-      }
-    };
-
-    fetchProfile();
-  }, [user, router.query.id]);
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setAvatarFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      if (error) throw error;
+      setRecipes(data || []);
+    } catch (err) {
+      console.error('Error fetching recipes:', err);
     }
   };
 
@@ -101,202 +109,208 @@ export default function Profile() {
     e.preventDefault();
     if (!user) return;
 
-    setIsLoading(true);
-    setError('');
-    setSuccess('');
+    setIsSaving(true);
+    setError(null);
 
     try {
-      let avatar_url = profile?.avatar_url;
+      console.log('Updating profile for user:', user.id);
+      console.log('Update data:', {
+        username: form.username,
+        bio: form.bio,
+        updated_at: new Date().toISOString(),
+      });
 
-      if (avatarFile) {
-        try {
-          const fileExt = avatarFile.name.split('.').pop();
-          const fileName = `${user.id}-${Math.random()}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage
-            .from('avatars')
-            .upload(fileName, avatarFile);
-
-          if (uploadError) {
-            console.error('Storage upload error:', uploadError);
-            throw new Error(`Failed to upload image: ${uploadError.message}`);
-          }
-
-          const { data: { publicUrl } } = supabase.storage
-            .from('avatars')
-            .getPublicUrl(fileName);
-
-          avatar_url = publicUrl;
-        } catch (uploadErr) {
-          console.error('Avatar upload error:', uploadErr);
-          throw new Error(`Failed to upload avatar: ${uploadErr instanceof Error ? uploadErr.message : 'Unknown error'}`);
-        }
-      }
-
-      const { data, error: profileError } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.id,
-          username: profile?.username,
-          bio: profile?.bio,
-          avatar_url,
+        .update({
+          username: form.username,
+          bio: form.bio,
           updated_at: new Date().toISOString(),
         })
+        .eq('user_id', user.id)
         .select()
         .single();
 
-      if (profileError) {
-        console.error('Profile update error:', profileError);
-        throw new Error(`Failed to update profile: ${profileError.message}`);
+      if (error) {
+        console.error('Error updating profile:', error);
+        throw error;
       }
 
-      if (data) {
-        setProfile(data);
-        setSuccess('profile updated');
-      }
+      console.log('Profile updated successfully:', data);
+      setProfile(data);
+      setForm({
+        username: data.username || "",
+        bio: data.bio || "",
+      });
     } catch (err) {
       console.error('Error updating profile:', err);
       setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
-  if (!user && !router.query.id) return null;
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user || !e.target.files || !e.target.files[0]) return;
 
-  const isOwnProfile = !router.query.id || router.query.id === user?.id;
+    try {
+      setIsSaving(true);
+      setError(null);
+
+      const file = e.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      // Delete old avatar if exists
+      if (profile?.avatar_url) {
+        const oldPath = profile.avatar_url.split('/').pop();
+        if (oldPath) {
+          await supabase.storage
+            .from('avatars')
+            .remove([oldPath]);
+        }
+      }
+
+      // Upload new image
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // Update profile
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          avatar_url: publicUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      await fetchProfile();
+    } catch (err) {
+      console.error('Error uploading avatar:', err);
+      setError('Failed to upload avatar');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <>
       <Head>
-        <title>{profile?.username || 'Profile'} | [recipes]</title>
+        <title>profile</title>
       </Head>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="font-mono text-2xl mb-8 text-center">
-          {isOwnProfile ? 'my profile' : `${profile?.username}'s profile`}
-        </h1>
-
-        {error && (
-          <div className="mb-4 p-3 border border-red-200 dark:border-red-800 text-sm font-mono">
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="mb-4 p-3 border border-green-200 dark:border-green-800 text-sm font-mono">
-            {success}
-          </div>
-        )}
-
         <div className="space-y-8">
-          {isOwnProfile ? (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="flex items-center gap-6">
-                <div className="relative w-20 h-20 border border-gray-200 dark:border-gray-800">
-                  {previewUrl ? (
-                    <Image
-                      src={previewUrl}
-                      alt="Profile"
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gray-50 dark:bg-gray-900" />
-                  )}
-                </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarChange}
-                  className="text-sm font-mono"
-                />
-              </div>
+          <div className="flex justify-between items-center">
+            <h1 className="font-mono text-2xl">profile</h1>
+          </div>
 
-              <div>
-                <input
-                  type="email"
-                  value={user?.email || ''}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 font-mono"
-                />
-              </div>
+          {error && (
+            <p className="font-mono text-red-500">{error}</p>
+          )}
 
-              <input
-                type="text"
-                value={profile?.username || ''}
-                onChange={(e) => setProfile(prev => ({ ...prev!, username: e.target.value }))}
-                placeholder="username"
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none font-mono"
-              />
-
-              <textarea
-                value={profile?.bio || ''}
-                onChange={(e) => setProfile(prev => ({ ...prev!, bio: e.target.value }))}
-                placeholder="tell us about yourself..."
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none h-32 font-mono"
-              />
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed font-mono"
-                >
-                  {isLoading ? '...' : 'save'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => signOut()}
-                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono"
-                >
-                  sign out
-                </button>
-              </div>
-            </form>
+          {isLoading ? (
+            <p className="font-mono">loading...</p>
           ) : (
-            <div className="space-y-6">
-              <div className="flex items-center gap-6">
-                {profile?.avatar_url ? (
-                  <div className="relative w-20 h-20 border border-gray-200 dark:border-gray-800">
-                    <Image
-                      src={profile.avatar_url}
-                      alt={profile.username}
-                      fill
-                      className="object-cover"
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <img
+                      src={profile?.avatar_url || '/default-avatar.png'}
+                      alt="Profile"
+                      className="w-24 h-24 rounded-full object-cover"
+                    />
+                    <label
+                      htmlFor="avatar-upload"
+                      className="absolute bottom-0 right-0 p-1 bg-black text-white rounded-full cursor-pointer hover:opacity-80 transition-opacity"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </label>
+                    <input
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      className="hidden"
                     />
                   </div>
-                ) : (
-                  <div className="w-20 h-20 border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900" />
-                )}
+                  <div className="flex-1">
+                    <label className="block font-mono mb-2">username</label>
+                    <input
+                      type="text"
+                      value={form.username}
+                      onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-mono mb-2">bio</label>
+                  <textarea
+                    value={form.bio}
+                    onChange={(e) => setForm(prev => ({ ...prev, bio: e.target.value }))}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                  />
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{profile?.bio || 'no bio yet'}</p>
+
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono disabled:opacity-50"
+              >
+                {isSaving ? "saving..." : "save changes"}
+              </button>
+            </form>
+          )}
+
+          {recipes.length > 0 && (
+            <div className="mt-8">
+              <h2 className="font-mono text-xl mb-4">your recipes</h2>
+              <div className="space-y-4">
+                {recipes.map((recipe) => (
+                  <div
+                    key={recipe.id}
+                    className="p-4 border border-gray-200 dark:border-gray-800"
+                  >
+                    <h3 className="font-mono text-lg">{recipe.title}</h3>
+                    <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
+                      {new Date(recipe.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
-        </div>
-
-        <div className="mt-12">
-          <h2 className="font-mono text-xl mb-4">recipes</h2>
-          <div className="grid gap-4">
-            {recipes.map((recipe) => (
-              <div
-                key={recipe.id}
-                className="p-4 border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 transition-colors cursor-pointer"
-                onClick={() => router.push(`/recipe/${recipe.id}`)}
-              >
-                <h3 className="font-mono text-lg">{recipe.title}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-mono">
-                  {recipe.description}
-                </p>
-              </div>
-            ))}
-            {recipes.length === 0 && (
-              <p className="text-center text-gray-500 dark:text-gray-400 font-mono">
-                no recipes yet
-              </p>
-            )}
-          </div>
         </div>
       </main>
     </>

@@ -10,9 +10,9 @@ export default function Custom404() {
 
       <main className="max-w-sm mx-auto px-4 py-8">
         <div className="text-center space-y-8">
-          <h1 className="font-mono text-2xl">404</h1>
+          <h1 className="font-mono text-2xl">404: page not found</h1>
           <p className="font-mono text-gray-500 dark:text-gray-400">
-            page not found
+            are you sure 'bout that? we didn't find a page like this.
           </p>
           <Link
             href="/"
