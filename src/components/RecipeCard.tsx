@@ -15,6 +15,9 @@ interface RecipeCardProps {
   image_url: string | null;
   user_id: string;
   created_at: string;
+  cuisine_type?: string | null;
+  cooking_time?: string | null;
+  diet_type?: string | null;
 }
 
 export default function RecipeCard({
@@ -24,11 +27,19 @@ export default function RecipeCard({
   image_url,
   user_id,
   created_at,
+  cuisine_type,
+  cooking_time,
+  diet_type,
 }: RecipeCardProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
+      if (user_id === 'spoonacular') {
+        setProfile({ username: 'spoonacular', avatar_url: null });
+        return;
+      }
+
       const { data } = await supabase
         .from('profiles')
         .select('username, avatar_url')
@@ -56,9 +67,26 @@ export default function RecipeCard({
         </div>
       )}
       <h3 className="font-mono text-lg">{title}</h3>
-      <p className="font-mono text-sm text-gray-500 dark:text-gray-400 mt-2">
+      <p className="font-mono text-sm text-gray-500 dark:text-gray-400 mt-2 line-clamp-2">
         {description}
       </p>
+      <div className="flex flex-wrap gap-2 mt-2">
+        {cuisine_type && (
+          <span className="px-2 py-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 rounded">
+            {cuisine_type}
+          </span>
+        )}
+        {cooking_time && (
+          <span className="px-2 py-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 rounded">
+            {cooking_time}
+          </span>
+        )}
+        {diet_type && (
+          <span className="px-2 py-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 rounded">
+            {diet_type}
+          </span>
+        )}
+      </div>
       <div className="flex items-center gap-2 mt-4">
         {profile?.avatar_url && (
           <img

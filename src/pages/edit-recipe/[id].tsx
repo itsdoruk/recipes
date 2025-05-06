@@ -36,6 +36,8 @@ interface Recipe {
   cuisine_type: string | null;
   cooking_time: string | null;
   diet_type: string | null;
+  ingredients: string[];
+  instructions: string[];
 }
 
 export default function EditRecipePage() {
@@ -91,9 +93,11 @@ export default function EditRecipePage() {
           title: recipe.title,
           description: recipe.description,
           image_url: recipe.image_url,
-          cuisine_type: recipe.cuisine_type,
-          cooking_time: recipe.cooking_time,
-          diet_type: recipe.diet_type,
+          cuisine_type: recipe.cuisine_type || null,
+          cooking_time: recipe.cooking_time || null,
+          diet_type: recipe.diet_type || null,
+          ingredients: recipe.ingredients,
+          instructions: recipe.instructions,
           updated_at: new Date().toISOString(),
         })
         .eq('id', recipe.id)
@@ -221,6 +225,32 @@ export default function EditRecipePage() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label htmlFor="ingredients" className="block font-mono mb-2">
+                ingredients (one per line)
+              </label>
+              <textarea
+                id="ingredients"
+                value={recipe.ingredients.join('\n')}
+                onChange={(e) => setRecipe({ ...recipe, ingredients: e.target.value.split('\n').filter(i => i.trim()) })}
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="instructions" className="block font-mono mb-2">
+                instructions (one per line)
+              </label>
+              <textarea
+                id="instructions"
+                value={recipe.instructions.join('\n')}
+                onChange={(e) => setRecipe({ ...recipe, instructions: e.target.value.split('\n').filter(i => i.trim()) })}
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                required
+              />
             </div>
 
             {error && (

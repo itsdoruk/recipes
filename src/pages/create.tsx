@@ -34,6 +34,10 @@ export default function CreateRecipePage() {
   const [error, setError] = useState<string | null>(null);
   const [ingredients, setIngredients] = useState('');
   const [instructions, setInstructions] = useState('');
+  const [calories, setCalories] = useState('');
+  const [protein, setProtein] = useState('');
+  const [fat, setFat] = useState('');
+  const [carbohydrates, setCarbohydrates] = useState('');
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -70,6 +74,10 @@ export default function CreateRecipePage() {
           diet_type: dietType || null,
           ingredients: ingredientsArray,
           instructions: instructionsArray,
+          calories: calories || null,
+          protein: protein || null,
+          fat: fat || null,
+          carbohydrates: carbohydrates || null,
         })
         .select()
         .single();
@@ -237,6 +245,60 @@ Bake for 30 minutes`}
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <h2 className="font-mono text-xl mb-4 mt-8">nutrition</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label htmlFor="calories" className="block font-mono mb-2">calories</label>
+                  <input
+                    type="number"
+                    id="calories"
+                    value={calories}
+                    onChange={(e) => setCalories(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                    placeholder="calories"
+                    defaultValue="0"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="protein" className="block font-mono mb-2">protein</label>
+                  <input
+                    type="number"
+                    id="protein"
+                    value={protein}
+                    onChange={(e) => setProtein(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                    placeholder="protein"
+                    defaultValue="0"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="fat" className="block font-mono mb-2">fat</label>
+                  <input
+                    type="number"
+                    id="fat"
+                    value={fat}
+                    onChange={(e) => setFat(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                    placeholder="fat"
+                    defaultValue="0"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="carbohydrates" className="block font-mono mb-2">carbohydrates</label>
+                  <input
+                    type="number"
+                    id="carbohydrates"
+                    value={carbohydrates}
+                    onChange={(e) => setCarbohydrates(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                    placeholder="carbohydrates"
+                    defaultValue="0"
+                  />
+                </div>
+              </div>
             </div>
 
             {error && (

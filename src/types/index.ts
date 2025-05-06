@@ -10,6 +10,10 @@ export interface Recipe {
     userId: string;
     createdAt: Date;
     updatedAt: Date;
+    calories?: number;
+    protein?: number;
+    fat?: number;
+    carbohydrates?: number;
   }
   
   export interface Ingredient {

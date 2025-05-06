@@ -48,19 +48,27 @@ export default function RecipePage() {
     setIsLoading(true);
     setError(null);
     try {
-      const recipeData = await getRecipeById(id as string);
-      if (!recipeData) throw new Error('Recipe not found');
-      setRecipe(recipeData);
+      // First try to get recipe from Supabase
+      const { data: supabaseRecipe, error: supabaseError } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-      // Only fetch profile if this is a user recipe (has user_id)
-      if (recipeData.user_id) {
+      if (supabaseRecipe) {
+        setRecipe(supabaseRecipe);
+        // Fetch profile for user recipe
         const { data: profileData } = await supabase
           .from('profiles')
           .select('username, avatar_url')
-          .eq('user_id', recipeData.user_id)
+          .eq('user_id', supabaseRecipe.user_id)
           .single();
         setProfile(profileData);
       } else {
+        // If not found in Supabase, try Spoonacular
+        const spoonacularRecipe = await getRecipeById(id as string);
+        if (!spoonacularRecipe) throw new Error('Recipe not found');
+        setRecipe(spoonacularRecipe);
         setProfile(null);
       }
     } catch (err) {
@@ -134,20 +142,35 @@ export default function RecipePage() {
                   <img
                     src={profile.avatar_url}
                     alt={profile.username || 'anonymous'}
-                    className="w-8 h-8 rounded-full"
+                    className="w-8 h-8 rounded-full object-cover"
                   />
                 )}
-                {profile && hasUserId(recipe) && (
-                  <Link
-                    href={`/user/${hasUserId(recipe) ? recipe.user_id : ''}`}
-                    className="font-mono text-gray-500 dark:text-gray-400 hover:underline"
-                  >
-                    {profile.username || 'anonymous'}
-                  </Link>
-                )}
+                <Link
+                  href={`/user/${recipe.user_id}`}
+                  className="font-mono text-gray-500 dark:text-gray-400 hover:underline"
+                >
+                  {profile.username || 'anonymous'}
+                </Link>
                 <span className="font-mono text-gray-500 dark:text-gray-400">
-                  • {recipe.dateAdded ? new Date(recipe.dateAdded).toLocaleDateString() : ''}
+                  • {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString() : ''}
                 </span>
+                {isOwner && hasId(recipe) && (
+                  <div className="flex gap-2 ml-auto">
+                    <Link
+                      href={`/edit-recipe/${recipe.id}`}
+                      className="px-3 py-1 text-sm border rounded font-mono hover:bg-gray-100"
+                    >
+                      edit
+                    </Link>
+                    <button
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className="px-3 py-1 text-sm border rounded font-mono text-red-500 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {isDeleting ? 'deleting...' : 'delete'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -159,45 +182,43 @@ export default function RecipePage() {
 
           <div className="grid grid-cols-2 gap-4">
             {/* Cuisine */}
-            {(recipe.cuisine_type || (recipe.cuisines && recipe.cuisines.length > 0)) && (
-              <div>
-                <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">cuisine</h3>
-                <p className="font-mono">{recipe.cuisine_type || (recipe.cuisines && recipe.cuisines.join(', '))}</p>
-              </div>
-            )}
+            <div>
+              <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">cuisine</h3>
+              <p className="font-mono">{recipe.cuisine_type || (recipe.cuisines && recipe.cuisines.length > 0 && recipe.cuisines.join(', ')) || 'N/A'}</p>
+            </div>
             {/* Cooking Time */}
-            {(recipe.cooking_time || recipe.readyInMinutes) && (
-              <div>
-                <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">cooking time</h3>
-                <p className="font-mono">{recipe.cooking_time || (recipe.readyInMinutes + ' mins')}</p>
-              </div>
-            )}
+            <div>
+              <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">cooking time</h3>
+              <p className="font-mono">{(recipe.cooking_time_value && recipe.cooking_time_unit) ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit}` : recipe.cooking_time || (recipe.readyInMinutes && recipe.readyInMinutes + ' mins') || 'N/A'}</p>
+            </div>
             {/* Diet */}
-            {(recipe.diet_type || (recipe.diets && recipe.diets.length > 0)) && (
-              <div>
-                <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">diet</h3>
-                <p className="font-mono">{recipe.diet_type || (recipe.diets && recipe.diets.join(', '))}</p>
-              </div>
-            )}
+            <div>
+              <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">diet</h3>
+              <p className="font-mono">{recipe.diet_type || (recipe.diets && recipe.diets.length > 0 && recipe.diets.join(', ')) || 'N/A'}</p>
+            </div>
           </div>
 
-          {/* Nutrition Section for Spoonacular recipes */}
-          {recipe.nutrition && Array.isArray(recipe.nutrition.nutrients) && (
-            <div>
-              <h2 className="font-mono text-xl mb-4 mt-8">nutrition</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {['Calories', 'Protein', 'Fat', 'Carbohydrates'].map((nutrient) => {
+          {/* Nutrition Section for both user and Spoonacular recipes */}
+          <div>
+            <h2 className="font-mono text-xl mb-4 mt-8">nutrition</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {['Calories', 'Protein', 'Fat', 'Carbohydrates'].map((nutrient) => {
+                let value = 'N/A';
+                if (recipe.nutrition && Array.isArray(recipe.nutrition.nutrients)) {
                   const n = recipe.nutrition.nutrients.find((x: any) => x.name === nutrient);
-                  return n ? (
-                    <div key={nutrient} className="font-mono text-center">
-                      <div className="text-lg font-bold">{n.amount} {n.unit}</div>
-                      <div className="text-gray-500 dark:text-gray-400 text-sm">{nutrient.toLowerCase()}</div>
-                    </div>
-                  ) : null;
-                })}
-              </div>
+                  if (n) value = `${n.amount} ${n.unit}`;
+                } else if (recipe[nutrient.toLowerCase()]) {
+                  value = recipe[nutrient.toLowerCase()];
+                }
+                return (
+                  <div key={nutrient} className="font-mono text-center">
+                    <div className="text-lg font-bold">{value}</div>
+                    <div className="text-gray-500 dark:text-gray-400 text-sm">{nutrient.toLowerCase()}</div>
+                  </div>
+                );
+              })}
             </div>
-          )}
+          </div>
 
           {recipe.ingredients && (
             <div>
@@ -239,33 +260,6 @@ export default function RecipePage() {
               )}
             </div>
           )}
-
-          <div className="flex items-center gap-4 mb-4">
-            {profile && hasUserId(recipe) && (
-              <Link
-                href={`/user/${hasUserId(recipe) ? recipe.user_id : ''}`}
-                className="font-mono hover:underline"
-              >
-                {profile.username || 'anonymous'}
-              </Link>
-            )}
-            {isOwner && hasId(recipe) && (
-              <div className="flex gap-2">
-                <Link
-                  href={`/edit-recipe/${hasId(recipe) ? recipe.id : ''}`}
-                  className="px-3 py-1 text-sm border rounded font-mono hover:bg-gray-100"
-                >
-                  edit
-                </Link>
-                <button
-                  onClick={handleDelete}
-                  className="px-3 py-1 text-sm border rounded font-mono text-red-500 hover:bg-red-50"
-                >
-                  delete
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </main>
     </>

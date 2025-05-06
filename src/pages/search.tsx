@@ -41,25 +41,50 @@ export default function SearchPage() {
       setIsLoading(true);
       setError(null);
 
-      // Debug log
-      console.log('Spoonacular API Key available:', !!process.env.NEXT_PUBLIC_SPOONACULAR_API_KEY);
-
       try {
-        // Search local recipes
-        const { data: localRecipes, error: localError } = await supabase
+        // Search local recipes with expanded search criteria
+        const supabaseQuery = supabase
           .from('recipes')
           .select('*')
-          .ilike('title', `%${query}%`)
+          .or(
+            `title.ilike.%${query}%,` +
+            `description.ilike.%${query}%,` +
+            `ingredients.cs.{${query}},` +
+            `instructions.cs.{${query}}`
+          )
           .order('created_at', { ascending: false });
 
-        if (localError) throw localError;
+        // Apply filters to local recipes
+        if (cuisine) {
+          supabaseQuery.eq('cuisine_type', cuisine);
+        }
+        if (diet) {
+          supabaseQuery.eq('diet_type', diet);
+        }
+        if (time) {
+          supabaseQuery.lte('cooking_time_value', time);
+        }
+
+        const { data: localRecipes, error: localError } = await supabaseQuery;
+
+        if (localError) {
+          console.error('Error searching local recipes:', localError);
+          setError('Failed to search local recipes');
+          setRecipes([]);
+          return;
+        }
 
         let allRecipes = [...(localRecipes || [])];
 
-        // Try to search Spoonacular recipes, but don't fail if it errors
+        // Try to search Spoonacular recipes with filters
         try {
-          const spoonacularRecipes = await searchRecipes(query as string);
-          if (spoonacularRecipes) {
+          const spoonacularRecipes = await searchRecipes(query as string, {
+            cuisine: cuisine as string,
+            diet: diet as string,
+            maxReadyTime: time ? parseInt(time as string) : undefined,
+          });
+          
+          if (spoonacularRecipes && spoonacularRecipes.length > 0) {
             allRecipes = [...allRecipes, ...spoonacularRecipes];
           }
         } catch (spoonacularError) {
@@ -67,10 +92,18 @@ export default function SearchPage() {
           // Continue with just local recipes
         }
 
+        // Sort combined results by date (newest first)
+        allRecipes.sort((a, b) => {
+          const dateA = 'created_at' in a ? new Date(a.created_at) : new Date();
+          const dateB = 'created_at' in b ? new Date(b.created_at) : new Date();
+          return dateB.getTime() - dateA.getTime();
+        });
+
         setRecipes(allRecipes);
       } catch (err) {
         console.error('Error searching recipes:', err);
         setError('Failed to search recipes');
+        setRecipes([]);
       } finally {
         setIsLoading(false);
       }

@@ -23,14 +23,14 @@ export interface Recipe {
 }
 
 interface SearchOptions {
-  diet?: string;
   cuisine?: string;
+  diet?: string;
   maxReadyTime?: number;
 }
 
 export async function searchRecipes(query: string, options: SearchOptions = {}): Promise<Recipe[]> {
   if (!SPOONACULAR_API_KEY) {
-    console.error('Spoonacular API key is not configured');
+    console.warn('No Spoonacular API key found');
     return [];
   }
 
@@ -38,38 +38,42 @@ export async function searchRecipes(query: string, options: SearchOptions = {}):
     const params = new URLSearchParams({
       apiKey: SPOONACULAR_API_KEY,
       query,
+      number: '10',
       addRecipeInformation: 'true',
-      number: '12',
-      ...(options.diet && { diet: options.diet }),
-      ...(options.cuisine && { cuisine: options.cuisine }),
-      ...(options.maxReadyTime && { maxReadyTime: options.maxReadyTime.toString() })
     });
 
-    console.log('Fetching recipes from Spoonacular with params:', params.toString());
+    // Add optional filters
+    if (options.cuisine) {
+      params.append('cuisine', options.cuisine);
+    }
+    if (options.diet) {
+      params.append('diet', options.diet);
+    }
+    if (options.maxReadyTime) {
+      params.append('maxReadyTime', options.maxReadyTime.toString());
+    }
 
     const response = await fetch(`${SPOONACULAR_API_URL}/complexSearch?${params}`);
-
     if (!response.ok) {
-      const errorText = await response.text();
       console.error('Spoonacular API error:', {
         status: response.status,
-        statusText: response.statusText,
-        error: errorText
+        statusText: response.statusText
       });
       return [];
     }
 
     const data = await response.json();
-    console.log('Spoonacular API response:', data);
-
     if (!data.results || !Array.isArray(data.results)) {
       console.error('Invalid response format from Spoonacular:', data);
       return [];
     }
 
-    return data.results;
+    return data.results.map((recipe: any) => ({
+      ...recipe,
+      dateAdded: new Date().toISOString()
+    }));
   } catch (error) {
-    console.error('Error fetching recipes from Spoonacular:', error);
+    console.error('Error searching Spoonacular recipes:', error);
     return [];
   }
 }
