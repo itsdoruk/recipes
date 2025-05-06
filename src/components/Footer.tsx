@@ -22,7 +22,7 @@ export default function Footer() {
       <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
         made by{' '}
         <a
-          href="https://github.com/itsdoruk"
+          href="https://dsplash.xyz/"
           target="_blank"
           rel="noopener noreferrer"
           className="hover:underline"

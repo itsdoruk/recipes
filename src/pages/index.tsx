@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Head from "next/head";
-import Image from "next/image";
-import { searchRecipes, type Recipe, getPopularRecipes } from "@/lib/spoonacular";
 import { useRouter } from "next/router";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { GetServerSideProps } from "next";
 
 interface SearchFilters {
   diet: string;
@@ -12,11 +11,35 @@ interface SearchFilters {
   maxReadyTime: number;
 }
 
-export default function Home() {
+interface HomeProps {
+  initialRecipes: LocalRecipe[];
+}
+
+interface LocalRecipe {
+  id: string;
+  title: string;
+  description: string;
+  image_url: string;
+  user_id: string;
+  created_at: string;
+  cuisine_type: string | null;
+  cooking_time: string | null;
+  diet_type: string | null;
+}
+
+interface SpoonacularSearchResult {
+  id: number;
+  title: string;
+  image: string;
+  summary?: string;
+  readyInMinutes?: number;
+}
+
+export default function Home({ initialRecipes }: HomeProps) {
   const router = useRouter();
   const { user } = useAuth();
   const [query, setQuery] = useState("");
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recipes, setRecipes] = useState<LocalRecipe[]>(initialRecipes);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<SearchFilters>({
@@ -25,67 +48,89 @@ export default function Home() {
     maxReadyTime: 0
   });
 
-  useEffect(() => {
-    const fetchAllRecipes = async () => {
-      try {
-        // Fetch from Supabase
-        const { data: supabaseRecipes, error: supabaseError } = await supabase
-          .from('recipes')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (supabaseError) throw supabaseError;
-
-        // Transform Supabase recipes to match Recipe interface
-        const transformedRecipes = supabaseRecipes.map(recipe => ({
-          id: recipe.id,
-          title: recipe.title,
-          image: recipe.image_url,
-          instructions: recipe.instructions.join('\n'),
-          extendedIngredients: recipe.ingredients.map((ing: string) => ({
-            id: Math.random(),
-            original: ing,
-            amount: 0,
-            unit: ''
-          })),
-          dateAdded: recipe.created_at
-        }));
-
-        // Fetch from Spoonacular
-        const spoonacularRecipes = await getPopularRecipes();
-
-        // Combine and sort by date
-        const allRecipes = [...transformedRecipes, ...spoonacularRecipes]
-          .sort((a, b) => new Date(b.dateAdded || '').getTime() - new Date(a.dateAdded || '').getTime());
-
-        setRecipes(allRecipes);
-      } catch (err) {
-        console.error("Failed to fetch recipes:", err);
-        setError("Failed to load recipes");
-      }
-    };
-
-    fetchAllRecipes();
-  }, []);
-
-  const handleSearch = async (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!query.trim()) return;
-
     setIsLoading(true);
     setError(null);
 
     try {
-      const results = await searchRecipes(query, {
-        diet: filters.diet,
-        cuisine: filters.cuisine,
-        maxReadyTime: filters.maxReadyTime
-      });
-      setRecipes(results);
+      // Build the query for local recipes
+      let supabaseQuery = supabase
+        .from('recipes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      // Add search term filter if provided
+      if (query) {
+        supabaseQuery = supabaseQuery.or(`title.ilike.%${query}%,description.ilike.%${query}%`);
+      }
+
+      // Add cuisine type filter if provided
+      if (filters.cuisine) {
+        supabaseQuery = supabaseQuery.eq('cuisine_type', filters.cuisine);
+      }
+
+      // Add diet type filter if provided
+      if (filters.diet) {
+        supabaseQuery = supabaseQuery.eq('diet_type', filters.diet);
+      }
+
+      // Add cooking time filter if provided
+      if (filters.maxReadyTime) {
+        supabaseQuery = supabaseQuery.eq('cooking_time_value', filters.maxReadyTime);
+      }
+
+      // Execute the query
+      const { data: localRecipes, error: localError } = await supabaseQuery;
+
+      if (localError) throw localError;
+
+      // Transform local recipes to match LocalRecipe interface
+      const transformedLocalRecipes = localRecipes?.map(recipe => ({
+        id: recipe.id,
+        title: recipe.title,
+        description: recipe.description,
+        image_url: recipe.image_url,
+        user_id: recipe.user_id,
+        created_at: recipe.created_at,
+        cuisine_type: recipe.cuisine_type,
+        cooking_time: recipe.cooking_time_value ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit}` : null,
+        diet_type: recipe.diet_type,
+      })) || [];
+
+      // Search Spoonacular if search term is provided
+      let spoonacularRecipes: LocalRecipe[] = [];
+      if (query) {
+        try {
+          const response = await fetch(
+            `https://api.spoonacular.com/recipes/complexSearch?apiKey=${process.env.NEXT_PUBLIC_SPOONACULAR_API_KEY}&query=${query}&addRecipeInformation=true&number=10`
+          );
+          const data = await response.json();
+          spoonacularRecipes = data.results.map((recipe: SpoonacularSearchResult) => ({
+            id: `spoonacular-${recipe.id}`,
+            title: recipe.title,
+            description: recipe.summary?.replace(/<[^>]*>/g, '') || '',
+            image_url: recipe.image,
+            user_id: 'spoonacular',
+            created_at: new Date().toISOString(),
+            cuisine_type: null, // Spoonacular doesn't provide this in the search results
+            cooking_time: recipe.readyInMinutes ? `${recipe.readyInMinutes} mins` : null,
+            diet_type: null, // Spoonacular doesn't provide this in the search results
+          }));
+        } catch (err) {
+          console.error('Error fetching from Spoonacular:', err);
+        }
+      }
+
+      // Combine and sort recipes
+      const allRecipes = [...transformedLocalRecipes, ...spoonacularRecipes].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setRecipes(allRecipes);
     } catch (err) {
-      console.error("Search error:", err);
-      setError("Failed to search recipes");
-      setRecipes([]);
+      console.error('Error searching recipes:', err);
+      setError('Failed to search recipes');
     } finally {
       setIsLoading(false);
     }
@@ -174,25 +219,25 @@ export default function Home() {
             {recipes.map((recipe) => (
               <div
                 key={recipe.id}
-                onClick={() => router.push(`/recipe/${recipe.id}`)}
                 className="border border-gray-200 dark:border-gray-800 p-4 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => router.push(`/recipe/${recipe.id}`)}
               >
                 <div className="relative w-full h-48 mb-4">
                   <img
-                    src={recipe.image}
+                    src={recipe.image_url}
                     alt={recipe.title}
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <h2 className="font-mono text-lg mb-2">{recipe.title}</h2>
                 <div className="flex justify-between items-center">
-                  {recipe.readyInMinutes && (
+                  {recipe.cooking_time && (
                     <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
-                      {recipe.readyInMinutes} mins
+                      {recipe.cooking_time}
                     </p>
                   )}
                   <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
-                    {new Date(recipe.dateAdded || Date.now()).toLocaleDateString()}
+                    {new Date(recipe.created_at).toLocaleDateString()}
                   </p>
                 </div>
               </div>
@@ -203,3 +248,41 @@ export default function Home() {
     </>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async () => {
+  try {
+    // Fetch recipes from Supabase
+    const { data: supabaseRecipes, error: supabaseError } = await supabase
+      .from('recipes')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (supabaseError) throw supabaseError;
+
+    // Transform Supabase recipes to match LocalRecipe interface
+    const transformedRecipes = supabaseRecipes.map(recipe => ({
+      id: recipe.id,
+      title: recipe.title,
+      description: recipe.description,
+      image_url: recipe.image_url,
+      user_id: recipe.user_id,
+      created_at: recipe.created_at,
+      cuisine_type: recipe.cuisine_type,
+      cooking_time: recipe.cooking_time_value ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit}` : null,
+      diet_type: recipe.diet_type,
+    }));
+
+    return {
+      props: {
+        initialRecipes: transformedRecipes,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching initial recipes:', error);
+    return {
+      props: {
+        initialRecipes: [],
+      },
+    };
+  }
+};

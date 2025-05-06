@@ -33,6 +33,8 @@ export default function Profile() {
     username: "",
     bio: "",
   });
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     if (!user) {
@@ -154,35 +156,64 @@ export default function Profile() {
     if (!user || !e.target.files || !e.target.files[0]) return;
 
     try {
-      setIsSaving(true);
+      setIsUploading(true);
+      setUploadProgress(0);
       setError(null);
 
       const file = e.target.files[0];
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Please upload an image file');
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('Image size must be less than 5MB');
+      }
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}-${Math.random()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
       // Delete old avatar if exists
       if (profile?.avatar_url) {
-        const oldPath = profile.avatar_url.split('/').pop();
-        if (oldPath) {
-          await supabase.storage
-            .from('avatars')
-            .remove([oldPath]);
+        try {
+          const oldPath = profile.avatar_url.split('/').pop();
+          if (oldPath) {
+            await supabase.storage
+              .from('avatars')
+              .remove([oldPath]);
+          }
+        } catch (err) {
+          console.error('Error deleting old avatar:', err);
+          // Continue with upload even if delete fails
         }
       }
+
+      setUploadProgress(30);
 
       // Upload new image
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error('Failed to upload image. Please try again.');
+      }
+
+      setUploadProgress(60);
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
+
+      setUploadProgress(80);
 
       // Update profile
       const { error: updateError } = await supabase
@@ -193,14 +224,19 @@ export default function Profile() {
         })
         .eq('user_id', user.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Update error:', updateError);
+        throw new Error('Failed to update profile with new avatar');
+      }
 
+      setUploadProgress(100);
       await fetchProfile();
     } catch (err) {
       console.error('Error uploading avatar:', err);
-      setError('Failed to upload avatar');
+      setError(err instanceof Error ? err.message : 'Failed to upload avatar');
     } finally {
-      setIsSaving(false);
+      setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -231,14 +267,21 @@ export default function Profile() {
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <img
-                      src={profile?.avatar_url || '/default-avatar.png'}
-                      alt="Profile"
-                      className="w-24 h-24 rounded-full object-cover"
-                    />
+                    <div className="relative w-24 h-24">
+                      <img
+                        src={profile?.avatar_url || '/default-avatar.png'}
+                        alt="Profile"
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                      {isUploading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
+                          <div className="text-white text-sm">{uploadProgress}%</div>
+                        </div>
+                      )}
+                    </div>
                     <label
                       htmlFor="avatar-upload"
-                      className="absolute bottom-0 right-0 p-1 bg-black text-white rounded-full cursor-pointer hover:opacity-80 transition-opacity"
+                      className={`absolute bottom-0 right-0 p-1 bg-black text-white rounded-full cursor-pointer hover:opacity-80 transition-opacity ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -259,6 +302,7 @@ export default function Profile() {
                       accept="image/*"
                       onChange={handleAvatarUpload}
                       className="hidden"
+                      disabled={isUploading}
                     />
                   </div>
                   <div className="flex-1">

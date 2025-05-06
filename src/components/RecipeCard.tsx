@@ -18,6 +18,7 @@ interface RecipeCardProps {
   cuisine_type?: string | null;
   cooking_time?: string | null;
   diet_type?: string | null;
+  readyInMinutes?: number;
 }
 
 export default function RecipeCard({
@@ -30,6 +31,7 @@ export default function RecipeCard({
   cuisine_type,
   cooking_time,
   diet_type,
+  readyInMinutes,
 }: RecipeCardProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
 
@@ -76,9 +78,9 @@ export default function RecipeCard({
             {cuisine_type}
           </span>
         )}
-        {cooking_time && (
+        {(cooking_time || readyInMinutes) && (
           <span className="px-2 py-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 rounded">
-            {cooking_time}
+            {cooking_time || `${readyInMinutes} mins`}
           </span>
         )}
         {diet_type && (

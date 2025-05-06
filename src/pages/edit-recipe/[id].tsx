@@ -20,19 +20,13 @@ const DIET_TYPES = [
   'paleo',
 ];
 
-const COOKING_TIMES = [
-  { label: '15 mins or less', value: '15' },
-  { label: '30 mins or less', value: '30' },
-  { label: '45 mins or less', value: '45' },
-  { label: '1 hour or less', value: '60' },
-];
-
 interface Recipe {
   id: string;
   title: string;
   description: string;
   image_url: string | null;
   user_id: string;
+  created_at: string;
   cuisine_type: string | null;
   cooking_time: string | null;
   diet_type: string | null;
@@ -83,6 +77,12 @@ export default function EditRecipePage() {
     e.preventDefault();
     if (!recipe || !user) return;
 
+    // Validate cooking time value is a number
+    if (recipe.cooking_time && !/^\d+\s+(seconds|mins|days)$/.test(recipe.cooking_time)) {
+      setError('Cooking time must be a number followed by a unit (seconds, mins, or days)');
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
 
@@ -103,12 +103,15 @@ export default function EditRecipePage() {
         .eq('id', recipe.id)
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase update error:', error);
+        throw error;
+      }
 
       router.push(`/recipe/${recipe.id}`);
     } catch (err) {
       console.error('Error updating recipe:', err);
-      setError('Failed to update recipe');
+      setError(err instanceof Error ? err.message : 'Failed to update recipe');
     } finally {
       setIsSaving(false);
     }
@@ -183,6 +186,39 @@ export default function EditRecipePage() {
               />
             </div>
 
+            <div>
+              <label htmlFor="ingredients" className="block font-mono mb-2">
+                ingredients (one per line)
+              </label>
+              <textarea
+                id="ingredients"
+                value={recipe.ingredients.join('\n')}
+                onChange={(e) => setRecipe({ ...recipe, ingredients: e.target.value.split('\n').filter(i => i.trim()) })}
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                required
+                placeholder={`e.g. 2 eggs
+1 cup flour
+1/2 cup sugar`}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="instructions" className="block font-mono mb-2">
+                instructions (one step per line)
+              </label>
+              <textarea
+                id="instructions"
+                value={recipe.instructions.join('\n')}
+                onChange={(e) => setRecipe({ ...recipe, instructions: e.target.value.split('\n').filter(i => i.trim()) })}
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                required
+                placeholder={`e.g. Preheat oven to 350F
+Mix flour and sugar
+Add eggs and stir
+Bake for 30 minutes`}
+              />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <select
                 id="cuisine_type"
@@ -198,19 +234,37 @@ export default function EditRecipePage() {
                 ))}
               </select>
 
-              <select
-                id="cooking_time"
-                value={recipe.cooking_time || ''}
-                onChange={(e) => setRecipe({ ...recipe, cooking_time: e.target.value })}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
-              >
-                <option value="">any time</option>
-                {COOKING_TIMES.map((time) => (
-                  <option key={time.value} value={time.value}>
-                    {time.label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  id="cooking_time"
+                  value={recipe.cooking_time || ''}
+                  onChange={(e) => {
+                    // Only allow numeric characters and spaces
+                    const val = e.target.value.replace(/[^0-9\s]/g, '');
+                    setRecipe({ ...recipe, cooking_time: val });
+                  }}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono w-full"
+                  min="0"
+                  placeholder="cooking time"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
+                />
+                <select
+                  id="cooking_time_unit"
+                  value={recipe.cooking_time?.split(' ')[1] || 'mins'}
+                  onChange={(e) => {
+                    const value = recipe.cooking_time?.split(' ')[0] || '';
+                    setRecipe({ ...recipe, cooking_time: value ? `${value} ${e.target.value}` : null });
+                  }}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                >
+                  <option value="seconds">seconds</option>
+                  <option value="mins">mins</option>
+                  <option value="days">days</option>
+                </select>
+              </div>
 
               <select
                 id="diet_type"
@@ -227,50 +281,13 @@ export default function EditRecipePage() {
               </select>
             </div>
 
-            <div>
-              <label htmlFor="ingredients" className="block font-mono mb-2">
-                ingredients (one per line)
-              </label>
-              <textarea
-                id="ingredients"
-                value={recipe.ingredients.join('\n')}
-                onChange={(e) => setRecipe({ ...recipe, ingredients: e.target.value.split('\n').filter(i => i.trim()) })}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="instructions" className="block font-mono mb-2">
-                instructions (one per line)
-              </label>
-              <textarea
-                id="instructions"
-                value={recipe.instructions.join('\n')}
-                onChange={(e) => setRecipe({ ...recipe, instructions: e.target.value.split('\n').filter(i => i.trim()) })}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
-                required
-              />
-            </div>
-
-            {error && (
-              <p className="font-mono text-red-500">{error}</p>
-            )}
-
-            <div className="flex gap-4">
+            <div className="flex justify-end">
               <button
                 type="submit"
                 disabled={isSaving}
                 className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono disabled:opacity-50"
               >
-                {isSaving ? 'saving...' : 'save changes'}
-              </button>
-              <button
-                type="button"
-                onClick={() => router.back()}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono"
-              >
-                cancel
+                {isSaving ? 'saving...' : 'save'}
               </button>
             </div>
           </form>
