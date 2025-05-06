@@ -30,15 +30,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       setLoading(false);
 
-      if (event === 'SIGNED_IN') {
+      // Only redirect if the user is on login or logout pages
+      if (event === 'SIGNED_IN' && router.pathname === '/login') {
         router.push('/');
-      } else if (event === 'SIGNED_OUT') {
+      } else if (event === 'SIGNED_OUT' && router.pathname !== '/login') {
         router.push('/login');
       }
     });
 
     return () => subscription.unsubscribe();
   }, [router]);
+
+  // Only render children after loading is complete
+  if (loading) {
+    return <div className="font-mono p-8 text-center">Loading...</div>;
+  }
 
   const signIn = async (email: string, password: string) => {
     try {

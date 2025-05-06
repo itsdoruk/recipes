@@ -20,13 +20,6 @@ const DIET_TYPES = [
   'paleo',
 ];
 
-const COOKING_TIMES = [
-  { label: '15 mins or less', value: '15' },
-  { label: '30 mins or less', value: '30' },
-  { label: '45 mins or less', value: '45' },
-  { label: '1 hour or less', value: '60' },
-];
-
 export default function CreateRecipePage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -34,19 +27,36 @@ export default function CreateRecipePage() {
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [cuisineType, setCuisineType] = useState('');
-  const [cookingTime, setCookingTime] = useState('');
+  const [cookingTimeValue, setCookingTimeValue] = useState('');
+  const [cookingTimeUnit, setCookingTimeUnit] = useState('mins');
   const [dietType, setDietType] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ingredients, setIngredients] = useState('');
+  const [instructions, setInstructions] = useState('');
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
 
+    // Validate cooking time value is a number
+    if (!/^\d+$/.test(cookingTimeValue)) {
+      setError('Cooking time must be a number');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
+      const ingredientsArray = ingredients
+        .split('\n')
+        .map((i) => i.trim())
+        .filter(Boolean);
+      const instructionsArray = instructions
+        .split('\n')
+        .map((i) => i.trim())
+        .filter(Boolean);
       const { data, error } = await supabase
         .from('recipes')
         .insert({
@@ -55,8 +65,11 @@ export default function CreateRecipePage() {
           image_url: imageUrl || null,
           user_id: user.id,
           cuisine_type: cuisineType || null,
-          cooking_time: cookingTime || null,
+          cooking_time_value: cookingTimeValue || null,
+          cooking_time_unit: cookingTimeUnit || null,
           diet_type: dietType || null,
+          ingredients: ingredientsArray,
+          instructions: instructionsArray,
         })
         .select()
         .single();
@@ -133,6 +146,39 @@ export default function CreateRecipePage() {
               />
             </div>
 
+            <div>
+              <label htmlFor="ingredients" className="block font-mono mb-2">
+                ingredients (one per line)
+              </label>
+              <textarea
+                id="ingredients"
+                value={ingredients}
+                onChange={(e) => setIngredients(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                required
+                placeholder={`e.g. 2 eggs
+1 cup flour
+1/2 cup sugar`}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="instructions" className="block font-mono mb-2">
+                instructions (one step per line)
+              </label>
+              <textarea
+                id="instructions"
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                required
+                placeholder={`e.g. Preheat oven to 350F
+Mix flour and sugar
+Add eggs and stir
+Bake for 30 minutes`}
+              />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <select
                 id="cuisine_type"
@@ -148,19 +194,35 @@ export default function CreateRecipePage() {
                 ))}
               </select>
 
-              <select
-                id="cooking_time"
-                value={cookingTime}
-                onChange={(e) => setCookingTime(e.target.value)}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
-              >
-                <option value="">any time</option>
-                {COOKING_TIMES.map((time) => (
-                  <option key={time.value} value={time.value}>
-                    {time.label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  id="cooking_time_value"
+                  value={cookingTimeValue}
+                  onChange={(e) => {
+                    // Only allow numeric characters
+                    const val = e.target.value.replace(/[^0-9]/g, '');
+                    setCookingTimeValue(val);
+                  }}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono w-full"
+                  min="0"
+                  placeholder="cooking time"
+                  required
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
+                />
+                <select
+                  id="cooking_time_unit"
+                  value={cookingTimeUnit}
+                  onChange={(e) => setCookingTimeUnit(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                >
+                  <option value="seconds">seconds</option>
+                  <option value="mins">mins</option>
+                  <option value="days">days</option>
+                </select>
+              </div>
 
               <select
                 id="diet_type"

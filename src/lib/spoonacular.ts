@@ -74,32 +74,39 @@ export async function searchRecipes(query: string, options: SearchOptions = {}):
   }
 }
 
-export async function getRecipeById(id: number | string): Promise<Recipe | null> {
-  // First try to get the recipe from Supabase
-  try {
-    const { data: supabaseRecipe, error: supabaseError } = await supabase
-      .from('recipes')
-      .select('*')
-      .eq('id', id)
-      .single();
+function isUUID(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
 
-    if (supabaseRecipe) {
-      return {
-        id: supabaseRecipe.id,
-        title: supabaseRecipe.title,
-        image: supabaseRecipe.image_url,
-        instructions: supabaseRecipe.instructions.join('\n'),
-        extendedIngredients: supabaseRecipe.ingredients.map((ing: string) => ({
-          id: Math.random(),
-          original: ing,
-          amount: 0,
-          unit: ''
-        })),
-        dateAdded: supabaseRecipe.created_at
-      };
+export async function getRecipeById(id: number | string): Promise<Recipe | null> {
+  const idStr = String(id);
+  // Only query Supabase if the id is a valid UUID string
+  if (isUUID(idStr)) {
+    try {
+      const { data: supabaseRecipe, error: supabaseError } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('id', idStr)
+        .single();
+
+      if (supabaseRecipe) {
+        return {
+          id: supabaseRecipe.id,
+          title: supabaseRecipe.title,
+          image: supabaseRecipe.image_url,
+          instructions: supabaseRecipe.instructions.join('\n'),
+          extendedIngredients: supabaseRecipe.ingredients.map((ing: string) => ({
+            id: Math.random(),
+            original: ing,
+            amount: 0,
+            unit: ''
+          })),
+          dateAdded: supabaseRecipe.created_at
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching recipe from Supabase:', error);
     }
-  } catch (error) {
-    console.error('Error fetching recipe from Supabase:', error);
   }
 
   // If not found in Supabase, try Spoonacular
