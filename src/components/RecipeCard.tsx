@@ -19,6 +19,7 @@ interface RecipeCardProps {
   cooking_time?: string | null;
   diet_type?: string | null;
   readyInMinutes?: number;
+  link?: string; // Optional custom link
 }
 
 export default function RecipeCard({
@@ -32,16 +33,16 @@ export default function RecipeCard({
   cooking_time,
   diet_type,
   readyInMinutes,
+  link,
 }: RecipeCardProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (user_id === 'spoonacular') {
-        setProfile({ username: 'spoonacular', avatar_url: null });
+      if (user_id === 'spoonacular' || user_id === 'internet') {
+        setProfile({ username: user_id, avatar_url: null });
         return;
       }
-
       const { data } = await supabase
         .from('profiles')
         .select('username, avatar_url')
@@ -49,7 +50,6 @@ export default function RecipeCard({
         .single();
       setProfile(data);
     };
-
     fetchProfile();
   }, [user_id]);
 
@@ -62,11 +62,8 @@ export default function RecipeCard({
     return cleanText.length > 150 ? cleanText.substring(0, 150) + '...' : cleanText;
   };
 
-  return (
-    <Link
-      href={`/recipe/${id}`}
-      className="block p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-    >
+  const cardContent = (
+    <>
       {image_url && (
         <div className="relative w-full h-48 mb-4">
           <Image
@@ -115,6 +112,22 @@ export default function RecipeCard({
           </div>
         </div>
       </div>
+    </>
+  );
+
+  return link ? (
+    <Link
+      href={link}
+      className="block p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+    >
+      {cardContent}
+    </Link>
+  ) : (
+    <Link
+      href={`/recipe/${id}`}
+      className="block p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+    >
+      {cardContent}
     </Link>
   );
 }

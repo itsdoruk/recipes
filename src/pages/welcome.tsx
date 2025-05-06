@@ -85,8 +85,10 @@ export default function DiscoverPage() {
       });
 
       const data = await response.json();
-      // Convert markdown to HTML using marked
-      const formattedResponse = marked(data.choices[0].message.content);
+      let formattedResponse = marked(data.choices[0].message.content);
+      if (formattedResponse instanceof Promise) {
+        formattedResponse = await formattedResponse;
+      }
       setAiResponse(formattedResponse);
     } catch (err) {
       console.error('Error getting AI recommendation:', err);

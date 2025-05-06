@@ -40,34 +40,52 @@ export default function RecipePage() {
 
   useEffect(() => {
     if (!id) return;
-    fetchRecipe();
-    // eslint-disable-next-line
-  }, [id]);
+    const fetchRecipe = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Check for random-internet recipe in localStorage
+        if (typeof window !== 'undefined' && typeof id === 'string' && id.startsWith('random-internet-')) {
+          const local = localStorage.getItem(id);
+          if (local) {
+            setRecipe(JSON.parse(local));
+            setProfile(null);
+            setIsLoading(false);
+            return;
+          } else {
+            setError('Could not find this AI-improvised recipe.');
+            setIsLoading(false);
+            return;
+          }
+        }
 
-  const fetchRecipe = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // First try to get recipe from Supabase
-      const { data: supabaseRecipe, error: supabaseError } = await supabase
-        .from('recipes')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (supabaseRecipe) {
-        setRecipe(supabaseRecipe);
-        // Fetch profile for user recipe
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('username, avatar_url')
-          .eq('user_id', supabaseRecipe.user_id)
+        // First try to get recipe from Supabase
+        const { data: supabaseRecipe, error: supabaseError } = await supabase
+          .from('recipes')
+          .select('*')
+          .eq('id', id)
           .single();
-        setProfile(profileData);
-      } else {
+
+        if (supabaseRecipe) {
+          setRecipe(supabaseRecipe);
+          // Fetch profile for user recipe
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('username, avatar_url')
+            .eq('user_id', supabaseRecipe.user_id)
+            .single();
+          setProfile(profileData);
+          setIsLoading(false);
+          return;
+        }
+
         // If not found in Supabase, try Spoonacular
         const spoonacularRecipe = await getRecipeById(id as string);
-        if (!spoonacularRecipe) throw new Error('Recipe not found');
+        if (!spoonacularRecipe) {
+          setError('Recipe not found. It may have been removed or is no longer available.');
+          setIsLoading(false);
+          return;
+        }
         
         // Transform Spoonacular recipe data to match our format
         const transformedRecipe = {
@@ -87,14 +105,15 @@ export default function RecipePage() {
         
         setRecipe(transformedRecipe);
         setProfile(null);
+      } catch (err) {
+        console.error('Error fetching recipe:', err);
+        setError('Failed to load recipe. Please try again later.');
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error('Error fetching recipe:', err);
-      setError('Failed to load recipe');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
+    fetchRecipe();
+  }, [id]);
 
   const handleDelete = async () => {
     if (!recipe || !user || recipe.user_id !== user.id) return;
