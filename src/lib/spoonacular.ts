@@ -5,7 +5,7 @@ const SPOONACULAR_API_KEY = process.env.NEXT_PUBLIC_SPOONACULAR_API_KEY;
 const SPOONACULAR_API_URL = 'https://api.spoonacular.com/recipes';
 
 export interface Recipe {
-  id: number;
+  id: number | string;
   title: string;
   image: string;
   readyInMinutes?: number;
@@ -20,6 +20,20 @@ export interface Recipe {
     amount: number;
     unit: string;
   }[];
+  cuisines?: string[];
+  diets?: string[];
+  analyzedInstructions?: Array<{
+    steps: Array<{
+      step: string;
+    }>;
+  }>;
+  nutrition?: {
+    nutrients: Array<{
+      name: string;
+      amount: number;
+      unit: string;
+    }>;
+  };
 }
 
 interface SearchOptions {
@@ -84,6 +98,12 @@ function isUUID(id: string): boolean {
 
 export async function getRecipeById(id: number | string): Promise<Recipe | null> {
   const idStr = String(id);
+  
+  // Extract the actual Spoonacular ID if it's in our custom format
+  const spoonacularId = idStr.startsWith('spoonacular-') 
+    ? idStr.split('-')[1] 
+    : idStr;
+
   // Only query Supabase if the id is a valid UUID string
   if (isUUID(idStr)) {
     try {
@@ -121,7 +141,7 @@ export async function getRecipeById(id: number | string): Promise<Recipe | null>
 
   try {
     const response = await fetch(
-      `${SPOONACULAR_API_URL}/${id}/information?apiKey=${SPOONACULAR_API_KEY}`
+      `${SPOONACULAR_API_URL}/${spoonacularId}/information?apiKey=${SPOONACULAR_API_KEY}`
     );
 
     if (!response.ok) {
@@ -137,6 +157,7 @@ export async function getRecipeById(id: number | string): Promise<Recipe | null>
     const data = await response.json();
     return {
       ...data,
+      id: `spoonacular-${data.id}`,
       dateAdded: new Date().toISOString()
     };
   } catch (error) {

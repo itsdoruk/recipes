@@ -68,7 +68,24 @@ export default function RecipePage() {
         // If not found in Supabase, try Spoonacular
         const spoonacularRecipe = await getRecipeById(id as string);
         if (!spoonacularRecipe) throw new Error('Recipe not found');
-        setRecipe(spoonacularRecipe);
+        
+        // Transform Spoonacular recipe data to match our format
+        const transformedRecipe = {
+          ...spoonacularRecipe,
+          image_url: spoonacularRecipe.image,
+          user_id: 'spoonacular',
+          created_at: spoonacularRecipe.dateAdded,
+          cuisine_type: spoonacularRecipe.cuisines?.[0] || null,
+          cooking_time: spoonacularRecipe.readyInMinutes ? `${spoonacularRecipe.readyInMinutes} mins` : null,
+          diet_type: spoonacularRecipe.diets?.[0] || null,
+          ingredients: spoonacularRecipe.extendedIngredients?.map((ing: any) => ing.original) || [],
+          instructions: spoonacularRecipe.analyzedInstructions?.[0]?.steps?.map((step: any) => step.step) || [],
+          nutrition: spoonacularRecipe.nutrition,
+          servings: spoonacularRecipe.servings,
+          sourceUrl: spoonacularRecipe.sourceUrl
+        };
+        
+        setRecipe(transformedRecipe);
         setProfile(null);
       }
     } catch (err) {

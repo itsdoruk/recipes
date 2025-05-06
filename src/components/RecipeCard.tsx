@@ -53,6 +53,15 @@ export default function RecipeCard({
     fetchProfile();
   }, [user_id]);
 
+  // Format description text
+  const formatDescription = (text: string | null | undefined) => {
+    if (!text) return '';
+    // Remove HTML tags if any
+    const cleanText = text.replace(/<[^>]*>/g, '');
+    // Limit to 150 characters
+    return cleanText.length > 150 ? cleanText.substring(0, 150) + '...' : cleanText;
+  };
+
   return (
     <Link
       href={`/recipe/${id}`}
@@ -68,45 +77,43 @@ export default function RecipeCard({
           />
         </div>
       )}
-      <h3 className="font-mono text-lg">{title}</h3>
-      <p className="font-mono text-sm text-gray-500 dark:text-gray-400 mt-2 line-clamp-2">
-        {description}
+      <h2 className="font-mono text-lg mb-2">{title}</h2>
+      <p className="font-mono text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
+        {formatDescription(description)}
       </p>
-      <div className="flex flex-wrap gap-2 mt-2">
-        {cuisine_type && (
-          <span className="px-2 py-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 rounded">
-            {cuisine_type}
-          </span>
-        )}
-        {(cooking_time || readyInMinutes) && (
-          <span className="px-2 py-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 rounded">
-            {cooking_time || `${readyInMinutes} mins`}
-          </span>
-        )}
-        {diet_type && (
-          <span className="px-2 py-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 rounded">
-            {diet_type}
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-2 mt-4">
-        {profile?.avatar_url && (
+      <div className="flex items-center gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+        {profile?.avatar_url ? (
           <img
             src={profile.avatar_url}
             alt={profile.username || 'anonymous'}
-            className="w-6 h-6 rounded-full"
+            className="w-8 h-8 rounded-full object-cover"
           />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {profile?.username?.[0]?.toUpperCase() || 'A'}
+            </span>
+          </div>
         )}
-        <Link
-          href={`/user/${user_id}`}
-          onClick={(e) => e.stopPropagation()}
-          className="font-mono text-sm text-gray-500 dark:text-gray-400 hover:underline"
-        >
-          {profile?.username || 'anonymous'}
-        </Link>
-        <span className="font-mono text-sm text-gray-500 dark:text-gray-400">
-          • {new Date(created_at).toLocaleDateString()}
-        </span>
+        <div className="flex flex-col">
+          <Link
+            href={`/user/${user_id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="font-mono text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          >
+            {profile?.username || 'anonymous'}
+          </Link>
+          <div className="flex items-center gap-2">
+            {cooking_time && (
+              <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
+                {cooking_time}
+              </p>
+            )}
+            <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
+              {new Date(created_at).toLocaleDateString()}
+            </p>
+          </div>
+        </div>
       </div>
     </Link>
   );

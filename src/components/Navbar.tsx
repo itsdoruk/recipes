@@ -26,6 +26,16 @@ export default function Navbar() {
             >
               [recipes]
             </Link>
+            <div className="flex items-center ml-8 space-x-4">
+              <Link
+                href="/welcome"
+                className={`font-mono hover:opacity-80 transition-opacity ${
+                  router.pathname === '/welcome' ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'
+                }`}
+              >
+                discover
+              </Link>
+            </div>
           </div>
 
           <div className="flex items-center gap-4">

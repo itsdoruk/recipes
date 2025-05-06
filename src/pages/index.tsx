@@ -1,9 +1,11 @@
-import { useState } from "react";
-import Head from "next/head";
-import { useRouter } from "next/router";
-import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
-import { GetServerSideProps } from "next";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
+import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
+import { getPopularRecipes } from '@/lib/spoonacular';
+import RecipeCard from '@/components/RecipeCard';
+import { GetServerSideProps } from 'next';
 
 interface SearchFilters {
   diet: string;
@@ -19,7 +21,7 @@ interface LocalRecipe {
   id: string;
   title: string;
   description: string;
-  image_url: string;
+  image_url: string | null;
   user_id: string;
   created_at: string;
   cuisine_type: string | null;
@@ -35,11 +37,15 @@ interface SpoonacularSearchResult {
   readyInMinutes?: number;
 }
 
+const PIZZA_IMG = 'https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fwp.scoopwhoop.com%2Fwp-content%2Fuploads%2F2019%2F08%2F5d638187e2a04c57823e8c95_a299d096-af8e-452b-9b7b-3e78ac7ea7b6.jpg&f=1&nofb=1&ipt=d7d3b877a8815443046fe8942df8ed873c4e24f0bf1e00b24696f69816de2ff7';
+const PIZZA_AUDIO = '/pizza-time-theme.mp3';
+
 export default function Home({ initialRecipes }: HomeProps) {
   const router = useRouter();
   const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [recipes, setRecipes] = useState<LocalRecipe[]>(initialRecipes);
+  const [popularRecipes, setPopularRecipes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<SearchFilters>({
@@ -47,98 +53,179 @@ export default function Home({ initialRecipes }: HomeProps) {
     cuisine: "",
     maxReadyTime: 0
   });
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const observer = useRef<IntersectionObserver | null>(null);
+  const loadingRef = useCallback((node: HTMLDivElement) => {
+    if (isLoading) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        setPage(prevPage => prevPage + 1);
+      }
+    });
+    if (node) observer.current.observe(node);
+  }, [isLoading, hasMore]);
+  const [konamiCode, setKonamiCode] = useState<string[]>([]);
+  const [easterEggActive, setEasterEggActive] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const fetchPopularRecipes = async () => {
+      try {
+        const popular = await getPopularRecipes();
+        setPopularRecipes(popular);
+      } catch (err) {
+        console.error('Error fetching popular recipes:', err);
+      }
+    };
+
+    fetchPopularRecipes();
+  }, []);
+
+  useEffect(() => {
+    const loadMoreRecipes = async () => {
+      if (!hasMore || isLoading) return;
+      
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Build the query for local recipes
+        let supabaseQuery = supabase
+          .from('recipes')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range((page - 1) * 10, page * 10 - 1);
+
+        // Add search term filter if provided
+        if (query) {
+          supabaseQuery = supabaseQuery.or(`title.ilike.%${query}%,description.ilike.%${query}%`);
+        }
+
+        // Add cuisine type filter if provided
+        if (filters.cuisine) {
+          supabaseQuery = supabaseQuery.eq('cuisine_type', filters.cuisine);
+        }
+
+        // Add diet type filter if provided
+        if (filters.diet) {
+          supabaseQuery = supabaseQuery.eq('diet_type', filters.diet);
+        }
+
+        // Add cooking time filter if provided
+        if (filters.maxReadyTime) {
+          supabaseQuery = supabaseQuery.eq('cooking_time_value', filters.maxReadyTime);
+        }
+
+        // Execute the query
+        const { data: localRecipes, error: localError } = await supabaseQuery;
+
+        if (localError) throw localError;
+
+        // Transform local recipes to match LocalRecipe interface
+        const transformedLocalRecipes = localRecipes?.map(recipe => ({
+          id: recipe.id,
+          title: recipe.title,
+          description: recipe.description,
+          image_url: recipe.image_url,
+          user_id: recipe.user_id,
+          created_at: recipe.created_at,
+          cuisine_type: recipe.cuisine_type,
+          cooking_time: recipe.cooking_time_value ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit}` : null,
+          diet_type: recipe.diet_type,
+        })) || [];
+
+        setRecipes(prev => [...prev, ...transformedLocalRecipes]);
+        setHasMore(transformedLocalRecipes.length === 10);
+      } catch (err) {
+        console.error('Error loading more recipes:', err);
+        setError('Failed to load more recipes');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadMoreRecipes();
+  }, [page, query, filters, hasMore]);
 
   const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Build the query for local recipes
-      let supabaseQuery = supabase
-        .from('recipes')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      // Add search term filter if provided
-      if (query) {
-        supabaseQuery = supabaseQuery.or(`title.ilike.%${query}%,description.ilike.%${query}%`);
-      }
-
-      // Add cuisine type filter if provided
-      if (filters.cuisine) {
-        supabaseQuery = supabaseQuery.eq('cuisine_type', filters.cuisine);
-      }
-
-      // Add diet type filter if provided
-      if (filters.diet) {
-        supabaseQuery = supabaseQuery.eq('diet_type', filters.diet);
-      }
-
-      // Add cooking time filter if provided
-      if (filters.maxReadyTime) {
-        supabaseQuery = supabaseQuery.eq('cooking_time_value', filters.maxReadyTime);
-      }
-
-      // Execute the query
-      const { data: localRecipes, error: localError } = await supabaseQuery;
-
-      if (localError) throw localError;
-
-      // Transform local recipes to match LocalRecipe interface
-      const transformedLocalRecipes = localRecipes?.map(recipe => ({
-        id: recipe.id,
-        title: recipe.title,
-        description: recipe.description,
-        image_url: recipe.image_url,
-        user_id: recipe.user_id,
-        created_at: recipe.created_at,
-        cuisine_type: recipe.cuisine_type,
-        cooking_time: recipe.cooking_time_value ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit}` : null,
-        diet_type: recipe.diet_type,
-      })) || [];
-
-      // Search Spoonacular if search term is provided
-      let spoonacularRecipes: LocalRecipe[] = [];
-      if (query) {
-        try {
-          const response = await fetch(
-            `https://api.spoonacular.com/recipes/complexSearch?apiKey=${process.env.NEXT_PUBLIC_SPOONACULAR_API_KEY}&query=${query}&addRecipeInformation=true&number=10`
-          );
-          const data = await response.json();
-          spoonacularRecipes = data.results.map((recipe: SpoonacularSearchResult) => ({
-            id: `spoonacular-${recipe.id}`,
-            title: recipe.title,
-            description: recipe.summary?.replace(/<[^>]*>/g, '') || '',
-            image_url: recipe.image,
-            user_id: 'spoonacular',
-            created_at: new Date().toISOString(),
-            cuisine_type: null, // Spoonacular doesn't provide this in the search results
-            cooking_time: recipe.readyInMinutes ? `${recipe.readyInMinutes} mins` : null,
-            diet_type: null, // Spoonacular doesn't provide this in the search results
-          }));
-        } catch (err) {
-          console.error('Error fetching from Spoonacular:', err);
-        }
-      }
-
-      // Combine and sort recipes
-      const allRecipes = [...transformedLocalRecipes, ...spoonacularRecipes].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-      setRecipes(allRecipes);
-    } catch (err) {
-      console.error('Error searching recipes:', err);
-      setError('Failed to search recipes');
-    } finally {
-      setIsLoading(false);
-    }
+    setPage(1);
+    setRecipes([]);
+    setHasMore(true);
   };
 
   const handleFilterChange = (key: keyof SearchFilters, value: string | number) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+    setPage(1);
+    setRecipes([]);
+    setHasMore(true);
   };
+
+  useEffect(() => {
+    const secretCode = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const newKonami = [...konamiCode, e.key];
+      if (newKonami.length > secretCode.length) newKonami.shift();
+      setKonamiCode(newKonami);
+      if (newKonami.join(',') === secretCode.join(',')) {
+        setEasterEggActive(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [konamiCode]);
+
+  useEffect(() => {
+    if (!easterEggActive) return;
+    // Replace all images
+    const replaceImages = () => {
+      document.querySelectorAll('img').forEach(img => {
+        img.src = PIZZA_IMG;
+        img.srcset = '';
+      });
+      // Next.js <Image> uses <img> under the hood, so this works for both
+      document.querySelectorAll('[style*="background-image"]').forEach(el => {
+        (el as HTMLElement).style.backgroundImage = `url('${PIZZA_IMG}')`;
+      });
+    };
+    // Replace all text nodes
+    const replaceText = (node: Node) => {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+        node.textContent = 'mamma mia';
+      } else {
+        node.childNodes.forEach(replaceText);
+      }
+    };
+    replaceImages();
+    replaceText(document.body);
+    // Also observe DOM changes to keep replacing new content
+    const observer = new MutationObserver(() => {
+      replaceImages();
+      replaceText(document.body);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    // Play audio in loop
+    if (!audioRef.current) {
+      const audio = document.createElement('audio');
+      audio.src = PIZZA_AUDIO;
+      audio.loop = true;
+      audio.autoplay = true;
+      audio.style.display = 'none';
+      document.body.appendChild(audio);
+      audioRef.current = audio;
+      audio.play();
+    }
+    return () => {
+      observer.disconnect();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.remove();
+        audioRef.current = null;
+      }
+    };
+  }, [easterEggActive]);
 
   return (
     <>
@@ -215,33 +302,46 @@ export default function Home({ initialRecipes }: HomeProps) {
             <p className="font-mono text-red-500">{error}</p>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {recipes.map((recipe) => (
-              <div
-                key={recipe.id}
-                className="border border-gray-200 dark:border-gray-800 p-4 cursor-pointer hover:opacity-80 transition-opacity"
-                onClick={() => router.push(`/recipe/${recipe.id}`)}
-              >
-                <div className="relative w-full h-48 mb-4">
-                  <img
-                    src={recipe.image_url}
-                    alt={recipe.title}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <h2 className="font-mono text-lg mb-2">{recipe.title}</h2>
-                <div className="flex justify-between items-center">
-                  {recipe.cooking_time && (
-                    <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
-                      {recipe.cooking_time}
-                    </p>
-                  )}
-                  <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
-                    {new Date(recipe.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-            ))}
+          {/* All Recipes Section */}
+          <div className="space-y-4">
+            <h2 className="font-mono text-xl">recipes</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Show popular recipes first */}
+              {popularRecipes.map((recipe) => (
+                <RecipeCard
+                  key={recipe.id}
+                  id={`spoonacular-${recipe.id}`}
+                  title={recipe.title}
+                  description={recipe.summary?.replace(/<[^>]*>/g, '') || ''}
+                  image_url={recipe.image}
+                  user_id="spoonacular"
+                  created_at={new Date().toISOString()}
+                  cuisine_type={recipe.cuisines?.[0] || null}
+                  cooking_time={recipe.readyInMinutes ? `${recipe.readyInMinutes} mins` : null}
+                  diet_type={recipe.diets?.[0] || null}
+                  readyInMinutes={recipe.readyInMinutes}
+                />
+              ))}
+              {/* Then show user recipes */}
+              {recipes.map((recipe) => (
+                <RecipeCard
+                  key={recipe.id}
+                  id={recipe.id}
+                  title={recipe.title}
+                  description={recipe.description}
+                  image_url={recipe.image_url}
+                  user_id={recipe.user_id}
+                  created_at={recipe.created_at}
+                  cuisine_type={recipe.cuisine_type}
+                  cooking_time={recipe.cooking_time}
+                  diet_type={recipe.diet_type}
+                />
+              ))}
+            </div>
+            {/* Loading indicator */}
+            <div ref={loadingRef} className="h-10 flex items-center justify-center">
+              {isLoading && <p className="font-mono">loading more recipes...</p>}
+            </div>
           </div>
         </div>
       </main>
