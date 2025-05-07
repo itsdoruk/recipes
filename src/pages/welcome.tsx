@@ -8,19 +8,14 @@ import Image from 'next/image';
 import { marked } from 'marked';
 
 const CUISINE_TYPES = [
-  'italian',
-  'mexican',
-  'asian',
-  'american',
-  'mediterranean',
+  'italian', 'mexican', 'asian', 'american', 'mediterranean',
+  'french', 'chinese', 'japanese', 'indian', 'thai', 'greek',
+  'spanish', 'british', 'turkish', 'korean', 'vietnamese', 'german', 'caribbean', 'african', 'middle eastern', 'russian', 'brazilian'
 ];
 
 const DIET_TYPES = [
-  'vegetarian',
-  'vegan',
-  'gluten-free',
-  'ketogenic',
-  'paleo',
+  'vegetarian', 'vegan', 'gluten-free', 'ketogenic', 'paleo',
+  'pescatarian', 'lacto-vegetarian', 'ovo-vegetarian', 'whole30', 'low-fodmap', 'dairy-free', 'nut-free', 'halal', 'kosher'
 ];
 
 const COOKING_TIMES = [

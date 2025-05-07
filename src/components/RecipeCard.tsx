@@ -20,6 +20,7 @@ interface RecipeCardProps {
   diet_type?: string | null;
   readyInMinutes?: number;
   link?: string; // Optional custom link
+  loading?: boolean; // New prop
 }
 
 export default function RecipeCard({
@@ -34,6 +35,7 @@ export default function RecipeCard({
   diet_type,
   readyInMinutes,
   link,
+  loading = false,
 }: RecipeCardProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
 
@@ -115,18 +117,20 @@ export default function RecipeCard({
     </>
   );
 
+  const cardClass =
+    "block p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity" +
+    (loading ? " opacity-60 pointer-events-none select-none" : "");
+
+  if (loading) {
+    return <div className={cardClass}>{cardContent}</div>;
+  }
+
   return link ? (
-    <Link
-      href={link}
-      className="block p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-    >
+    <Link href={link} className={cardClass}>
       {cardContent}
     </Link>
   ) : (
-    <Link
-      href={`/recipe/${id}`}
-      className="block p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-    >
+    <Link href={`/recipe/${id}`} className={cardClass}>
       {cardContent}
     </Link>
   );

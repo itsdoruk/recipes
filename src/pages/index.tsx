@@ -43,31 +43,26 @@ const PIZZA_AUDIO = '/pizza-time-theme.mp3';
 const RANDOM_CARD_IMG = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80'; // A fun food image
 
 const CUISINE_TYPES = [
-  'italian',
-  'mexican',
-  'asian',
-  'american',
-  'mediterranean',
+  'italian', 'mexican', 'asian', 'american', 'mediterranean',
+  'french', 'chinese', 'japanese', 'indian', 'thai', 'greek',
+  'spanish', 'british', 'turkish', 'korean', 'vietnamese', 'german', 'caribbean', 'african', 'middle eastern', 'russian', 'brazilian'
 ];
 
 const DIET_TYPES = [
-  'vegetarian',
-  'vegan',
-  'gluten-free',
-  'ketogenic',
-  'paleo',
+  'vegetarian', 'vegan', 'gluten-free', 'ketogenic', 'paleo',
+  'pescatarian', 'lacto-vegetarian', 'ovo-vegetarian', 'whole30', 'low-fodmap', 'dairy-free', 'nut-free', 'halal', 'kosher'
 ];
 
 function mapToAllowedCuisine(cuisine: string) {
-  if (!cuisine) return '';
+  if (!cuisine) return 'unknown';
   cuisine = cuisine.toLowerCase();
-  return CUISINE_TYPES.find(type => cuisine.includes(type)) || '';
+  return CUISINE_TYPES.find(type => cuisine.includes(type)) || 'unknown';
 }
 
 function mapToAllowedDiet(diet: string) {
-  if (!diet) return '';
+  if (!diet) return 'unknown';
   diet = diet.toLowerCase();
-  return DIET_TYPES.find(type => diet.includes(type)) || '';
+  return DIET_TYPES.find(type => diet.includes(type)) || 'unknown';
 }
 
 function mapToAllowedTime(minutes: number | undefined) {
@@ -88,123 +83,126 @@ function extractRecipePropertiesFromMarkdown(markdown: string) {
     description: '',
     ingredients: [] as string[],
     instructions: [] as string[],
-    nutrition: {} as Record<string, string>,
-    cuisine_type: '',
-    diet_type: '',
-    cooking_time: '',
+    nutrition: { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' } as Record<string, string>,
+    cuisine_type: 'unknown',
+    diet_type: 'unknown',
+    cooking_time: 'unknown',
     cooking_time_value: undefined as number | undefined
   };
 
-  // If no lines, return empty result
   if (lines.length === 0) return result;
 
-  // First line is always the description/title
-  result.description = lines[0];
+  // Helper function to extract section content
+  const extractSection = (header: string): string[] => {
+    const startIndex = lines.findIndex(line => line.toUpperCase().startsWith(header));
+    if (startIndex === -1) return [];
+    const sectionLines: string[] = [];
+    for (let i = startIndex + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.match(/^[A-Z]+:/)) break; // Stop at next section
+      if (line.trim()) sectionLines.push(line);
+    }
+    return sectionLines;
+  };
 
-  // Look for meta information in the second line
-  if (lines.length > 1) {
-    const metaLine = lines[1].toLowerCase();
-    
-    // Extract cuisine using the same approach as diet
-    result.cuisine_type = mapToAllowedCuisine(metaLine);
-    
-    // Extract diet using the existing function
-    result.diet_type = mapToAllowedDiet(metaLine);
+  // Extract description (everything before the first field header)
+  const firstFieldIdx = lines.findIndex(line => /^(CUISINE|DIET|COOKING TIME|NUTRITION|INGREDIENTS|INSTRUCTIONS):/i.test(line));
+  if (firstFieldIdx > 0) {
+    result.description = lines.slice(0, firstFieldIdx).join(' ');
+  } else if (firstFieldIdx === -1) {
+    result.description = lines.join(' ');
+  }
 
-    // Extract cooking time
-    const timeMatch = metaLine.match(/(\d+)\s*(?:min|minute)s?/i);
+  // Extract cuisine
+  const cuisineLine = lines.find(line => /^CUISINE:/i.test(line));
+  if (cuisineLine) {
+    result.cuisine_type = cuisineLine.replace(/^CUISINE:/i, '').trim().toLowerCase();
+  }
+
+  // Extract diet
+  const dietLine = lines.find(line => /^DIET:/i.test(line));
+  if (dietLine) {
+    result.diet_type = dietLine.replace(/^DIET:/i, '').trim().toLowerCase();
+  }
+
+  // Extract cooking time (accepts variations)
+  const timeLine = lines.find(line => /^COOKING TIME:/i.test(line));
+  if (timeLine) {
+    const timeMatch = timeLine.match(/(\d+)/);
     if (timeMatch) {
       const minutes = parseInt(timeMatch[1], 10);
-      if (minutes > 0) {
-        result.cooking_time_value = mapToAllowedTime(minutes);
-        result.cooking_time = `${result.cooking_time_value} mins`;
-      }
-    }
-
-    // Extract nutrition using a similar approach
-    const nutritionMatch = metaLine.match(/(\d+)\s*calories?[^\d]*(\d+)g?\s*protein[^\d]*(\d+)g?\s*fat[^\d]*(\d+)g?\s*carbohydrates?/i);
-    if (nutritionMatch) {
-      result.nutrition = {
-        calories: nutritionMatch[1],
-        protein: nutritionMatch[2],
-        fat: nutritionMatch[3],
-        carbohydrates: nutritionMatch[4]
-      };
+      result.cooking_time_value = minutes;
+      result.cooking_time = `${minutes} mins`;
     }
   }
 
-  // Process remaining lines
-  let inIngredients = false;
-  let inInstructions = false;
-  let foundFirstInstruction = false;
-
-  for (let i = 2; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Skip empty lines
-    if (!line) continue;
-
-    // Check for section headers
-    if (/^ingredients?:/i.test(line)) {
-      inIngredients = true;
-      inInstructions = false;
-      continue;
-    }
-    if (/^instructions?:/i.test(line)) {
-      inInstructions = true;
-      inIngredients = false;
-      continue;
-    }
-
-    // Add to appropriate section
-    if (inIngredients) {
-      result.ingredients.push(line);
-    } else if (inInstructions) {
-      result.instructions.push(line);
-    } else {
-      // If no section header found yet, look for the first instruction-like line
-      if (!foundFirstInstruction && /^(preheat|heat|mix|stir|whisk|bake|cook|add|place|fill|serve)/i.test(line)) {
-        foundFirstInstruction = true;
-        inInstructions = true;
-        result.instructions.push(line);
-      } else if (foundFirstInstruction) {
-        result.instructions.push(line);
-      } else {
-        // Only add to ingredients if it looks like an ingredient (has measurements or common ingredient words)
-        if (/^\d+\s*(g|ml|oz|cup|tbsp|tsp|piece|slice|whole|pinch|dash|to taste|sheet|can|package|bottle|stick|clove|egg|apple|onion|potato|carrot|tomato|pepper|flour|sugar|butter|oil|water|milk|cream|cheese|salt|yeast|baking|powder|soda|vinegar|wine|jelly|cr\u00e8me|cardamom|cinnamon|star anise|clove|allspice|vanilla|puff pastry|apple|egg|jam|honey|lemon|lime|orange|banana|berry|bean|nut|seed|rice|pasta|noodle|meat|fish|chicken|beef|pork|lamb|turkey|duck|shrimp|crab|lobster|mushroom|corn|pea|broccoli|cauliflower|spinach|lettuce|cabbage|zucchini|squash|pumpkin|celery|radish|turnip|parsnip|beet|chard|kale|arugula|rocket|herb|spice|parsley|cilantro|basil|oregano|thyme|rosemary|sage|dill|mint|chive|bay leaf|marjoram|tarragon|fennel|anise|caraway|coriander|cumin|mustard|paprika|turmeric|saffron|ginger|garlic|shallot|scallion|leek|chili|peppercorn|sesame|sunflower|pumpkin seed|walnut|almond|hazelnut|pecan|cashew|macadamia|pistachio|pine nut|coconut|date|fig|raisin|apricot|plum|prune|currant|goji|mulberry|cranberry|blueberry|strawberry|raspberry|blackberry|boysenberry|elderberry|gooseberry|huckleberry|loganberry|marionberry|salmonberry|serviceberry|cloudberry|lingonberry|rowanberry|sea buckthorn|sloe|aronia|barberry|buffaloberry|capulin|chokeberry|chokecherry|clouberry|crowberry|dewberry|hackberry|honeyberry|jostaberry|juneberry|mayberry|olallieberry|thimbleberry|wineberry|yumberry|ziziphus|other)\b/i.test(line)) {
-          result.ingredients.push(line);
-        }
-      }
-    }
+  // Extract nutrition (accepts variations)
+  const nutritionLine = lines.find(line => /^NUTRITION:/i.test(line));
+  if (nutritionLine) {
+    // Accepts: 400 calories, 30g protein, 10g fat, 50g carbohydrates (order can vary)
+    const calMatch = nutritionLine.match(/(\d+)\s*(?:calories|kcal|cal)/i);
+    const proteinMatch = nutritionLine.match(/(\d+)g\s*protein/i);
+    const fatMatch = nutritionLine.match(/(\d+)g\s*fat/i);
+    const carbMatch = nutritionLine.match(/(\d+)g\s*carbohydrates?/i);
+    result.nutrition = {
+      calories: calMatch ? calMatch[1] : 'unknown',
+      protein: proteinMatch ? proteinMatch[1] : 'unknown',
+      fat: fatMatch ? fatMatch[1] : 'unknown',
+      carbohydrates: carbMatch ? carbMatch[1] : 'unknown',
+    };
   }
+
+  // Extract ingredients
+  const ingredientLines = extractSection('INGREDIENTS:');
+  result.ingredients = ingredientLines
+    .map(line => line.replace(/^[-*]\s*/, ''))
+    .filter(line => line.trim());
+
+  // Extract instructions
+  const instructionLines = extractSection('INSTRUCTIONS:');
+  result.instructions = instructionLines
+    .map(line => line.replace(/^\d+\.\s*/, '').trim())
+    .filter(line =>
+      line &&
+      !/^(notes?|tips?)$/i.test(line) && // filter out 'Note', 'Notes', 'Tip', 'Tips'
+      !/^[0-9]+$/.test(line) // filter out lines that are just numbers
+    );
 
   return result;
 }
 
 // Test the recipe extraction
-const testRecipe = `chocolate souffle
+const testRecipe = `DESCRIPTION: A light and airy chocolate souffle that rises beautifully in the oven, perfect for a special dessert.
 
-french, dessert, vegetarian cooking time: 25 minutes nutrition: 320 calories, 12g protein, 24g fat, 20g carbohydrates
+CUISINE: french
 
-    150ml single cream
-    2 tbsp caster sugar
-    100g dark chocolate
-    20g butter
-    2 egg yolks
-    2 egg whites
-    150ml double cream
-    icing sugar
+DIET: vegetarian
 
-    preheat oven to 220c. place a baking tray on the top shelf.
-    heat cream and sugar until boiling, then remove from heat. stir in chocolate and butter until melted.
-    brush 6 ramekins with melted butter and sprinkle with caster sugar.
-    melt chocolate and cream in a bowl over simmering water, cool, then mix in egg yolks.
-    whisk egg whites until they hold their shape, then add sugar and whisk until consistent.
-    mix a spoonful of egg whites into the chocolate, then gently fold in the rest.
-    fill ramekins, wipe rims clean, and run thumb around edges.
-    bake at 200c for 8-10 minutes until risen with a slight wobble.
-    dust with icing sugar, scoop a hole from the top, and pour in hot chocolate sauce.
-    serve straight away.`;
+COOKING TIME: 25
+
+NUTRITION: 320 calories, 12g protein, 24g fat, 20g carbohydrates
+
+INGREDIENTS:
+- 150ml single cream
+- 2 tbsp caster sugar
+- 100g dark chocolate
+- 20g butter
+- 2 egg yolks
+- 2 egg whites
+- 150ml double cream
+- icing sugar
+
+INSTRUCTIONS:
+1. Preheat oven to 220c. Place a baking tray on the top shelf.
+2. Heat cream and sugar until boiling, then remove from heat. Stir in chocolate and butter until melted.
+3. Brush 6 ramekins with melted butter and sprinkle with caster sugar.
+4. Melt chocolate and cream in a bowl over simmering water, cool, then mix in egg yolks.
+5. Whisk egg whites until they hold their shape, then add sugar and whisk until consistent.
+6. Mix a spoonful of egg whites into the chocolate, then gently fold in the rest.
+7. Fill ramekins, wipe rims clean, and run thumb around edges.
+8. Bake at 200c for 8-10 minutes until risen with a slight wobble.
+9. Dust with icing sugar, scoop a hole from the top, and pour in hot chocolate sauce.
+10. Serve straight away.`;
 
 const testResult = extractRecipePropertiesFromMarkdown(testRecipe);
 console.log('Test Result:', JSON.stringify(testResult, null, 2));
@@ -399,40 +397,84 @@ export default function Home({ initialRecipes }: HomeProps) {
           const recipeData = await recipeRes.json();
           const meal = recipeData.meals?.[0];
           if (!meal) throw new Error('No random recipe found');
-          const improvisePrompt = `Rewrite this recipe in the [recipes] app style (markdown, lowercase, concise, fun, and with clear steps).\n\nInclude and guess the following fields in this order: title, cuisine, diet, cooking time, nutrition (calories, protein, fat, carbohydrates), ingredients (as a list), and instructions (as a numbered list).\n\nTitle: ${meal.strMeal}\nCategory: ${meal.strCategory}\nArea: ${meal.strArea}\nInstructions: ${meal.strInstructions}\nIngredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && meal[k]).map(k => meal[k]).join(', ')}`;
+          const improvisePrompt = `Start with a fun, appetizing, and engaging internet-style introduction for this recipe (at least 2 sentences, do not use the title as the description). Then, on new lines, provide:
+CUISINE: [guess the cuisine, e.g. british, italian, etc.]
+DIET: [guess the diet, e.g. vegetarian, gluten-free, etc.]
+COOKING TIME: [guess the total time in minutes, e.g. 30]
+NUTRITION: [guess as: 400 calories, 30g protein, 10g fat, 50g carbohydrates]
+Only provide these fields after the description, each on a new line, and nothing else.
+
+Title: ${meal.strMeal}
+Category: ${meal.strCategory}
+Area: ${meal.strArea}
+Instructions: ${meal.strInstructions}
+Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && meal[k]).map(k => meal[k]).join(', ')}`;
           const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               messages: [
-                { role: 'system', content: 'Rewrite recipes in markdown, lowercase, concise, fun, and in the [recipes] app style.' },
+                { role: 'system', content: 'You are a recipe formatter. Always format recipes with these exact section headers in this order: DESCRIPTION, CUISINE, DIET, COOKING TIME, NUTRITION, INGREDIENTS, INSTRUCTIONS. Each section should start on a new line with its header in uppercase followed by a colon. Ingredients should be bullet points starting with "-". Instructions should be numbered steps starting with "1."' },
                 { role: 'user', content: improvisePrompt }
               ]
             })
           });
           const aiData = await aiRes.json();
-          let improvised = marked(aiData.choices[0].message.content);
-          if (improvised instanceof Promise) {
-            improvised = await improvised;
+          let aiContent = aiData.choices[0].message.content;
+          if (aiContent instanceof Promise) {
+            aiContent = await aiContent;
           }
           // Extract properties from AI markdown
-          const { ingredients, instructions, nutrition, cuisine_type, diet_type, cooking_time, cooking_time_value } = extractRecipePropertiesFromMarkdown(aiData.choices[0].message.content);
-          const mappedCuisine = mapToAllowedCuisine(cuisine_type);
-          const mappedDiet = mapToAllowedDiet(diet_type);
-          const mappedTime = mapToAllowedTime(cooking_time_value);
+          const extracted = extractRecipePropertiesFromMarkdown(aiContent);
+          // Helper to check if description is just the title
+          const isDescriptionJustTitle = (desc: string, title: string) => {
+            if (!desc || !title) return true;
+            const d = desc.trim().toLowerCase();
+            const t = title.trim().toLowerCase();
+            return d === t || d.startsWith(t) || t.startsWith(d);
+          };
+          // Fallbacks: use AI's value if present, else use a friendly default
+          const description =
+            extracted.description &&
+            extracted.description !== 'unknown' &&
+            !isDescriptionJustTitle(extracted.description, meal.strMeal)
+              ? extracted.description
+              : "A delicious dish you'll love!";
+          const ingredients = extracted.ingredients && extracted.ingredients.length > 0 ? extracted.ingredients : Object.keys(meal)
+            .filter(k => k.startsWith('strIngredient') && meal[k] && meal[k].trim() && meal[k].toLowerCase() !== 'null')
+            .map(k => meal[k].trim());
+          const instructions = extracted.instructions && extracted.instructions.length > 0 ? extracted.instructions : (meal.strInstructions
+            ? meal.strInstructions.split(/\r?\n|\.\s+/).map((s: string) => s.trim()).filter(Boolean)
+            : []);
+          const nutrition = (extracted.nutrition && extracted.nutrition.calories !== 'unknown') ? extracted.nutrition : { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' };
+          // Normalize cuisine_type and diet_type for AI recipes to match filter options
+          const cuisine_type = mapToAllowedCuisine(
+            extracted.cuisine_type && extracted.cuisine_type !== 'unknown'
+              ? extracted.cuisine_type
+              : meal.strArea || meal.strCategory || ''
+          );
+          const diet_type = mapToAllowedDiet(
+            extracted.diet_type && extracted.diet_type !== 'unknown'
+              ? extracted.diet_type
+              : meal.strCategory || ''
+          );
+          const mappedTime = extracted.cooking_time_value || 0;
+          const cooking_time = extracted.cooking_time && extracted.cooking_time !== 'unknown' ? extracted.cooking_time : (mappedTime ? `${mappedTime} mins` : 'unknown');
+          // Clean up instructions: remove duplicate number bullets if present
+          const cleanedInstructions = instructions.map((step: string) => step.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
           const randomRecipeObj = {
             id: `random-internet-${meal.idMeal}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             title: meal.strMeal,
-            description: improvised,
+            description,
             image_url: meal.strMealThumb || RANDOM_CARD_IMG,
             user_id: 'internet',
             created_at: new Date().toISOString(),
             ingredients,
-            instructions,
+            instructions: cleanedInstructions,
             nutrition,
-            cuisine_type: mappedCuisine,
-            diet_type: mappedDiet,
-            cooking_time: mappedTime ? `${mappedTime} mins` : '',
+            cuisine_type,
+            diet_type,
+            cooking_time,
             cooking_time_value: mappedTime
           };
           if (typeof window !== 'undefined') {
@@ -450,6 +492,17 @@ export default function Home({ initialRecipes }: HomeProps) {
     generateMultipleAiRecipes();
     // eslint-disable-next-line
   }, []);
+
+  // Filter and search AI recipes
+  const filteredAiRecipes = aiRecipes.filter(recipe => {
+    // Search
+    const matchesQuery = !query || recipe.title.toLowerCase().includes(query.toLowerCase()) || (recipe.description && recipe.description.toLowerCase().includes(query.toLowerCase()));
+    // Filters
+    const matchesCuisine = !filters.cuisine || recipe.cuisine_type === filters.cuisine;
+    const matchesDiet = !filters.diet || recipe.diet_type === filters.diet;
+    const matchesTime = !filters.maxReadyTime || (recipe.cooking_time_value && recipe.cooking_time_value <= filters.maxReadyTime);
+    return matchesQuery && matchesCuisine && matchesDiet && matchesTime;
+  });
 
   return (
     <>
@@ -488,11 +541,9 @@ export default function Home({ initialRecipes }: HomeProps) {
                 className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
               >
                 <option value="">any diet</option>
-                <option value="vegetarian">vegetarian</option>
-                <option value="vegan">vegan</option>
-                <option value="gluten-free">gluten-free</option>
-                <option value="ketogenic">ketogenic</option>
-                <option value="paleo">paleo</option>
+                {DIET_TYPES.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
               </select>
 
               <select
@@ -501,11 +552,9 @@ export default function Home({ initialRecipes }: HomeProps) {
                 className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
               >
                 <option value="">any cuisine</option>
-                <option value="italian">italian</option>
-                <option value="mexican">mexican</option>
-                <option value="asian">asian</option>
-                <option value="american">american</option>
-                <option value="mediterranean">mediterranean</option>
+                {CUISINE_TYPES.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
               </select>
 
               <select
@@ -538,16 +587,22 @@ export default function Home({ initialRecipes }: HomeProps) {
                       title="Loading..."
                       description="Generating a new AI recipe..."
                       image_url={RANDOM_CARD_IMG}
-                      user_id="internet"
+                      user_id="recipes-ai"
                       created_at={new Date().toISOString()}
                       cuisine_type={''}
                       cooking_time={''}
                       diet_type={''}
                       readyInMinutes={undefined}
                       link={undefined}
+                      loading={true}
                     />
                   ))
-                : aiRecipes.map((recipe) => (
+                : (filteredAiRecipes.length > 0
+                    ? filteredAiRecipes
+                    : aiRecipes.length > 0
+                      ? [aiRecipes[0]]
+                      : []
+                  ).map((recipe) => (
                     <RecipeCard
                       key={recipe.id}
                       id={recipe.id}
