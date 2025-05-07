@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import Image from 'next/image';
 import { marked } from 'marked';
+import RecipeCard from '@/components/RecipeCard';
 
 const CUISINE_TYPES = [
   'italian', 'mexican', 'asian', 'american', 'mediterranean',
@@ -49,6 +50,7 @@ export default function DiscoverPage() {
     diet: '',
     maxTime: 0,
   });
+  const [aiRecipe, setAiRecipe] = useState<any>(null);
 
   const getAiRecommendation = async (prefs: typeof preferences) => {
     try {
@@ -90,6 +92,91 @@ export default function DiscoverPage() {
     }
   };
 
+  const getAiRecipe = async (prefs: typeof preferences) => {
+    try {
+      const improvisePrompt = `Start with a fun, appetizing, and engaging internet-style introduction for this recipe (at least 2 sentences, do not use the title as the description). Then, on new lines, provide:\nCUISINE: [guess the cuisine, e.g. british, italian, etc.]\nDIET: [guess the diet, e.g. vegetarian, gluten-free, etc.]\nCOOKING TIME: [guess the total time in minutes, e.g. 30]\nNUTRITION: [guess as: 400 calories, 30g protein, 10g fat, 50g carbohydrates]\nOnly provide these fields after the description, each on a new line, and nothing else.\n\nPreferences: ${prefs.cuisine ? `Cuisine: ${prefs.cuisine}, ` : ''}${prefs.diet ? `Diet: ${prefs.diet}, ` : ''}${prefs.maxTime ? `Time: ${prefs.maxTime} minutes or less` : 'No time limit'}.`;
+      const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: 'You are a recipe generator. Respond in the format requested.' },
+            { role: 'user', content: improvisePrompt }
+          ]
+        })
+      });
+      const aiData = await aiRes.json();
+      const aiContent = aiData.choices[0].message.content;
+      // Use the same extraction logic as homepage
+      // (You may want to import this from a shared file in a real project)
+      const extract = (markdown: string) => {
+        let text = markdown.replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        const result = {
+          description: '',
+          nutrition: { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' },
+          cuisine_type: 'unknown',
+          diet_type: 'unknown',
+          cooking_time: 'unknown',
+          cooking_time_value: undefined as number | undefined
+        };
+        const firstFieldIdx = lines.findIndex(line => /^(CUISINE|DIET|COOKING TIME|NUTRITION):/i.test(line));
+        if (firstFieldIdx > 0) {
+          result.description = lines.slice(0, firstFieldIdx).join(' ');
+        } else if (firstFieldIdx === -1) {
+          result.description = lines.join(' ');
+        }
+        const cuisineLine = lines.find(line => /^CUISINE:/i.test(line));
+        if (cuisineLine) {
+          result.cuisine_type = cuisineLine.replace(/^CUISINE:/i, '').trim().toLowerCase();
+        }
+        const dietLine = lines.find(line => /^DIET:/i.test(line));
+        if (dietLine) {
+          result.diet_type = dietLine.replace(/^DIET:/i, '').trim().toLowerCase();
+        }
+        const timeLine = lines.find(line => /^COOKING TIME:/i.test(line));
+        if (timeLine) {
+          const timeMatch = timeLine.match(/(\d+)/);
+          if (timeMatch) {
+            const minutes = parseInt(timeMatch[1], 10);
+            result.cooking_time_value = minutes;
+            result.cooking_time = `${minutes} mins`;
+          }
+        }
+        const nutritionLine = lines.find(line => /^NUTRITION:/i.test(line));
+        if (nutritionLine) {
+          const calMatch = nutritionLine.match(/(\d+)\s*(?:calories|kcal|cal)/i);
+          const proteinMatch = nutritionLine.match(/(\d+)g\s*protein/i);
+          const fatMatch = nutritionLine.match(/(\d+)g\s*fat/i);
+          const carbMatch = nutritionLine.match(/(\d+)g\s*carbohydrates?/i);
+          result.nutrition = {
+            calories: calMatch ? calMatch[1] : 'unknown',
+            protein: proteinMatch ? proteinMatch[1] : 'unknown',
+            fat: fatMatch ? fatMatch[1] : 'unknown',
+            carbohydrates: carbMatch ? carbMatch[1] : 'unknown',
+          };
+        }
+        return result;
+      };
+      const extracted = extract(aiContent);
+      setAiRecipe({
+        id: `ai-recipe-${Date.now()}`,
+        title: 'AI Recipe',
+        description: extracted.description,
+        image_url: null,
+        user_id: 'ai',
+        created_at: new Date().toISOString(),
+        cuisine_type: extracted.cuisine_type,
+        cooking_time: extracted.cooking_time,
+        diet_type: extracted.diet_type,
+        nutrition: extracted.nutrition,
+      });
+    } catch (err) {
+      setAiRecipe(null);
+      console.error('Error generating AI recipe:', err);
+    }
+  };
+
   const handleNext = () => {
     setCurrentStep(prev => prev + 1);
   };
@@ -106,6 +193,8 @@ export default function DiscoverPage() {
     try {
       // Get AI recommendation first
       await getAiRecommendation(preferences);
+      // Get AI recipe card
+      await getAiRecipe(preferences);
 
       // Build the query for local recipes
       let supabaseQuery = supabase
@@ -314,6 +403,22 @@ export default function DiscoverPage() {
             <div className="space-y-4">
               <h2 className="font-mono text-xl">recommended recipes</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {aiRecipe && (
+                  <RecipeCard
+                    key={aiRecipe.id}
+                    id={aiRecipe.id}
+                    title={aiRecipe.title}
+                    description={aiRecipe.description}
+                    image_url={aiRecipe.image_url}
+                    user_id={aiRecipe.user_id}
+                    created_at={aiRecipe.created_at}
+                    cuisine_type={aiRecipe.cuisine_type}
+                    cooking_time={aiRecipe.cooking_time}
+                    diet_type={aiRecipe.diet_type}
+                    readyInMinutes={undefined}
+                    link={undefined}
+                  />
+                )}
                 {recipes.map((recipe) => (
                   <Link
                     key={recipe.id}
