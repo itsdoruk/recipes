@@ -81,183 +81,133 @@ function mapToAllowedTime(minutes: number | undefined) {
 function extractRecipePropertiesFromMarkdown(markdown: string) {
   // Normalize line endings and remove extra whitespace
   let text = markdown.replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-  // Try to split by markdown or plain text section headers
-  const sectionPattern = /^(#+\s*)?([a-zA-Z ]+):/gm;
-  let match;
-  let lastIndex = 0;
-  let lastHeader = '';
-  const sections: Record<string, string> = {};
-  let description = '';
-
-  // Find all headers and their content
-  while ((match = sectionPattern.exec(text)) !== null) {
-    const header = match[2].toLowerCase().trim();
-    const start = match.index + match[0].length;
-    if (lastHeader) {
-      sections[lastHeader] = text.slice(lastIndex, match.index).trim();
-    } else {
-      description = text.slice(0, match.index).trim();
-    }
-    lastHeader = header;
-    lastIndex = start;
-  }
-  if (lastHeader) {
-    sections[lastHeader] = text.slice(lastIndex).trim();
-  }
-
-  // Helper to get section by possible names
-  function getSection(names: string[]) {
-    for (const name of names) {
-      if (sections[name]) return sections[name];
-    }
-    return '';
-  }
-
-  // --- Extraction from description (intro) ---
-  let cuisine_type = '';
-  let diet_type = '';
-  let cooking_time = '';
-  let cooking_time_value: number | undefined = undefined;
-  let nutrition: Record<string, string> = {};
-  let ingredients: string[] = [];
-  let instructions: string[] = [];
-
-  // Extract and remove cuisine (with improved pattern matching)
-  const cuisineRegex = new RegExp(`\\b(${CUISINE_TYPES.join('|')})\\b`, 'i');
-  const cuisineMatch = description.match(cuisineRegex);
-  if (cuisineMatch) {
-    cuisine_type = cuisineMatch[1].toLowerCase();
-    description = description.replace(cuisineMatch[0], '').trim();
-  }
-
-  // Extract and remove diet (with improved pattern matching)
-  const dietRegex = new RegExp(`\\b(${DIET_TYPES.join('|')})\\b`, 'i');
-  const dietMatch = description.match(dietRegex);
-  if (dietMatch) {
-    diet_type = dietMatch[1].toLowerCase();
-    description = description.replace(dietMatch[0], '').trim();
-  }
-
-  // Extract and remove cooking time (with improved pattern matching)
-  const timePatterns = [
-    /cooking time:\s*(\d+)\s*(?:hour|hr)s?(?:\s*(\d+)\s*(?:min|minute)s?)?/i,
-    /prep time:\s*(\d+)\s*(?:hour|hr)s?(?:\s*(\d+)\s*(?:min|minute)s?)?/i,
-    /total time:\s*(\d+)\s*(?:hour|hr)s?(?:\s*(\d+)\s*(?:min|minute)s?)?/i,
-    /ready in:\s*(\d+)\s*(?:hour|hr)s?(?:\s*(\d+)\s*(?:min|minute)s?)?/i,
-    /(\d+)\s*(?:hour|hr)s?(?:\s*(\d+)\s*(?:min|minute)s?)?\s*(?:cooking|prep|total|ready) time/i
-  ];
-
-  for (const pattern of timePatterns) {
-    const timeMatch = description.match(pattern);
-    if (timeMatch) {
-      const hours = parseInt(timeMatch[1], 10) || 0;
-      const minutes = parseInt(timeMatch[2], 10) || 0;
-      const totalMinutes = hours * 60 + minutes;
-      
-      if (totalMinutes > 0) {
-        cooking_time_value = totalMinutes;
-        cooking_time = `${hours > 0 ? `${hours} hr${hours > 1 ? 's' : ''}` : ''}${hours > 0 && minutes > 0 ? ' ' : ''}${minutes > 0 ? `${minutes} min${minutes > 1 ? 's' : ''}` : ''}`.trim();
-        description = description.replace(timeMatch[0], '').trim();
-        break;
-      }
-    }
-  }
-
-  // Extract and remove nutrition information (with improved pattern matching)
-  const nutritionPatterns = [
-    /(?:calories|protein|fat|carbohydrates|sugar|fiber|sodium|cholesterol):\s*(\d+(?:\.\d+)?)\s*(?:g|mg|kcal|cal)?/gi,
-    /(\d+(?:\.\d+)?)\s*(?:g|mg|kcal|cal)\s*(?:of\s+)?(calories|protein|fat|carbohydrates|sugar|fiber|sodium|cholesterol)/gi
-  ];
-
-  for (const pattern of nutritionPatterns) {
-    description = description.replace(pattern, (match, value, nutrient) => {
-      const key = (nutrient || match.split(':')[0]).toLowerCase().trim();
-      const val = value || match.split(':')[1].trim();
-      nutrition[key] = val;
-      return '';
-    });
-  }
-
-  // Extract and remove ingredients (with improved pattern matching)
-  const ingredientPatterns = [
-    /^\s*[-*•]\s*([^\n]+)/gm,  // Bullet points
-    /^\s*\d+\.\s*([^\n]+)/gm,  // Numbered lists
-    /^\s*([^\n]+)\s*\(for serving\)/gim,  // For serving
-    /^\s*([^\n]+)\s*\(for garnish\)/gim,  // For garnish
-    /^\s*(\d+(?:\.\d+)?\s*(?:g|ml|oz|cup|tbsp|tsp|piece|slice|whole|pinch|dash|to taste)\s+[^\n]+)/gim  // Measurements
-  ];
-
-  let ingredientLines: string[] = [];
-  let newDesc = '';
-
-  description.split('\n').forEach(line => {
-    let isIngredient = false;
-    for (const pattern of ingredientPatterns) {
-      if (pattern.test(line)) {
-        ingredientLines.push(line.trim());
-        isIngredient = true;
-        break;
-      }
-    }
-    if (!isIngredient) {
-      newDesc += line + '\n';
-    }
-  });
-
-  if (ingredientLines.length) {
-    ingredients = ingredientLines.map(line => 
-      line.replace(/^[-*•]\s*|\d+\.\s*|\s*\(for serving\)|\s*\(for garnish\)/gi, '').trim()
-    );
-    description = newDesc.trim();
-  }
-
-  // --- Extraction from sections (if present) ---
-  const ingredientsSection = getSection(['ingredients', 'ingredient list']);
-  if (ingredientsSection) {
-    ingredients = ingredientsSection
-      .split(/[-*•]\s+|\n(?=\s*[-*•]|\s*\d+\.|\s*\d+(?:\.\d+)?\s*(?:g|ml|oz|cup|tbsp|tsp))/i)
-      .map(s => s.replace(/^[-*•]\s*|\d+\.\s*/, '').trim())
-      .filter(Boolean);
-  }
-
-  const instructionsSection = getSection(['instructions', 'steps', 'directions', 'method']);
-  if (instructionsSection) {
-    instructions = instructionsSection
-      .split(/\d+\.\s+|\n(?=\s*\d+\.|\s*[A-Z])/i)
-      .map(s => s.replace(/^\d+\.\s*/, '').trim())
-      .filter(Boolean);
-  }
-
-  const nutritionSection = getSection(['nutrition', 'nutritional information']);
-  if (nutritionSection) {
-    nutritionSection.split(/[-*•]\s+/).forEach(line => {
-      const [key, ...rest] = line.split(':');
-      if (key && rest.length) {
-        const cleanKey = key.trim().toLowerCase();
-        const value = rest.join(':').trim();
-        nutrition[cleanKey] = value;
-      }
-    });
-  }
-
-  // Clean up the final description
-  description = description
-    .replace(/\n{3,}/g, '\n\n')  // Remove excessive newlines
-    .replace(/^\s+|\s+$/gm, '')  // Trim each line
-    .trim();
-
-  return {
-    description,
-    ingredients,
-    instructions,
-    nutrition,
-    cuisine_type,
-    diet_type,
-    cooking_time,
-    cooking_time_value
+  // Initialize result object
+  const result = {
+    description: '',
+    ingredients: [] as string[],
+    instructions: [] as string[],
+    nutrition: {} as Record<string, string>,
+    cuisine_type: '',
+    diet_type: '',
+    cooking_time: '',
+    cooking_time_value: undefined as number | undefined
   };
+
+  // If no lines, return empty result
+  if (lines.length === 0) return result;
+
+  // First line is always the description/title
+  result.description = lines[0];
+
+  // Look for meta information in the second line
+  if (lines.length > 1) {
+    const metaLine = lines[1].toLowerCase();
+    
+    // Extract cuisine using the same approach as diet
+    result.cuisine_type = mapToAllowedCuisine(metaLine);
+    
+    // Extract diet using the existing function
+    result.diet_type = mapToAllowedDiet(metaLine);
+
+    // Extract cooking time
+    const timeMatch = metaLine.match(/(\d+)\s*(?:min|minute)s?/i);
+    if (timeMatch) {
+      const minutes = parseInt(timeMatch[1], 10);
+      if (minutes > 0) {
+        result.cooking_time_value = mapToAllowedTime(minutes);
+        result.cooking_time = `${result.cooking_time_value} mins`;
+      }
+    }
+
+    // Extract nutrition using a similar approach
+    const nutritionMatch = metaLine.match(/(\d+)\s*calories?[^\d]*(\d+)g?\s*protein[^\d]*(\d+)g?\s*fat[^\d]*(\d+)g?\s*carbohydrates?/i);
+    if (nutritionMatch) {
+      result.nutrition = {
+        calories: nutritionMatch[1],
+        protein: nutritionMatch[2],
+        fat: nutritionMatch[3],
+        carbohydrates: nutritionMatch[4]
+      };
+    }
+  }
+
+  // Process remaining lines
+  let inIngredients = false;
+  let inInstructions = false;
+  let foundFirstInstruction = false;
+
+  for (let i = 2; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Skip empty lines
+    if (!line) continue;
+
+    // Check for section headers
+    if (/^ingredients?:/i.test(line)) {
+      inIngredients = true;
+      inInstructions = false;
+      continue;
+    }
+    if (/^instructions?:/i.test(line)) {
+      inInstructions = true;
+      inIngredients = false;
+      continue;
+    }
+
+    // Add to appropriate section
+    if (inIngredients) {
+      result.ingredients.push(line);
+    } else if (inInstructions) {
+      result.instructions.push(line);
+    } else {
+      // If no section header found yet, look for the first instruction-like line
+      if (!foundFirstInstruction && /^(preheat|heat|mix|stir|whisk|bake|cook|add|place|fill|serve)/i.test(line)) {
+        foundFirstInstruction = true;
+        inInstructions = true;
+        result.instructions.push(line);
+      } else if (foundFirstInstruction) {
+        result.instructions.push(line);
+      } else {
+        // Only add to ingredients if it looks like an ingredient (has measurements or common ingredient words)
+        if (/^\d+\s*(g|ml|oz|cup|tbsp|tsp|piece|slice|whole|pinch|dash|to taste|sheet|can|package|bottle|stick|clove|egg|apple|onion|potato|carrot|tomato|pepper|flour|sugar|butter|oil|water|milk|cream|cheese|salt|yeast|baking|powder|soda|vinegar|wine|jelly|cr\u00e8me|cardamom|cinnamon|star anise|clove|allspice|vanilla|puff pastry|apple|egg|jam|honey|lemon|lime|orange|banana|berry|bean|nut|seed|rice|pasta|noodle|meat|fish|chicken|beef|pork|lamb|turkey|duck|shrimp|crab|lobster|mushroom|corn|pea|broccoli|cauliflower|spinach|lettuce|cabbage|zucchini|squash|pumpkin|celery|radish|turnip|parsnip|beet|chard|kale|arugula|rocket|herb|spice|parsley|cilantro|basil|oregano|thyme|rosemary|sage|dill|mint|chive|bay leaf|marjoram|tarragon|fennel|anise|caraway|coriander|cumin|mustard|paprika|turmeric|saffron|ginger|garlic|shallot|scallion|leek|chili|peppercorn|sesame|sunflower|pumpkin seed|walnut|almond|hazelnut|pecan|cashew|macadamia|pistachio|pine nut|coconut|date|fig|raisin|apricot|plum|prune|currant|goji|mulberry|cranberry|blueberry|strawberry|raspberry|blackberry|boysenberry|elderberry|gooseberry|huckleberry|loganberry|marionberry|salmonberry|serviceberry|cloudberry|lingonberry|rowanberry|sea buckthorn|sloe|aronia|barberry|buffaloberry|capulin|chokeberry|chokecherry|clouberry|crowberry|dewberry|hackberry|honeyberry|jostaberry|juneberry|mayberry|olallieberry|thimbleberry|wineberry|yumberry|ziziphus|other)\b/i.test(line)) {
+          result.ingredients.push(line);
+        }
+      }
+    }
+  }
+
+  return result;
 }
+
+// Test the recipe extraction
+const testRecipe = `chocolate souffle
+
+french, dessert, vegetarian cooking time: 25 minutes nutrition: 320 calories, 12g protein, 24g fat, 20g carbohydrates
+
+    150ml single cream
+    2 tbsp caster sugar
+    100g dark chocolate
+    20g butter
+    2 egg yolks
+    2 egg whites
+    150ml double cream
+    icing sugar
+
+    preheat oven to 220c. place a baking tray on the top shelf.
+    heat cream and sugar until boiling, then remove from heat. stir in chocolate and butter until melted.
+    brush 6 ramekins with melted butter and sprinkle with caster sugar.
+    melt chocolate and cream in a bowl over simmering water, cool, then mix in egg yolks.
+    whisk egg whites until they hold their shape, then add sugar and whisk until consistent.
+    mix a spoonful of egg whites into the chocolate, then gently fold in the rest.
+    fill ramekins, wipe rims clean, and run thumb around edges.
+    bake at 200c for 8-10 minutes until risen with a slight wobble.
+    dust with icing sugar, scoop a hole from the top, and pour in hot chocolate sauce.
+    serve straight away.`;
+
+const testResult = extractRecipePropertiesFromMarkdown(testRecipe);
+console.log('Test Result:', JSON.stringify(testResult, null, 2));
 
 export default function Home({ initialRecipes }: HomeProps) {
   const router = useRouter();
