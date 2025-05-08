@@ -117,24 +117,24 @@ function extractRecipePropertiesFromMarkdown(markdown: string) {
   const cuisineLine = lines.find(line => /^CUISINE:/i.test(line));
   if (cuisineLine) {
     result.cuisine_type = cuisineLine.replace(/^CUISINE:/i, '').trim().toLowerCase();
-  }
+    }
 
   // Extract diet
   const dietLine = lines.find(line => /^DIET:/i.test(line));
   if (dietLine) {
     result.diet_type = dietLine.replace(/^DIET:/i, '').trim().toLowerCase();
-  }
+    }
 
   // Extract cooking time (accepts variations)
   const timeLine = lines.find(line => /^COOKING TIME:/i.test(line));
   if (timeLine) {
     const timeMatch = timeLine.match(/(\d+)/);
-    if (timeMatch) {
+      if (timeMatch) {
       const minutes = parseInt(timeMatch[1], 10);
       result.cooking_time_value = minutes;
-      result.cooking_time = `${minutes} mins`;
+        result.cooking_time = `${minutes} mins`;
+      }
     }
-  }
 
   // Extract nutrition (accepts variations)
   const nutritionLine = lines.find(line => /^NUTRITION:/i.test(line));
@@ -144,12 +144,12 @@ function extractRecipePropertiesFromMarkdown(markdown: string) {
     const proteinMatch = nutritionLine.match(/(\d+)g\s*protein/i);
     const fatMatch = nutritionLine.match(/(\d+)g\s*fat/i);
     const carbMatch = nutritionLine.match(/(\d+)g\s*carbohydrates?/i);
-    result.nutrition = {
+        result.nutrition = {
       calories: calMatch ? calMatch[1] : 'unknown',
       protein: proteinMatch ? proteinMatch[1] : 'unknown',
       fat: fatMatch ? fatMatch[1] : 'unknown',
       carbohydrates: carbMatch ? carbMatch[1] : 'unknown',
-    };
+        };
   }
 
   // Extract ingredients
@@ -510,10 +510,10 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
         <title>[recipes]</title>
       </Head>
 
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main className="max-w-2xl mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="space-y-8">
           <div className="flex justify-between items-center">
-            <h1 className="font-mono text-2xl">[recipes]</h1>
+            <h1 className="text-2xl">[recipes]</h1>
           </div>
 
           <form onSubmit={handleSearch} className="space-y-4">
@@ -523,12 +523,12 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="search recipes..."
-                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
               />
               <button
                 type="submit"
                 disabled={isLoading}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono disabled:opacity-50"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
               >
                 {isLoading ? "searching..." : "search"}
               </button>
@@ -538,7 +538,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
               <select
                 value={filters.diet}
                 onChange={(e) => handleFilterChange("diet", e.target.value)}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
                 <option value="">any diet</option>
                 {DIET_TYPES.map((type) => (
@@ -549,7 +549,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
               <select
                 value={filters.cuisine}
                 onChange={(e) => handleFilterChange("cuisine", e.target.value)}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
                 <option value="">any cuisine</option>
                 {CUISINE_TYPES.map((type) => (
@@ -560,7 +560,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
               <select
                 value={filters.maxReadyTime}
                 onChange={(e) => handleFilterChange("maxReadyTime", Number(e.target.value))}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
                 <option value="0">any time</option>
                 <option value="15">15 mins or less</option>
@@ -572,12 +572,12 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
           </form>
 
           {error && (
-            <p className="font-mono text-red-500">{error}</p>
+            <p className="text-red-500">{error}</p>
           )}
 
           {/* Main Recipe Grid: 5 AI recipes first, then popular/community recipes */}
           <div className="space-y-4">
-            <h2 className="font-mono text-xl">recipes</h2>
+            <h2 className="text-xl">recipes</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {aiLoading
                 ? Array.from({ length: 5 }).map((_, idx) => (
@@ -652,7 +652,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 </div>
             {/* Loading indicator */}
             <div ref={loadingRef} className="h-10 flex items-center justify-center">
-              {isLoading && <p className="font-mono">loading more recipes...</p>}
+              {isLoading && <p>loading more recipes...</p>}
               </div>
           </div>
         </div>

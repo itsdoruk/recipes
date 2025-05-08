@@ -1,12 +1,32 @@
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+
+interface Profile {
+  username: string | null;
+  avatar_url: string | null;
+}
 
 export default function Navbar() {
   const router = useRouter();
   const { user, signOut } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('user_id', user.id)
+        .single();
+      setProfile(data);
+    };
+    fetchProfile();
+  }, [user]);
 
   const handleSignOut = async () => {
     try {
@@ -21,82 +41,108 @@ export default function Navbar() {
     <nav className="border-b border-gray-200 dark:border-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          <div className="flex">
+          <div className="flex items-center gap-4">
             <Link 
               href="/" 
-              className="flex items-center font-mono hover:opacity-80 transition-opacity"
+              className="flex items-center hover:opacity-80 transition-opacity"
             >
               [recipes]
             </Link>
-            <div className="flex items-center ml-8 space-x-4">
+            <div className="flex items-center hover:opacity-80 transition-opacity">
               <Link
                 href="/welcome"
-                className={`font-mono hover:opacity-80 transition-opacity ${
-                  router.pathname === '/welcome' ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'
-                }`}
+                className={`transition-opacity hover:opacity-80 ${router.pathname === '/welcome' ? 'opacity-80' : ''}`}
               >
                 discover
               </Link>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 relative">
-            {/* Settings Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setShowSettings((v) => !v)}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 font-mono hover:bg-[#222] bg-black text-white transition-colors"
-              >
-                settings
-              </button>
-              {showSettings && (
-                <div className="absolute right-0 mt-2 w-48 bg-black border border-gray-800 shadow-lg z-50">
-                  <Link
-                    href="/account"
-                    className="block px-4 py-2 font-mono text-white hover:bg-[#222] transition-colors"
-                    onClick={() => setShowSettings(false)}
-                  >
-                    account
-                  </Link>
-                  <Link
-                    href="/settings"
-                    className="block px-4 py-2 font-mono text-white hover:bg-[#222] transition-colors"
-                    onClick={() => setShowSettings(false)}
-                  >
-                    app settings
-                  </Link>
-                </div>
-              )}
-            </div>
+          <div className="flex items-center gap-4">
             {user ? (
               <>
                 <Link
                   href="/create"
-                  className={`px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono ${
-                    router.pathname === '/create' ? 'bg-gray-100 dark:bg-gray-900' : ''
-                  }`}
+                  className="h-10 flex items-center px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
                 >
                   create new recipe
                 </Link>
-                <Link
-                  href={user ? `/user/${user.id}` : '#'}
-                  className={`px-3 py-2 border border-gray-200 dark:border-gray-800 hover:bg-[#222] bg-black text-white transition-colors font-mono`}
-                >
-                  profile
-                </Link>
-                <button
-                  onClick={handleSignOut}
-                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono"
-                >
-                  sign out
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowSettings((v) => !v)}
+                    className="h-10 flex items-center hover:opacity-80 transition-opacity"
+                  >
+                    {profile?.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt={profile.username || 'avatar'}
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'A'}
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                  {showSettings && (
+                    <div
+                      className="absolute right-0 mt-2 w-64 border border-gray-200 dark:border-gray-800 shadow-lg z-50"
+                      style={{ background: "var(--background)", color: "var(--foreground)" }}
+                    >
+                      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+                        <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
+                          {profile?.username ? `@${profile.username}` : user.email}
+                        </p>
+                        {profile?.username && (
+                          <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
+                            {user.email}
+                          </p>
+                        )}
+                      </div>
+                      <Link
+                        href={`/user/${user.id}`}
+                        className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
+                        style={{ color: 'inherit', fontFamily: 'inherit' }}
+                        onClick={() => setShowSettings(false)}
+                      >
+                        profile
+                      </Link>
+                      <Link
+                        href="/account"
+                        className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
+                        style={{ color: 'inherit', fontFamily: 'inherit' }}
+                        onClick={() => setShowSettings(false)}
+                      >
+                        account settings
+                      </Link>
+                      <Link
+                        href="/settings"
+                        className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
+                        style={{ color: 'inherit', fontFamily: 'inherit' }}
+                        onClick={() => setShowSettings(false)}
+                      >
+                        app settings
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setShowSettings(false);
+                          handleSignOut();
+                        }}
+                        className="w-full text-left px-4 py-2 text-base font-normal text-red-500 hover:opacity-80 transition-opacity"
+                        style={{ fontFamily: 'inherit' }}
+                      >
+                        sign out
+                      </button>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <Link
                 href="/login"
-                className={`px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono ${
-                  router.pathname === '/login' ? 'bg-gray-100 dark:bg-gray-900' : ''
-                }`}
+                className="h-10 flex items-center px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
               >
                 sign in
               </Link>

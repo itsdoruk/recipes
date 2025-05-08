@@ -69,7 +69,7 @@ export default function UserProfile() {
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="font-mono">loading...</p>
+        <p className="">loading...</p>
       </div>
     );
   }
@@ -77,7 +77,7 @@ export default function UserProfile() {
   if (error || !profile) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="font-mono text-red-500">{error || 'User not found'}</p>
+        <p className="text-red-500">{error || 'User not found'}</p>
       </div>
     );
   }
@@ -97,24 +97,24 @@ export default function UserProfile() {
               className="w-24 h-24 rounded-full object-cover"
             />
             <div>
-              <h1 className="font-mono text-2xl">
+              <h1 className="text-2xl">
                 {profile.username || 'anonymous'}
               </h1>
               {profile.bio && (
-                <p className="font-mono text-gray-500 dark:text-gray-400 mt-2">
+                <p className="text-gray-500 dark:text-gray-400 mt-2">
                   {profile.bio}
                 </p>
               )}
-              <p className="font-mono text-sm text-gray-500 dark:text-gray-400 mt-2">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                 joined {new Date(profile.created_at).toLocaleDateString()}
               </p>
             </div>
           </div>
 
           <div>
-            <h2 className="font-mono text-xl mb-4">recipes</h2>
+            <h2 className="text-xl mb-4">recipes</h2>
             {recipes.length === 0 ? (
-              <p className="font-mono text-gray-500 dark:text-gray-400">
+              <p className="text-gray-500 dark:text-gray-400">
                 no recipes yet
               </p>
             ) : (
@@ -135,8 +135,8 @@ export default function UserProfile() {
                         />
                       </div>
                     )}
-                    <h3 className="font-mono text-lg">{recipe.title}</h3>
-                    <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
+                    <h3 className="text-lg">{recipe.title}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       {new Date(recipe.created_at).toLocaleDateString()}
                     </p>
                   </Link>

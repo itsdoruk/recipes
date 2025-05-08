@@ -96,7 +96,7 @@ export default function CreateRecipePage() {
   if (!user) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="font-mono">please sign in to create a recipe</p>
+        <p className="">please sign in to create a recipe</p>
       </div>
     );
   }
@@ -110,12 +110,12 @@ export default function CreateRecipePage() {
       <main className="max-w-2xl mx-auto px-4 py-8">
         <div className="space-y-8">
           <div className="flex justify-between items-center">
-            <h1 className="font-mono text-2xl">create recipe</h1>
+            <h1 className="text-2xl">create recipe</h1>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="title" className="block font-mono mb-2">
+              <label htmlFor="title" className="blockmb-2">
                 title
               </label>
               <input
@@ -123,26 +123,26 @@ export default function CreateRecipePage() {
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="description" className="block font-mono mb-2">
+              <label htmlFor="description" className="blockmb-2">
                 description
               </label>
               <textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparenth-32"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="image_url" className="block font-mono mb-2">
+              <label htmlFor="image_url" className="blockmb-2">
                 image url
               </label>
               <input
@@ -150,19 +150,19 @@ export default function CreateRecipePage() {
                 id="image_url"
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
               />
             </div>
 
             <div>
-              <label htmlFor="ingredients" className="block font-mono mb-2">
+              <label htmlFor="ingredients" className="blockmb-2">
                 ingredients (one per line)
               </label>
               <textarea
                 id="ingredients"
                 value={ingredients}
                 onChange={(e) => setIngredients(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparenth-32"
                 required
                 placeholder={`e.g. 2 eggs
 1 cup flour
@@ -171,14 +171,14 @@ export default function CreateRecipePage() {
             </div>
 
             <div>
-              <label htmlFor="instructions" className="block font-mono mb-2">
+              <label htmlFor="instructions" className="blockmb-2">
                 instructions (one step per line)
               </label>
               <textarea
                 id="instructions"
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparenth-32"
                 required
                 placeholder={`e.g. Preheat oven to 350F
 Mix flour and sugar
@@ -192,7 +192,7 @@ Bake for 30 minutes`}
                 id="cuisine_type"
                 value={cuisineType}
                 onChange={(e) => setCuisineType(e.target.value)}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
                 <option value="">any cuisine</option>
                 {CUISINE_TYPES.map((type) => (
@@ -212,7 +212,7 @@ Bake for 30 minutes`}
                     const val = e.target.value.replace(/[^0-9]/g, '');
                     setCookingTimeValue(val);
                   }}
-                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono w-full"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
                   min="0"
                   placeholder="cooking time"
                   required
@@ -224,7 +224,7 @@ Bake for 30 minutes`}
                   id="cooking_time_unit"
                   value={cookingTimeUnit}
                   onChange={(e) => setCookingTimeUnit(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
                 >
                   <option value="seconds">seconds</option>
                   <option value="mins">mins</option>
@@ -236,7 +236,7 @@ Bake for 30 minutes`}
                 id="diet_type"
                 value={dietType}
                 onChange={(e) => setDietType(e.target.value)}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
                 <option value="">any diet</option>
                 {DIET_TYPES.map((type) => (
@@ -248,52 +248,52 @@ Bake for 30 minutes`}
             </div>
 
             <div>
-              <h2 className="font-mono text-xl mb-4 mt-8">nutrition</h2>
+              <h2 className="text-xl mb-4 mt-8">nutrition</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <label htmlFor="calories" className="block font-mono mb-2">calories</label>
+                  <label htmlFor="calories" className="blockmb-2">calories</label>
                   <input
                     type="number"
                     id="calories"
                     value={calories}
                     onChange={(e) => setCalories(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
                     placeholder="calories"
                     defaultValue="0"
                   />
                 </div>
                 <div>
-                  <label htmlFor="protein" className="block font-mono mb-2">protein</label>
+                  <label htmlFor="protein" className="blockmb-2">protein</label>
                   <input
                     type="number"
                     id="protein"
                     value={protein}
                     onChange={(e) => setProtein(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
                     placeholder="protein"
                     defaultValue="0"
                   />
                 </div>
                 <div>
-                  <label htmlFor="fat" className="block font-mono mb-2">fat</label>
+                  <label htmlFor="fat" className="blockmb-2">fat</label>
                   <input
                     type="number"
                     id="fat"
                     value={fat}
                     onChange={(e) => setFat(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
                     placeholder="fat"
                     defaultValue="0"
                   />
                 </div>
                 <div>
-                  <label htmlFor="carbohydrates" className="block font-mono mb-2">carbohydrates</label>
+                  <label htmlFor="carbohydrates" className="blockmb-2">carbohydrates</label>
                   <input
                     type="number"
                     id="carbohydrates"
                     value={carbohydrates}
                     onChange={(e) => setCarbohydrates(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
                     placeholder="carbohydrates"
                     defaultValue="0"
                   />
@@ -302,21 +302,21 @@ Bake for 30 minutes`}
             </div>
 
             {error && (
-              <p className="font-mono text-red-500">{error}</p>
+              <p className="text-red-500">{error}</p>
             )}
 
             <div className="flex gap-4">
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono disabled:opacity-50"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacitydisabled:opacity-50"
               >
                 {isSubmitting ? 'creating...' : 'create recipe'}
               </button>
               <button
                 type="button"
                 onClick={() => router.back()}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity "
               >
                 cancel
               </button>

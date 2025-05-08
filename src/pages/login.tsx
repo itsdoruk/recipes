@@ -38,8 +38,8 @@ export default function Login() {
         <title>{isSignUp ? 'Sign Up' : 'Sign In'} | [recipes]</title>
       </Head>
 
-      <main className="max-w-sm mx-auto px-4 py-8">
-        <h1 className="font-mono text-2xl mb-8 text-center">
+      <main className="max-w-sm mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+        <h1 className="text-2xl mb-8 text-center">
           {isSignUp ? 'create account' : 'sign in'}
         </h1>
 
@@ -72,7 +72,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed font-mono"
+              className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? '...' : isSignUp ? 'create' : 'sign in'}
             </button>

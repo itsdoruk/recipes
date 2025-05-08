@@ -18,8 +18,8 @@ export default function Footer() {
   }, []);
 
   return (
-    <footer className="max-w-2xl mx-auto px-4 py-8 text-center">
-      <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
+    <footer className="max-w-2xl mx-auto px-4 py-8 text-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      <p className="text-sm">
         made by{' '}
         <a
           href="https://dsplash.xyz/"

@@ -65,9 +65,9 @@ export default function RecipeCard({
   };
 
   const cardContent = (
-    <>
-      {image_url && (
-        <div className="relative w-full h-48 mb-4">
+    <div className="h-[400px] flex flex-col" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      {image_url ? (
+        <div className="relative w-full h-48 flex-shrink-0">
           <Image
             src={image_url}
             alt={title}
@@ -75,50 +75,55 @@ export default function RecipeCard({
             className="object-cover"
           />
         </div>
+      ) : (
+        <div className="w-full h-48 flex-shrink-0" style={{ background: "var(--background)" }} />
       )}
-      <h2 className="font-mono text-lg mb-2">{title}</h2>
-      <p className="font-mono text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
-        {formatDescription(description)}
-      </p>
-      <div className="flex items-center gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
-        {profile?.avatar_url ? (
-          <img
-            src={profile.avatar_url}
-            alt={profile.username || 'anonymous'}
-            className="w-8 h-8 rounded-full object-cover"
-          />
-        ) : (
-          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {profile?.username?.[0]?.toUpperCase() || 'A'}
-            </span>
-          </div>
-        )}
-        <div className="flex flex-col">
-          <Link
-            href={`/user/${user_id}`}
-            onClick={(e) => e.stopPropagation()}
-            className="font-mono text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-          >
-            {profile?.username || 'anonymous'}
-          </Link>
-          <div className="flex items-center gap-2">
-            {cooking_time && (
-              <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
-                {cooking_time}
+      <div className="flex-1 flex flex-col p-4">
+        <h2 className="text-lg mb-2 line-clamp-1" style={{ color: "var(--foreground)" }}>{title}</h2>
+        <p className="text-sm mb-4 line-clamp-2" style={{ color: "var(--foreground)" }}>
+          {formatDescription(description)}
+        </p>
+        <div className="mt-auto flex items-center gap-3 pt-4 border-t" style={{ borderColor: "var(--outline)" }}>
+          {profile?.avatar_url ? (
+            <img
+              src={profile.avatar_url}
+              alt={profile.username || 'anonymous'}
+              className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+              <span className="text-xs">
+                {profile?.username?.[0]?.toUpperCase() || 'A'}
+              </span>
+            </div>
+          )}
+          <div className="flex flex-col min-w-0">
+            <Link
+              href={`/user/${user_id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-sm font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate"
+              style={{ color: "var(--foreground)" }}
+            >
+              {profile?.username || 'anonymous'}
+            </Link>
+            <div className="flex items-center gap-2">
+              {cooking_time && (
+                <p className="text-xs" style={{ color: "var(--foreground)" }}>
+                  {cooking_time}
+                </p>
+              )}
+              <p className="text-xs" style={{ color: "var(--foreground)" }}>
+                {new Date(created_at).toLocaleDateString()}
               </p>
-            )}
-            <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
-              {new Date(created_at).toLocaleDateString()}
-            </p>
+            </div>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 
   const cardClass =
-    "block p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity" +
+    "block border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity" +
     (loading ? " opacity-60 pointer-events-none select-none" : "");
 
   if (loading) {

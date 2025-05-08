@@ -120,7 +120,7 @@ export default function EditRecipePage() {
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="font-mono">loading...</p>
+        <p className="">loading...</p>
       </div>
     );
   }
@@ -128,7 +128,7 @@ export default function EditRecipePage() {
   if (error || !recipe) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="font-mono text-red-500">{error || 'Recipe not found'}</p>
+        <p className="text-red-500">{error || 'Recipe not found'}</p>
       </div>
     );
   }
@@ -142,12 +142,12 @@ export default function EditRecipePage() {
       <main className="max-w-2xl mx-auto px-4 py-8">
         <div className="space-y-8">
           <div className="flex justify-between items-center">
-            <h1 className="font-mono text-2xl">edit recipe</h1>
+            <h1 className="text-2xl">edit recipe</h1>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="title" className="block font-mono mb-2">
+              <label htmlFor="title" className="blockmb-2">
                 title
               </label>
               <input
@@ -155,26 +155,26 @@ export default function EditRecipePage() {
                 id="title"
                 value={recipe.title}
                 onChange={(e) => setRecipe({ ...recipe, title: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="description" className="block font-mono mb-2">
+              <label htmlFor="description" className="blockmb-2">
                 description
               </label>
               <textarea
                 id="description"
                 value={recipe.description}
                 onChange={(e) => setRecipe({ ...recipe, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparenth-32"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="image_url" className="block font-mono mb-2">
+              <label htmlFor="image_url" className="blockmb-2">
                 image url
               </label>
               <input
@@ -182,19 +182,19 @@ export default function EditRecipePage() {
                 id="image_url"
                 value={recipe.image_url || ''}
                 onChange={(e) => setRecipe({ ...recipe, image_url: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
               />
             </div>
 
             <div>
-              <label htmlFor="ingredients" className="block font-mono mb-2">
+              <label htmlFor="ingredients" className="blockmb-2">
                 ingredients (one per line)
               </label>
               <textarea
                 id="ingredients"
                 value={recipe.ingredients.join('\n')}
                 onChange={(e) => setRecipe({ ...recipe, ingredients: e.target.value.split('\n').filter(i => i.trim()) })}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparenth-32"
                 required
                 placeholder={`e.g. 2 eggs
 1 cup flour
@@ -203,14 +203,14 @@ export default function EditRecipePage() {
             </div>
 
             <div>
-              <label htmlFor="instructions" className="block font-mono mb-2">
+              <label htmlFor="instructions" className="blockmb-2">
                 instructions (one step per line)
               </label>
               <textarea
                 id="instructions"
                 value={recipe.instructions.join('\n')}
                 onChange={(e) => setRecipe({ ...recipe, instructions: e.target.value.split('\n').filter(i => i.trim()) })}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono h-32"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparenth-32"
                 required
                 placeholder={`e.g. Preheat oven to 350F
 Mix flour and sugar
@@ -224,7 +224,7 @@ Bake for 30 minutes`}
                 id="cuisine_type"
                 value={recipe.cuisine_type || ''}
                 onChange={(e) => setRecipe({ ...recipe, cuisine_type: e.target.value })}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
               >
                 <option value="">any cuisine</option>
                 {CUISINE_TYPES.map((type) => (
@@ -244,7 +244,7 @@ Bake for 30 minutes`}
                     const val = e.target.value.replace(/[^0-9\s]/g, '');
                     setRecipe({ ...recipe, cooking_time: val });
                   }}
-                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono w-full"
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparentw-full"
                   min="0"
                   placeholder="cooking time"
                   inputMode="numeric"
@@ -258,7 +258,7 @@ Bake for 30 minutes`}
                     const value = recipe.cooking_time?.split(' ')[0] || '';
                     setRecipe({ ...recipe, cooking_time: value ? `${value} ${e.target.value}` : null });
                   }}
-                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
                 >
                   <option value="seconds">seconds</option>
                   <option value="mins">mins</option>
@@ -270,7 +270,7 @@ Bake for 30 minutes`}
                 id="diet_type"
                 value={recipe.diet_type || ''}
                 onChange={(e) => setRecipe({ ...recipe, diet_type: e.target.value })}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
               >
                 <option value="">any diet</option>
                 {DIET_TYPES.map((type) => (
@@ -285,7 +285,7 @@ Bake for 30 minutes`}
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono disabled:opacity-50"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacitydisabled:opacity-50"
               >
                 {isSaving ? 'saving...' : 'save'}
               </button>

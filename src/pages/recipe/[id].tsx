@@ -136,7 +136,7 @@ export default function RecipePage() {
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="font-mono">loading...</p>
+        <p className="">loading...</p>
       </div>
     );
   }
@@ -144,7 +144,7 @@ export default function RecipePage() {
   if (error || !recipe) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="font-mono text-red-500">{error || 'Recipe not found'}</p>
+        <p className="text-red-500">{error || 'Recipe not found'}</p>
       </div>
     );
   }
@@ -171,7 +171,7 @@ export default function RecipePage() {
           ) : null}
 
           <div>
-            <h1 className="font-mono text-3xl">{recipe.title}</h1>
+            <h1 className="text-3xl">{recipe.title}</h1>
             {profile && (
               <div className="flex items-center gap-2 mt-4">
                 {profile.avatar_url && (
@@ -183,25 +183,25 @@ export default function RecipePage() {
                 )}
                 <Link
                   href={`/user/${recipe.user_id}`}
-                  className="font-mono text-gray-500 dark:text-gray-400 hover:underline"
+                  className="text-gray-500 dark:text-gray-400 hover:underline"
                 >
                   {profile.username || 'anonymous'}
                 </Link>
-                <span className="font-mono text-gray-500 dark:text-gray-400">
+                <span className="text-gray-500 dark:text-gray-400">
                   • {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString() : ''}
                 </span>
                 {isOwner && hasId(recipe) && (
                   <div className="flex gap-2 ml-auto">
                     <Link
                       href={`/edit-recipe/${recipe.id}`}
-                      className="px-3 py-1 text-sm border rounded font-mono hover:bg-gray-100"
+                      className="px-3 py-1 text-sm border rounded hover:bg-gray-100"
                     >
                       edit
                     </Link>
                     <button
                       onClick={handleDelete}
                       disabled={isDeleting}
-                      className="px-3 py-1 text-sm border rounded font-mono text-red-500 hover:bg-red-50 disabled:opacity-50"
+                      className="px-3 py-1 text-sm border rounded text-red-500 hover:bg-red-50 disabled:opacity-50"
                     >
                       {isDeleting ? 'deleting...' : 'delete'}
                     </button>
@@ -212,31 +212,31 @@ export default function RecipePage() {
           </div>
 
           <div>
-            <h2 className="font-mono text-xl mb-4">description</h2>
-            <div className="font-mono prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: recipe.description || recipe.summary || '' }} />
+            <h2 className="text-xl mb-4">description</h2>
+            <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: recipe.description || recipe.summary || '' }} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             {/* Cuisine */}
             <div>
-              <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">cuisine</h3>
-              <p className="font-mono">{recipe.cuisine_type || (recipe.cuisines && recipe.cuisines.length > 0 && recipe.cuisines.join(', ')) || 'N/A'}</p>
+              <h3 className="text-sm text-gray-500 dark:text-gray-400">cuisine</h3>
+              <p className="">{recipe.cuisine_type || (recipe.cuisines && recipe.cuisines.length > 0 && recipe.cuisines.join(', ')) || 'N/A'}</p>
             </div>
             {/* Cooking Time */}
             <div>
-              <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">cooking time</h3>
-              <p className="font-mono">{(recipe.cooking_time_value && recipe.cooking_time_unit) ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit}` : recipe.cooking_time || (recipe.readyInMinutes && recipe.readyInMinutes + ' mins') || 'N/A'}</p>
+              <h3 className="text-sm text-gray-500 dark:text-gray-400">cooking time</h3>
+              <p className="">{(recipe.cooking_time_value && recipe.cooking_time_unit) ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit}` : recipe.cooking_time || (recipe.readyInMinutes && recipe.readyInMinutes + ' mins') || 'N/A'}</p>
             </div>
             {/* Diet */}
             <div>
-              <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">diet</h3>
-              <p className="font-mono">{recipe.diet_type || (recipe.diets && recipe.diets.length > 0 && recipe.diets.join(', ')) || 'N/A'}</p>
+              <h3 className="text-sm text-gray-500 dark:text-gray-400">diet</h3>
+              <p className="">{recipe.diet_type || (recipe.diets && recipe.diets.length > 0 && recipe.diets.join(', ')) || 'N/A'}</p>
             </div>
           </div>
 
           {/* Nutrition Section for both user and Spoonacular recipes */}
           <div>
-            <h2 className="font-mono text-xl mb-4 mt-8">nutrition</h2>
+            <h2 className="text-xl mb-4 mt-8">nutrition</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {['Calories', 'Protein', 'Fat', 'Carbohydrates'].map((nutrient) => {
                 let value = 'N/A';
@@ -247,7 +247,7 @@ export default function RecipePage() {
                   value = recipe[nutrient.toLowerCase()];
                 }
                 return (
-                  <div key={nutrient} className="font-mono text-center">
+                  <div key={nutrient} className="text-center">
                     <div className="text-lg font-bold">{value}</div>
                     <div className="text-gray-500 dark:text-gray-400 text-sm">{nutrient.toLowerCase()}</div>
                   </div>
@@ -258,17 +258,17 @@ export default function RecipePage() {
 
           {recipe.ingredients && (
             <div>
-              <h2 className="font-mono text-xl mb-4">ingredients</h2>
+              <h2 className="text-xl mb-4">ingredients</h2>
               <ul className="list-disc list-inside space-y-2">
                 {Array.isArray(recipe.ingredients)
                   ? recipe.ingredients.map((ingredient: string, index: number) => (
-                      <li key={index} className="font-mono">
+                      <li key={index} className="">
                         {ingredient}
                       </li>
                     ))
                   : recipe.extendedIngredients &&
                     recipe.extendedIngredients.map((ing: any, idx: number) => (
-                      <li key={idx} className="font-mono">
+                      <li key={idx} className="">
                         {ing.original}
                       </li>
                     ))}
@@ -278,11 +278,11 @@ export default function RecipePage() {
 
           {recipe.instructions && (
             <div>
-              <h2 className="font-mono text-xl mb-4">instructions</h2>
+              <h2 className="text-xl mb-4">instructions</h2>
               {Array.isArray(recipe.instructions) ? (
                 <ol className="list-decimal list-inside space-y-4">
                   {recipe.instructions.map((instruction: string, index: number) => (
-                    <li key={index} className="font-mono">
+                    <li key={index} className="">
                       {instruction}
                     </li>
                   ))}
@@ -290,7 +290,7 @@ export default function RecipePage() {
               ) : (
                 <ol className="list-decimal list-inside space-y-4">
                   {splitInstructions(recipe.instructions).map((step, idx) => (
-                    <li key={idx} className="font-mono">{step}</li>
+                    <li key={idx} className="">{step}</li>
                   ))}
                 </ol>
               )}

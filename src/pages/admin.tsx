@@ -131,7 +131,7 @@ export default function AdminPanel() {
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="font-mono">loading...</p>
+        <p className="">loading...</p>
       </div>
     );
   }
@@ -149,11 +149,11 @@ export default function AdminPanel() {
       <main className="max-w-2xl mx-auto px-4 py-8">
         <div className="space-y-8">
           <div className="flex justify-between items-center">
-            <h1 className="font-mono text-2xl">admin panel</h1>
+            <h1 className="text-2xl">admin panel</h1>
           </div>
 
           <div>
-            <h2 className="font-mono text-xl mb-4">users</h2>
+            <h2 className="text-xl mb-4">users</h2>
             <div className="space-y-4">
               {users.map((user) => (
                 <div
@@ -161,14 +161,14 @@ export default function AdminPanel() {
                   className="p-4 border border-gray-200 dark:border-gray-800 flex justify-between items-center"
                 >
                   <div>
-                    <p className="font-mono">{user.username || 'anonymous'}</p>
-                    <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
+                    <p className="">{user.username || 'anonymous'}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       {user.user_id}
                     </p>
                   </div>
                   <button
                     onClick={() => handleDeleteUser(user.user_id)}
-                    className="px-3 py-2 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity font-mono"
+                    className="px-3 py-2 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity "
                   >
                     delete
                   </button>
@@ -178,7 +178,7 @@ export default function AdminPanel() {
           </div>
 
           <div>
-            <h2 className="font-mono text-xl mb-4">recipes</h2>
+            <h2 className="text-xl mb-4">recipes</h2>
             <div className="space-y-4">
               {recipes.map((recipe) => (
                 <div
@@ -186,14 +186,14 @@ export default function AdminPanel() {
                   className="p-4 border border-gray-200 dark:border-gray-800 flex justify-between items-center"
                 >
                   <div>
-                    <p className="font-mono">{recipe.title}</p>
-                    <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
+                    <p className="">{recipe.title}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       {new Date(recipe.created_at).toLocaleDateString()}
                     </p>
                   </div>
                   <button
                     onClick={() => handleDeleteRecipe(recipe.id)}
-                    className="px-3 py-2 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity font-mono"
+                    className="px-3 py-2 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity "
                   >
                     delete
                   </button>

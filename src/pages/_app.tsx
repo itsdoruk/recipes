@@ -1,15 +1,16 @@
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
-import { ThemeProvider } from '@/context/ThemeContext';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { AuthProvider } from '@/lib/auth';
+import { appWithTranslation } from 'next-i18next';
+import { ThemeProvider } from 'next-themes';
 
-export default function App({ Component, pageProps }: AppProps) {
+function App({ Component, pageProps }: AppProps) {
   return (
     <AuthProvider>
-      <ThemeProvider>
-        <div className="min-h-screen bg-white dark:bg-black flex flex-col">
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <div className="min-h-screen flex flex-col" style={{ background: "var(--background)", color: "var(--foreground)" }}>
           <Navbar />
           <main className="flex-1">
             <Component {...pageProps} />
@@ -20,3 +21,5 @@ export default function App({ Component, pageProps }: AppProps) {
     </AuthProvider>
   );
 }
+
+export default appWithTranslation(App);

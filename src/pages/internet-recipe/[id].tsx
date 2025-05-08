@@ -41,8 +41,8 @@ export default function InternetRecipePage() {
           <div className="relative w-full h-48 mb-4">
             <Image src={RANDOM_CARD_IMG} alt="random recipe" fill className="object-cover rounded" />
           </div>
-          <h3 className="font-mono text-lg mb-2">discovering a random internet recipe...</h3>
-          <div className="font-mono text-sm text-gray-600 dark:text-gray-400 mb-2">
+          <h3 className="text-lg mb-2">discovering a random internet recipe...</h3>
+          <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
             please wait while ai improvises a surprise recipe for you!
           </div>
         </div>
@@ -53,7 +53,7 @@ export default function InternetRecipePage() {
   if (error || !recipe) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="font-mono text-red-500">{error || 'Recipe not found'}</p>
+        <p className="text-red-500">{error || 'Recipe not found'}</p>
       </div>
     );
   }
@@ -76,36 +76,36 @@ export default function InternetRecipePage() {
             </div>
           )}
           <div>
-            <h1 className="font-mono text-3xl">{recipe.title}</h1>
-            <span className="font-mono text-gray-500 dark:text-gray-400 block mt-2">
+            <h1 className="text-3xl">{recipe.title}</h1>
+            <span className="text-gray-500 dark:text-gray-400 block mt-2">
               {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString() : ''}
             </span>
           </div>
           <div>
-            <h2 className="font-mono text-xl mb-4">description</h2>
-            <div className="font-mono text-blue-600 dark:text-blue-400 mb-2">{recipe.funDescription}</div>
-            <div className="font-mono prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: recipe.description }} />
+            <h2 className="text-xl mb-4">description</h2>
+            <div className="text-blue-600 dark:text-blue-400 mb-2">{recipe.funDescription}</div>
+            <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: recipe.description }} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             {/* Cuisine */}
             <div>
-              <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">cuisine</h3>
-              <p className="font-mono">{recipe.cuisine_type || 'N/A'}</p>
+              <h3 className="text-sm text-gray-500 dark:text-gray-400">cuisine</h3>
+              <p className="">{recipe.cuisine_type || 'N/A'}</p>
             </div>
             {/* Cooking Time */}
             <div>
-              <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">cooking time</h3>
-              <p className="font-mono">{recipe.cooking_time || 'N/A'}</p>
+              <h3 className="text-sm text-gray-500 dark:text-gray-400">cooking time</h3>
+              <p className="">{recipe.cooking_time || 'N/A'}</p>
             </div>
             {/* Diet */}
             <div>
-              <h3 className="font-mono text-sm text-gray-500 dark:text-gray-400">diet</h3>
-              <p className="font-mono">{recipe.diet_type || 'N/A'}</p>
+              <h3 className="text-sm text-gray-500 dark:text-gray-400">diet</h3>
+              <p className="">{recipe.diet_type || 'N/A'}</p>
             </div>
           </div>
           {/* Nutrition Section */}
           <div>
-            <h2 className="font-mono text-xl mb-4 mt-8">nutrition</h2>
+            <h2 className="text-xl mb-4 mt-8">nutrition</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {['Calories', 'Protein', 'Fat', 'Carbohydrates'].map((nutrient) => {
                 let value = 'N/A';
@@ -116,7 +116,7 @@ export default function InternetRecipePage() {
                   value = recipe[nutrient.toLowerCase()];
                 }
                 return (
-                  <div key={nutrient} className="font-mono text-center">
+                  <div key={nutrient} className="text-center">
                     <div className="text-lg font-bold">{value}</div>
                     <div className="text-gray-500 dark:text-gray-400 text-sm">{nutrient.toLowerCase()}</div>
                   </div>
@@ -126,11 +126,11 @@ export default function InternetRecipePage() {
           </div>
           {recipe.ingredients && (
             <div>
-              <h2 className="font-mono text-xl mb-4">ingredients</h2>
+              <h2 className="text-xl mb-4">ingredients</h2>
               <ul className="list-disc list-inside space-y-2">
                 {Array.isArray(recipe.ingredients)
                   ? recipe.ingredients.map((ingredient: string, index: number) => (
-                      <li key={index} className="font-mono">
+                      <li key={index} className="">
                         {ingredient}
                       </li>
                     ))
@@ -140,11 +140,11 @@ export default function InternetRecipePage() {
           )}
           {recipe.instructions && (
             <div>
-              <h2 className="font-mono text-xl mb-4">instructions</h2>
+              <h2 className="text-xl mb-4">instructions</h2>
               {Array.isArray(recipe.instructions) ? (
                 <ol className="list-decimal list-inside space-y-4">
                   {recipe.instructions.map((instruction: string, index: number) => (
-                    <li key={index} className="font-mono">
+                    <li key={index} className="">
                       {instruction}
                     </li>
                   ))}
@@ -152,7 +152,7 @@ export default function InternetRecipePage() {
               ) : (
                 <ol className="list-decimal list-inside space-y-4">
                   {splitInstructions(recipe.instructions).map((step, idx) => (
-                    <li key={idx} className="font-mono">{step}</li>
+                    <li key={idx} className="">{step}</li>
                   ))}
                 </ol>
               )}

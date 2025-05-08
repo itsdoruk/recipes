@@ -95,11 +95,11 @@ export default function AccountPage() {
   };
 
   if (!user) {
-    return <div className="max-w-2xl mx-auto px-4 py-8 font-mono">please sign in to view your account settings</div>;
+    return <div className="max-w-2xl mx-auto px-4 py-8">please sign in to view your account settings</div>;
   }
 
   if (loading) {
-    return <div className="max-w-2xl mx-auto px-4 py-8 font-mono">loading...</div>;
+    return <div className="max-w-2xl mx-auto px-4 py-8">loading...</div>;
   }
 
   return (
@@ -107,15 +107,15 @@ export default function AccountPage() {
       <Head>
         <title>account settings | [recipes]</title>
       </Head>
-      <main className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="font-mono text-2xl mb-8">account settings</h1>
+      <main className="max-w-2xl mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+        <h1 className="text-2xl mb-8">account settings</h1>
         <form onSubmit={handleSave} className="space-y-6">
           <div className="flex flex-col items-center gap-4">
-            <div className="relative w-24 h-24 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+            <div className="relative w-24 h-24 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
               {avatarUrl ? (
                 <Image src={avatarUrl} alt={form.username || 'avatar'} width={96} height={96} className="object-cover aspect-square" />
               ) : (
-                <span className="text-4xl font-mono">{form.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'A'}</span>
+                <span className="text-4xl">{form.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'A'}</span>
               )}
               {isUploading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
@@ -127,37 +127,37 @@ export default function AccountPage() {
               type="file"
               accept="image/*"
               onChange={handleAvatarUpload}
-              className="font-mono"
+              className=""
               disabled={isUploading}
             />
           </div>
           <div>
-            <label className="block font-mono mb-2">username</label>
+            <label className="block mb-2">username</label>
             <input
               type="text"
               value={form.username}
               onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
             />
           </div>
           <div>
-            <label className="block font-mono mb-2">bio</label>
+            <label className="block mb-2">bio</label>
             <textarea
               value={form.bio}
               onChange={(e) => setForm(prev => ({ ...prev, bio: e.target.value }))}
               rows={4}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-mono"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
             />
           </div>
           <button
             type="submit"
             disabled={saving}
-            className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono disabled:opacity-50"
+            className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
           >
             {saving ? 'saving...' : 'save changes'}
           </button>
-          {error && <p className="font-mono text-red-500">{error}</p>}
-          {success && <p className="font-mono text-green-600">{success}</p>}
+          {error && <p className="text-red-500">{error}</p>}
+          {success && <p className="text-green-600">{success}</p>}
         </form>
       </main>
     </>

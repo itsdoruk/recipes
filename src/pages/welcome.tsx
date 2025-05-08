@@ -293,23 +293,14 @@ export default function DiscoverPage() {
         <title>discover | [recipes]</title>
       </Head>
 
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main className="max-w-2xl mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="space-y-8">
-          <div className="flex justify-between items-center">
-            <h1 className="font-mono text-2xl">discover to [recipes]</h1>
-            {user && (
-              <Link
-                href="/profile"
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono"
-              >
-                your profile
-              </Link>
-            )}
+          <div className="flex justify-between items-center">    
           </div>
 
           {currentStep === 1 && (
             <div className="space-y-4">
-              <h2 className="font-mono text-xl">what type of cuisine are you in the mood for?</h2>
+              <h2 className="text-xl">what type of cuisine are you in the mood for?</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {CUISINE_TYPES.map((type) => (
                   <button
@@ -318,7 +309,7 @@ export default function DiscoverPage() {
                       setPreferences(prev => ({ ...prev, cuisine: type }));
                       handleNext();
                     }}
-                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono text-left"
+                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacitytext-left"
                   >
                     {type}
                   </button>
@@ -329,7 +320,7 @@ export default function DiscoverPage() {
 
           {currentStep === 2 && (
             <div className="space-y-4">
-              <h2 className="font-mono text-xl">do you have any dietary preferences?</h2>
+              <h2 className="text-xl">do you have any dietary preferences?</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {DIET_TYPES.map((type) => (
                   <button
@@ -338,7 +329,7 @@ export default function DiscoverPage() {
                       setPreferences(prev => ({ ...prev, diet: type }));
                       handleNext();
                     }}
-                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono text-left"
+                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacitytext-left"
                   >
                     {type}
                   </button>
@@ -349,7 +340,7 @@ export default function DiscoverPage() {
                   setPreferences(prev => ({ ...prev, diet: '' }));
                   handleNext();
                 }}
-                className="w-full p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono"
+                className="w-full p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity "
               >
                 no preference
               </button>
@@ -358,7 +349,7 @@ export default function DiscoverPage() {
 
           {currentStep === 3 && (
             <div className="space-y-4">
-              <h2 className="font-mono text-xl">how much time do you have?</h2>
+              <h2 className="text-xl">how much time do you have?</h2>
               <div className="grid grid-cols-1 gap-4">
                 {COOKING_TIMES.map(({ label, value }) => (
                   <button
@@ -367,7 +358,7 @@ export default function DiscoverPage() {
                       setPreferences(prev => ({ ...prev, maxTime: value }));
                       handleSubmit(new Event('submit') as any);
                     }}
-                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono text-left"
+                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacitytext-left"
                   >
                     {label}
                   </button>
@@ -377,7 +368,7 @@ export default function DiscoverPage() {
                     setPreferences(prev => ({ ...prev, maxTime: 0 }));
                     handleSubmit(new Event('submit') as any);
                   }}
-                  className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity font-mono"
+                  className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity "
                 >
                   no time limit
                 </button>
@@ -386,14 +377,14 @@ export default function DiscoverPage() {
           )}
 
           {error && (
-            <p className="font-mono text-red-500">{error}</p>
+            <p className="text-red-500">{error}</p>
           )}
 
           {aiResponse && (
             <div className="p-4 border border-gray-200 dark:border-gray-800 space-y-4">
-              <h2 className="font-mono text-xl">your personalized recommendation</h2>
+              <h2 className="text-xl">your personalized recommendation</h2>
               <div 
-                className="font-mono prose prose-invert max-w-none text-sm prose-headings:font-mono prose-p:font-mono prose-strong:font-mono prose-em:font-mono prose-code:font-mono prose-pre:font-mono prose-blockquote:font-mono prose-ul:font-mono prose-ol:font-mono prose-li:font-mono prose-a:font-mono" 
+                className="prose prose-invert max-w-none text-sm prose-headings:prose-p:prose-strong:prose-em:prose-code:prose-pre:prose-blockquote:prose-ul:prose-ol:prose-li:prose-a:" 
                 dangerouslySetInnerHTML={{ __html: aiResponse }} 
               />
             </div>
@@ -401,7 +392,7 @@ export default function DiscoverPage() {
 
           {recipes.length > 0 && (
             <div className="space-y-4">
-              <h2 className="font-mono text-xl">recommended recipes</h2>
+              <h2 className="text-xl">recommended recipes</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {aiRecipe && (
                   <RecipeCard
@@ -435,15 +426,15 @@ export default function DiscoverPage() {
                         />
                       </div>
                     )}
-                    <h3 className="font-mono text-lg">{recipe.title}</h3>
-                    <div className="font-mono prose prose-invert max-w-none text-sm text-gray-500 dark:text-gray-400 line-clamp-2" dangerouslySetInnerHTML={{ __html: recipe.description }} />
+                    <h3 className="text-lg">{recipe.title}</h3>
+                    <div className="prose prose-invert max-w-none text-sm text-gray-500 dark:text-gray-400 line-clamp-2" dangerouslySetInnerHTML={{ __html: recipe.description }} />
                     <div className="flex justify-between items-center mt-2">
                       {recipe.cooking_time && (
-                        <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
                           {recipe.cooking_time}
                         </p>
                       )}
-                      <p className="font-mono text-sm text-gray-500 dark:text-gray-400">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {new Date(recipe.created_at).toLocaleDateString()}
                       </p>
                     </div>

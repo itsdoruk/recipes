@@ -115,7 +115,7 @@ export default function SearchPage() {
   if (!query) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="font-mono">enter a search query</p>
+        <p className="">enter a search query</p>
       </div>
     );
   }
@@ -127,16 +127,16 @@ export default function SearchPage() {
       </Head>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="font-mono text-2xl mb-8">
+        <h1 className="text-2xl mb-8">
           search results for "{query}"
         </h1>
 
         {isLoading ? (
-          <p className="font-mono">searching...</p>
+          <p className="">searching...</p>
         ) : error ? (
-          <p className="font-mono text-red-500">{error}</p>
+          <p className="text-red-500">{error}</p>
         ) : recipes.length === 0 ? (
-          <p className="font-mono">no recipes found</p>
+          <p className="">no recipes found</p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {recipes.map((recipe) => (

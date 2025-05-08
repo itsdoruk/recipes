@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Only render children after loading is complete
   if (loading) {
-    return <div className="font-mono p-8 text-center">Loading...</div>;
+    return <div className="p-8 text-center">Loading...</div>;
   }
 
   const signIn = async (email: string, password: string) => {
