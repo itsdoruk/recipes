@@ -202,14 +202,14 @@ export function Comments({ recipeId }: CommentsProps) {
                       {user?.id === comment.user_id && (
                         <button
                           onClick={() => startEditing(comment)}
-                          className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                          className="text-sm px-2 py-1 border border-gray-200 dark:border-gray-800 hover:opacity-80"
                         >
                           edit
                         </button>
                       )}
                       <button
                         onClick={() => handleDelete(comment.id)}
-                        className="text-sm text-red-500 hover:text-red-700"
+                        className="text-sm px-2 py-1 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80"
                       >
                         delete
                       </button>

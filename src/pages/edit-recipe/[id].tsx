@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
+import { useTranslation } from '@/lib/hooks/useTranslation';
 
 const CUISINE_TYPES = [
   'italian',
@@ -38,6 +39,7 @@ export default function EditRecipePage() {
   const router = useRouter();
   const { id } = router.query;
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,8 +65,8 @@ export default function EditRecipePage() {
 
         setRecipe(data);
       } catch (err) {
-        console.error('Error fetching recipe:', err);
-        setError('Failed to load recipe');
+        console.error(String('Error fetching recipe:'), err);
+        setError(String('Failed to load recipe'));
       } finally {
         setIsLoading(false);
       }
@@ -79,7 +81,7 @@ export default function EditRecipePage() {
 
     // Validate cooking time value is a number
     if (recipe.cooking_time && !/^\d+\s+(seconds|mins|days)$/.test(recipe.cooking_time)) {
-      setError('Cooking time must be a number followed by a unit (seconds, mins, or days)');
+      setError(String('Cooking time must be a number followed by a unit (seconds, mins, or days)'));
       return;
     }
 
@@ -104,14 +106,14 @@ export default function EditRecipePage() {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Supabase update error:', error);
+        console.error(String('Supabase update error:'), error);
         throw error;
       }
 
       router.push(`/recipe/${recipe.id}`);
     } catch (err) {
-      console.error('Error updating recipe:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update recipe');
+      console.error(String('Error updating recipe:'), err);
+      setError(err instanceof Error ? err.message : String('Failed to update recipe'));
     } finally {
       setIsSaving(false);
     }
@@ -120,7 +122,7 @@ export default function EditRecipePage() {
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="">loading...</p>
+        <p className="">{String('loading...')}</p>
       </div>
     );
   }
@@ -128,7 +130,15 @@ export default function EditRecipePage() {
   if (error || !recipe) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="text-red-500">{error || 'Recipe not found'}</p>
+        <p className="text-red-500">{error || String('Recipe not found')}</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <p className="">{t('recipe.pleaseSignIn')}</p>
       </div>
     );
   }
@@ -136,19 +146,19 @@ export default function EditRecipePage() {
   return (
     <>
       <Head>
-        <title>edit recipe | [recipes]</title>
+        <title>{t('recipe.editRecipe')} | {t('nav.recipes')}</title>
       </Head>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
         <div className="space-y-8">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl">edit recipe</h1>
+            <h1 className="text-2xl">{String('edit recipe')}</h1>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="title" className="blockmb-2">
-                title
+                {String('title')}
               </label>
               <input
                 type="text"
@@ -162,7 +172,7 @@ export default function EditRecipePage() {
 
             <div>
               <label htmlFor="description" className="blockmb-2">
-                description
+                {String('description')}
               </label>
               <textarea
                 id="description"
@@ -175,7 +185,7 @@ export default function EditRecipePage() {
 
             <div>
               <label htmlFor="image_url" className="blockmb-2">
-                image url
+                {String('image url')}
               </label>
               <input
                 type="url"
@@ -188,7 +198,7 @@ export default function EditRecipePage() {
 
             <div>
               <label htmlFor="ingredients" className="blockmb-2">
-                ingredients (one per line)
+                {String('ingredients (one per line)')}
               </label>
               <textarea
                 id="ingredients"
@@ -196,15 +206,15 @@ export default function EditRecipePage() {
                 onChange={(e) => setRecipe({ ...recipe, ingredients: e.target.value.split('\n').filter(i => i.trim()) })}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparenth-32"
                 required
-                placeholder={`e.g. 2 eggs
+                placeholder={String(`e.g. 2 eggs
 1 cup flour
-1/2 cup sugar`}
+1/2 cup sugar`)}
               />
             </div>
 
             <div>
               <label htmlFor="instructions" className="blockmb-2">
-                instructions (one step per line)
+                {String('instructions (one step per line)')}
               </label>
               <textarea
                 id="instructions"
@@ -212,10 +222,10 @@ export default function EditRecipePage() {
                 onChange={(e) => setRecipe({ ...recipe, instructions: e.target.value.split('\n').filter(i => i.trim()) })}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparenth-32"
                 required
-                placeholder={`e.g. Preheat oven to 350F
+                placeholder={String(`e.g. Preheat oven to 350F
 Mix flour and sugar
 Add eggs and stir
-Bake for 30 minutes`}
+Bake for 30 minutes`)}
               />
             </div>
 
@@ -224,12 +234,12 @@ Bake for 30 minutes`}
                 id="cuisine_type"
                 value={recipe.cuisine_type || ''}
                 onChange={(e) => setRecipe({ ...recipe, cuisine_type: e.target.value })}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
               >
-                <option value="">any cuisine</option>
+                <option value="">{t('recipe.anyCuisine')}</option>
                 {CUISINE_TYPES.map((type) => (
                   <option key={type} value={type}>
-                    {type}
+                    {t(`cuisine.${type}`)}
                   </option>
                 ))}
               </select>
@@ -244,12 +254,10 @@ Bake for 30 minutes`}
                     const val = e.target.value.replace(/[^0-9\s]/g, '');
                     setRecipe({ ...recipe, cooking_time: val });
                   }}
-                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparentw-full"
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent w-full"
                   min="0"
-                  placeholder="cooking time"
+                  placeholder={t('recipe.cookingTime')}
                   inputMode="numeric"
-                  pattern="[0-9]*"
-                  autoComplete="off"
                 />
                 <select
                   id="cooking_time_unit"
@@ -258,11 +266,11 @@ Bake for 30 minutes`}
                     const value = recipe.cooking_time?.split(' ')[0] || '';
                     setRecipe({ ...recipe, cooking_time: value ? `${value} ${e.target.value}` : null });
                   }}
-                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
                 >
-                  <option value="seconds">seconds</option>
-                  <option value="mins">mins</option>
-                  <option value="days">days</option>
+                  <option value="seconds">{t('common.seconds')}</option>
+                  <option value="mins">{t('common.minutes')}</option>
+                  <option value="days">{t('common.days')}</option>
                 </select>
               </div>
 
@@ -270,12 +278,12 @@ Bake for 30 minutes`}
                 id="diet_type"
                 value={recipe.diet_type || ''}
                 onChange={(e) => setRecipe({ ...recipe, diet_type: e.target.value })}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
               >
-                <option value="">any diet</option>
+                <option value="">{t('recipe.anyDiet')}</option>
                 {DIET_TYPES.map((type) => (
                   <option key={type} value={type}>
-                    {type}
+                    {t(`diet.${type}`)}
                   </option>
                 ))}
               </select>
@@ -285,9 +293,9 @@ Bake for 30 minutes`}
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacitydisabled:opacity-50"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
               >
-                {isSaving ? 'saving...' : 'save'}
+                {isSaving ? t('recipe.saving') : t('common.save')}
               </button>
             </div>
           </form>

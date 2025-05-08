@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { useTranslation } from '@/lib/hooks/useTranslation';
 
 interface Profile {
   username: string | null;
@@ -37,6 +38,7 @@ export default function RecipeCard({
   link,
   loading = false,
 }: RecipeCardProps) {
+  const { t } = useTranslation();
   const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
@@ -87,7 +89,7 @@ export default function RecipeCard({
           {profile?.avatar_url ? (
             <img
               src={profile.avatar_url}
-              alt={profile.username || 'anonymous'}
+              alt={profile.username || t('common.anonymous')}
               className="w-8 h-8 rounded-full object-cover flex-shrink-0"
             />
           ) : (
@@ -104,7 +106,7 @@ export default function RecipeCard({
               className="text-sm font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate"
               style={{ color: "var(--foreground)" }}
             >
-              {profile?.username || 'anonymous'}
+              {profile?.username || t('common.anonymous')}
             </Link>
             <div className="flex items-center gap-2">
               {cooking_time && (

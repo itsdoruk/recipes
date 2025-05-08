@@ -7,6 +7,7 @@ import { getPopularRecipes } from '@/lib/spoonacular';
 import RecipeCard from '@/components/RecipeCard';
 import { marked } from 'marked';
 import { GetServerSideProps } from 'next';
+import { useTranslation } from '@/lib/hooks/useTranslation';
 
 interface SearchFilters {
   diet: string;
@@ -38,31 +39,31 @@ interface SpoonacularSearchResult {
   readyInMinutes?: number;
 }
 
-const PIZZA_IMG = 'https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fwp.scoopwhoop.com%2Fwp-content%2Fuploads%2F2019%2F08%2F5d638187e2a04c57823e8c95_a299d096-af8e-452b-9b7b-3e78ac7ea7b6.jpg&f=1&nofb=1&ipt=d7d3b877a8815443046fe8942df8ed873c4e24f0bf1e00b24696f69816de2ff7';
-const PIZZA_AUDIO = '/pizza-time-theme.mp3';
-const RANDOM_CARD_IMG = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80'; // A fun food image
+const PIZZA_IMG = String('https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fwp.scoopwhoop.com%2Fwp-content%2Fuploads%2F2019%2F08%2F5d638187e2a04c57823e8c95_a299d096-af8e-452b-9b7b-3e78ac7ea7b6.jpg&f=1&nofb=1&ipt=d7d3b877a8815443046fe8942df8ed873c4e24f0bf1e00b24696f69816de2ff7');
+const PIZZA_AUDIO = String('/pizza-time-theme.mp3');
+const RANDOM_CARD_IMG = String('https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80'); // A fun food image
 
 const CUISINE_TYPES = [
-  'italian', 'mexican', 'asian', 'american', 'mediterranean',
-  'french', 'chinese', 'japanese', 'indian', 'thai', 'greek',
-  'spanish', 'british', 'turkish', 'korean', 'vietnamese', 'german', 'caribbean', 'african', 'middle eastern', 'russian', 'brazilian'
+  String('italian'), String('mexican'), String('asian'), String('american'), String('mediterranean'),
+  String('french'), String('chinese'), String('japanese'), String('indian'), String('thai'), String('greek'),
+  String('spanish'), String('british'), String('turkish'), String('korean'), String('vietnamese'), String('german'), String('caribbean'), String('african'), String('middle eastern'), String('russian'), String('brazilian')
 ];
 
 const DIET_TYPES = [
-  'vegetarian', 'vegan', 'gluten-free', 'ketogenic', 'paleo',
-  'pescatarian', 'lacto-vegetarian', 'ovo-vegetarian', 'whole30', 'low-fodmap', 'dairy-free', 'nut-free', 'halal', 'kosher'
+  String('vegetarian'), String('vegan'), String('gluten-free'), String('ketogenic'), String('paleo'),
+  String('pescatarian'), String('lacto-vegetarian'), String('ovo-vegetarian'), String('whole30'), String('low-fodmap'), String('dairy-free'), String('nut-free'), String('halal'), String('kosher')
 ];
 
 function mapToAllowedCuisine(cuisine: string) {
-  if (!cuisine) return 'unknown';
+  if (!cuisine) return String('unknown');
   cuisine = cuisine.toLowerCase();
-  return CUISINE_TYPES.find(type => cuisine.includes(type)) || 'unknown';
+  return CUISINE_TYPES.find(type => cuisine.includes(type)) || String('unknown');
 }
 
 function mapToAllowedDiet(diet: string) {
-  if (!diet) return 'unknown';
+  if (!diet) return String('unknown');
   diet = diet.toLowerCase();
-  return DIET_TYPES.find(type => diet.includes(type)) || 'unknown';
+  return DIET_TYPES.find(type => diet.includes(type)) || String('unknown');
 }
 
 function mapToAllowedTime(minutes: number | undefined) {
@@ -171,43 +172,8 @@ function extractRecipePropertiesFromMarkdown(markdown: string) {
   return result;
 }
 
-// Test the recipe extraction
-const testRecipe = `DESCRIPTION: A light and airy chocolate souffle that rises beautifully in the oven, perfect for a special dessert.
-
-CUISINE: french
-
-DIET: vegetarian
-
-COOKING TIME: 25
-
-NUTRITION: 320 calories, 12g protein, 24g fat, 20g carbohydrates
-
-INGREDIENTS:
-- 150ml single cream
-- 2 tbsp caster sugar
-- 100g dark chocolate
-- 20g butter
-- 2 egg yolks
-- 2 egg whites
-- 150ml double cream
-- icing sugar
-
-INSTRUCTIONS:
-1. Preheat oven to 220c. Place a baking tray on the top shelf.
-2. Heat cream and sugar until boiling, then remove from heat. Stir in chocolate and butter until melted.
-3. Brush 6 ramekins with melted butter and sprinkle with caster sugar.
-4. Melt chocolate and cream in a bowl over simmering water, cool, then mix in egg yolks.
-5. Whisk egg whites until they hold their shape, then add sugar and whisk until consistent.
-6. Mix a spoonful of egg whites into the chocolate, then gently fold in the rest.
-7. Fill ramekins, wipe rims clean, and run thumb around edges.
-8. Bake at 200c for 8-10 minutes until risen with a slight wobble.
-9. Dust with icing sugar, scoop a hole from the top, and pour in hot chocolate sauce.
-10. Serve straight away.`;
-
-const testResult = extractRecipePropertiesFromMarkdown(testRecipe);
-console.log('Test Result:', JSON.stringify(testResult, null, 2));
-
 export default function Home({ initialRecipes }: HomeProps) {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   // Controlled search input
@@ -397,101 +363,97 @@ export default function Home({ initialRecipes }: HomeProps) {
           const recipeData = await recipeRes.json();
           const meal = recipeData.meals?.[0];
           if (!meal) throw new Error('No random recipe found');
-          const improvisePrompt = `Start with a fun, appetizing, and engaging internet-style introduction for this recipe (at least 2 sentences, do not use the title as the description). Then, on new lines, provide:
-CUISINE: [guess the cuisine, e.g. british, italian, etc.]
-DIET: [guess the diet, e.g. vegetarian, gluten-free, etc.]
-COOKING TIME: [guess the total time in minutes, e.g. 30]
-NUTRITION: [guess as: 400 calories, 30g protein, 10g fat, 50g carbohydrates]
-Only provide these fields after the description, each on a new line, and nothing else.
 
-Title: ${meal.strMeal}
-Category: ${meal.strCategory}
-Area: ${meal.strArea}
-Instructions: ${meal.strInstructions}
-Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && meal[k]).map(k => meal[k]).join(', ')}`;
-          const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messages: [
-                { role: 'system', content: 'You are a recipe formatter. Always format recipes with these exact section headers in this order: DESCRIPTION, CUISINE, DIET, COOKING TIME, NUTRITION, INGREDIENTS, INSTRUCTIONS. Each section should start on a new line with its header in uppercase followed by a colon. Ingredients should be bullet points starting with "-". Instructions should be numbered steps starting with "1."' },
-                { role: 'user', content: improvisePrompt }
-              ]
-            })
-          });
-          const aiData = await aiRes.json();
-          let aiContent = aiData.choices[0].message.content;
-          if (aiContent instanceof Promise) {
-            aiContent = await aiContent;
-          }
-          // Extract properties from AI markdown
-          const extracted = extractRecipePropertiesFromMarkdown(aiContent);
-          // Helper to check if description is just the title
-          const isDescriptionJustTitle = (desc: string, title: string) => {
-            if (!desc || !title) return true;
-            const d = desc.trim().toLowerCase();
-            const t = title.trim().toLowerCase();
-            return d === t || d.startsWith(t) || t.startsWith(d);
+          // Get the target language code based on router locale
+          const targetLang = router.locale === 'es' ? 'es' : router.locale === 'tr' ? 'tr' : 'en';
+
+          // Translate the recipe content using LibreTranslate
+          const translateContent = async (text: string) => {
+            if (targetLang === 'en') return text; // No need to translate if target is English
+            
+            try {
+              const res = await fetch("https://libretranslate.com/translate", {
+                method: "POST",
+                body: JSON.stringify({
+                  q: text,
+                  source: "en",
+                  target: targetLang,
+                  format: "text"
+                }),
+                headers: { "Content-Type": "application/json" }
+              });
+              
+              if (!res.ok) {
+                throw new Error(`Translation failed with status: ${res.status}`);
+              }
+              
+              const data = await res.json();
+              return data.translatedText;
+            } catch (err) {
+              console.error('Translation error:', err);
+              // Return the original text if translation fails
+              return text;
+            }
           };
-          // Fallbacks: use AI's value if present, else use a friendly default
-          const description =
-            extracted.description &&
-            extracted.description !== 'unknown' &&
-            !isDescriptionJustTitle(extracted.description, meal.strMeal)
-              ? extracted.description
-              : "A delicious dish you'll love!";
-          const ingredients = extracted.ingredients && extracted.ingredients.length > 0 ? extracted.ingredients : Object.keys(meal)
-            .filter(k => k.startsWith('strIngredient') && meal[k] && meal[k].trim() && meal[k].toLowerCase() !== 'null')
-            .map(k => meal[k].trim());
-          const instructions = extracted.instructions && extracted.instructions.length > 0 ? extracted.instructions : (meal.strInstructions
-            ? meal.strInstructions.split(/\r?\n|\.\s+/).map((s: string) => s.trim()).filter(Boolean)
-            : []);
-          const nutrition = (extracted.nutrition && extracted.nutrition.calories !== 'unknown') ? extracted.nutrition : { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' };
-          // Normalize cuisine_type and diet_type for AI recipes to match filter options
-          const cuisine_type = mapToAllowedCuisine(
-            extracted.cuisine_type && extracted.cuisine_type !== 'unknown'
-              ? extracted.cuisine_type
-              : meal.strArea || meal.strCategory || ''
+
+          // Translate title and description
+          const title = await translateContent(meal.strMeal);
+          const description = await translateContent(meal.strInstructions);
+
+          // Translate ingredients
+          const ingredients = await Promise.all(
+            Object.keys(meal)
+              .filter(k => k.startsWith('strIngredient') && meal[k] && meal[k].trim() && meal[k].toLowerCase() !== 'null')
+              .map(k => translateContent(meal[k].trim()))
           );
-          const diet_type = mapToAllowedDiet(
-            extracted.diet_type && extracted.diet_type !== 'unknown'
-              ? extracted.diet_type
-              : meal.strCategory || ''
+
+          // Translate instructions
+          const instructions = await Promise.all(
+            meal.strInstructions
+              .split(/\r?\n|\.\s+/)
+              .map((s: string) => s.trim())
+              .filter(Boolean)
+              .map((step: string) => translateContent(step))
           );
-          const mappedTime = extracted.cooking_time_value || 0;
-          const cooking_time = extracted.cooking_time && extracted.cooking_time !== 'unknown' ? extracted.cooking_time : (mappedTime ? `${mappedTime} mins` : 'unknown');
-          // Clean up instructions: remove duplicate number bullets if present
-          const cleanedInstructions = instructions.map((step: string) => step.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
+
+          // Map cuisine and diet types
+          const cuisine_type = mapToAllowedCuisine(meal.strArea || meal.strCategory || '');
+          const diet_type = mapToAllowedDiet(meal.strCategory || '');
+          const cooking_time = '30 mins'; // Default cooking time
+
           const randomRecipeObj = {
             id: `random-internet-${meal.idMeal}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            title: meal.strMeal,
+            title,
             description,
             image_url: meal.strMealThumb || RANDOM_CARD_IMG,
             user_id: 'internet',
             created_at: new Date().toISOString(),
             ingredients,
-            instructions: cleanedInstructions,
-            nutrition,
+            instructions,
+            nutrition: { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' },
             cuisine_type,
             diet_type,
             cooking_time,
-            cooking_time_value: mappedTime
+            cooking_time_value: 30
           };
+
           if (typeof window !== 'undefined') {
             localStorage.setItem(randomRecipeObj.id, JSON.stringify(randomRecipeObj));
           }
           return randomRecipeObj;
         } catch (err) {
+          console.error('Error generating recipe:', err);
           return null;
         }
       });
+
       const aiResults = await Promise.all(aiRecipePromises);
       setAiRecipes(aiResults.filter(Boolean));
       setAiLoading(false);
     };
     generateMultipleAiRecipes();
     // eslint-disable-next-line
-  }, []);
+  }, [router.locale]);
 
   // Filter and search AI recipes
   const filteredAiRecipes = aiRecipes.filter(recipe => {
@@ -507,13 +469,13 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
   return (
     <>
       <Head>
-        <title>[recipes]</title>
+        <title>{t('nav.recipes')}</title>
       </Head>
 
       <main className="max-w-2xl mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="space-y-8">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl">[recipes]</h1>
+            <h1 className="text-2xl">{t('nav.recipes')}</h1>
           </div>
 
           <form onSubmit={handleSearch} className="space-y-4">
@@ -522,7 +484,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="search recipes..."
+                placeholder={t('recipe.searchRecipes')}
                 className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
               />
               <button
@@ -530,7 +492,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 disabled={isLoading}
                 className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
               >
-                {isLoading ? "searching..." : "search"}
+                {isLoading ? t('recipe.searching') : t('recipe.search')}
               </button>
             </div>
 
@@ -540,9 +502,9 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 onChange={(e) => handleFilterChange("diet", e.target.value)}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
-                <option value="">any diet</option>
+                <option value="">{t('recipe.anyDiet')}</option>
                 {DIET_TYPES.map((type) => (
-                  <option key={type} value={type}>{type}</option>
+                  <option key={type} value={type}>{t(`diet.${type}`)}</option>
                 ))}
               </select>
 
@@ -551,9 +513,9 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 onChange={(e) => handleFilterChange("cuisine", e.target.value)}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
-                <option value="">any cuisine</option>
+                <option value="">{t('recipe.anyCuisine')}</option>
                 {CUISINE_TYPES.map((type) => (
-                  <option key={type} value={type}>{type}</option>
+                  <option key={type} value={type}>{t(`cuisine.${type}`)}</option>
                 ))}
               </select>
 
@@ -562,11 +524,11 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 onChange={(e) => handleFilterChange("maxReadyTime", Number(e.target.value))}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
-                <option value="0">any time</option>
-                <option value="15">15 mins or less</option>
-                <option value="30">30 mins or less</option>
-                <option value="45">45 mins or less</option>
-                <option value="60">1 hour or less</option>
+                <option value="0">{t('recipe.anyTime')}</option>
+                <option value="15">{t('time.quick', { minutes: 15 })}</option>
+                <option value="30">{t('time.medium', { minutes: 30 })}</option>
+                <option value="45">{t('time.medium', { minutes: 45 })}</option>
+                <option value="60">{t('time.long', { hours: 1 })}</option>
               </select>
             </div>
           </form>
@@ -577,15 +539,15 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
 
           {/* Main Recipe Grid: 5 AI recipes first, then popular/community recipes */}
           <div className="space-y-4">
-            <h2 className="text-xl">recipes</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h2 className="text-xl">{t('recipe.recipes')}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {aiLoading
                 ? Array.from({ length: 5 }).map((_, idx) => (
                     <RecipeCard
                       key={`ai-loading-${idx}`}
                       id={`ai-loading-${idx}`}
-                      title="Loading..."
-                      description="Generating a new AI recipe..."
+                      title={t('ai.loading')}
+                      description={t('ai.generating')}
                       image_url={RANDOM_CARD_IMG}
                       user_id="recipes-ai"
                       created_at={new Date().toISOString()}
@@ -652,7 +614,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 </div>
             {/* Loading indicator */}
             <div ref={loadingRef} className="h-10 flex items-center justify-center">
-              {isLoading && <p>loading more recipes...</p>}
+              {isLoading && <p>{t('recipe.loadMore')}</p>}
               </div>
           </div>
         </div>

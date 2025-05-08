@@ -3,6 +3,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { useTranslation } from "@/lib/hooks/useTranslation";
 
 const CUISINE_TYPES = [
   'italian',
@@ -23,6 +24,7 @@ const DIET_TYPES = [
 export default function CreateRecipePage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -96,7 +98,7 @@ export default function CreateRecipePage() {
   if (!user) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="">please sign in to create a recipe</p>
+        <p className="">{t('recipe.pleaseSignIn')}</p>
       </div>
     );
   }
@@ -104,9 +106,8 @@ export default function CreateRecipePage() {
   return (
     <>
       <Head>
-        <title>create recipe | [recipes]</title>
+        <title>{t('recipe.editRecipe')} | {t('nav.recipes')}</title>
       </Head>
-
       <main className="max-w-2xl mx-auto px-4 py-8">
         <div className="space-y-8">
           <div className="flex justify-between items-center">
@@ -194,10 +195,10 @@ Bake for 30 minutes`}
                 onChange={(e) => setCuisineType(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
-                <option value="">any cuisine</option>
+                <option value="">{t('recipe.anyCuisine')}</option>
                 {CUISINE_TYPES.map((type) => (
                   <option key={type} value={type}>
-                    {type}
+                    {t(`cuisine.${type}`)}
                   </option>
                 ))}
               </select>
@@ -214,7 +215,7 @@ Bake for 30 minutes`}
                   }}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
                   min="0"
-                  placeholder="cooking time"
+                  placeholder={t('recipe.cookingTime')}
                   required
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -226,9 +227,9 @@ Bake for 30 minutes`}
                   onChange={(e) => setCookingTimeUnit(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
                 >
-                  <option value="seconds">seconds</option>
-                  <option value="mins">mins</option>
-                  <option value="days">days</option>
+                  <option value="seconds">{t('common.seconds')}</option>
+                  <option value="mins">{t('common.minutes')}</option>
+                  <option value="days">{t('common.days')}</option>
                 </select>
               </div>
 
@@ -238,63 +239,63 @@ Bake for 30 minutes`}
                 onChange={(e) => setDietType(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
-                <option value="">any diet</option>
+                <option value="">{t('recipe.anyDiet')}</option>
                 {DIET_TYPES.map((type) => (
                   <option key={type} value={type}>
-                    {type}
+                    {t(`diet.${type}`)}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <h2 className="text-xl mb-4 mt-8">nutrition</h2>
+              <h2 className="text-xl mb-4 mt-8">{t('recipe.nutrition')}</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <label htmlFor="calories" className="blockmb-2">calories</label>
+                  <label htmlFor="calories" className="block mb-2">{t('recipe.calories')}</label>
                   <input
                     type="number"
                     id="calories"
                     value={calories}
                     onChange={(e) => setCalories(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
-                    placeholder="calories"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+                    placeholder={t('recipe.calories')}
                     defaultValue="0"
                   />
                 </div>
                 <div>
-                  <label htmlFor="protein" className="blockmb-2">protein</label>
+                  <label htmlFor="protein" className="block mb-2">{t('recipe.protein')}</label>
                   <input
                     type="number"
                     id="protein"
                     value={protein}
                     onChange={(e) => setProtein(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
-                    placeholder="protein"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+                    placeholder={t('recipe.protein')}
                     defaultValue="0"
                   />
                 </div>
                 <div>
-                  <label htmlFor="fat" className="blockmb-2">fat</label>
+                  <label htmlFor="fat" className="block mb-2">{t('recipe.fat')}</label>
                   <input
                     type="number"
                     id="fat"
                     value={fat}
                     onChange={(e) => setFat(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
-                    placeholder="fat"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+                    placeholder={t('recipe.fat')}
                     defaultValue="0"
                   />
                 </div>
                 <div>
-                  <label htmlFor="carbohydrates" className="blockmb-2">carbohydrates</label>
+                  <label htmlFor="carbohydrates" className="block mb-2">{t('recipe.carbohydrates')}</label>
                   <input
                     type="number"
                     id="carbohydrates"
                     value={carbohydrates}
                     onChange={(e) => setCarbohydrates(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
-                    placeholder="carbohydrates"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+                    placeholder={t('recipe.carbohydrates')}
                     defaultValue="0"
                   />
                 </div>
@@ -305,20 +306,13 @@ Bake for 30 minutes`}
               <p className="text-red-500">{error}</p>
             )}
 
-            <div className="flex gap-4">
+            <div className="flex justify-end">
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacitydisabled:opacity-50"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
               >
-                {isSubmitting ? 'creating...' : 'create recipe'}
-              </button>
-              <button
-                type="button"
-                onClick={() => router.back()}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity "
-              >
-                cancel
+                {isSubmitting ? t('recipe.saving') : t('common.save')}
               </button>
             </div>
           </form>

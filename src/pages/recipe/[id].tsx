@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { getRecipeById } from '@/lib/spoonacular';
 import { supabase } from '@/lib/supabase';
 import { Comments } from '@/components/Comments';
+import { GetStaticProps, GetStaticPaths } from 'next';
+import { marked } from 'marked';
 
 interface Profile {
   username: string | null;
@@ -29,92 +31,76 @@ function splitInstructions(instructions: string): string[] {
     .filter(Boolean);
 }
 
-export default function RecipePage() {
+interface Recipe {
+  id: string;
+  title: string;
+  description: string;
+  image_url: string | null;
+  image?: string;
+  user_id: string;
+  created_at: string;
+  cuisine_type: string | null;
+  cooking_time: string | null;
+  diet_type: string | null;
+  ingredients: string[];
+  instructions: string[];
+  nutrition: {
+    calories: string;
+    protein: string;
+    fat: string;
+    carbohydrates: string;
+    nutrients?: Array<{
+      name: string;
+      amount: number;
+      unit: string;
+    }>;
+  };
+  summary?: string;
+  cuisines?: string[];
+  diets?: string[];
+  cooking_time_value?: number;
+  cooking_time_unit?: string;
+  readyInMinutes?: number;
+  extendedIngredients?: Array<{
+    original: string;
+  }>;
+  [key: string]: any; // Allow additional properties
+}
+
+interface RecipePageProps {
+  recipe: Recipe;
+  lastUpdated: string;
+}
+
+export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
   const router = useRouter();
-  const { id } = router.query;
   const { user } = useAuth();
-  const [recipe, setRecipe] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
-    const fetchRecipe = async () => {
+    if (!recipe.id) return;
+    const fetchProfile = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        // Check for random-internet recipe in localStorage
-        if (typeof window !== 'undefined' && typeof id === 'string' && id.startsWith('random-internet-')) {
-          const local = localStorage.getItem(id);
-          if (local) {
-            setRecipe(JSON.parse(local));
-            setProfile(null);
-            setIsLoading(false);
-            return;
-          } else {
-            setError('Could not find this AI-improvised recipe.');
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        // First try to get recipe from Supabase
-        const { data: supabaseRecipe, error: supabaseError } = await supabase
-          .from('recipes')
-          .select('*')
-          .eq('id', id)
+        // Fetch profile for user recipe
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('user_id', recipe.user_id)
           .single();
-
-        if (supabaseRecipe) {
-          setRecipe(supabaseRecipe);
-          // Fetch profile for user recipe
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('username, avatar_url')
-            .eq('user_id', supabaseRecipe.user_id)
-            .single();
-          setProfile(profileData);
-          setIsLoading(false);
-          return;
-        }
-
-        // If not found in Supabase, try Spoonacular
-        const spoonacularRecipe = await getRecipeById(id as string);
-        if (!spoonacularRecipe) {
-          setError('Recipe not found. It may have been removed or is no longer available.');
-          setIsLoading(false);
-          return;
-        }
-        
-        // Transform Spoonacular recipe data to match our format
-        const transformedRecipe = {
-          ...spoonacularRecipe,
-          image_url: spoonacularRecipe.image,
-          user_id: 'spoonacular',
-          created_at: spoonacularRecipe.dateAdded,
-          cuisine_type: spoonacularRecipe.cuisines?.[0] || null,
-          cooking_time: spoonacularRecipe.readyInMinutes ? `${spoonacularRecipe.readyInMinutes} mins` : null,
-          diet_type: spoonacularRecipe.diets?.[0] || null,
-          ingredients: spoonacularRecipe.extendedIngredients?.map((ing: any) => ing.original) || [],
-          instructions: spoonacularRecipe.analyzedInstructions?.[0]?.steps?.map((step: any) => step.step) || [],
-          nutrition: spoonacularRecipe.nutrition,
-          servings: spoonacularRecipe.servings,
-          sourceUrl: spoonacularRecipe.sourceUrl
-        };
-        
-        setRecipe(transformedRecipe);
-        setProfile(null);
+        setProfile(profileData);
       } catch (err) {
-        console.error('Error fetching recipe:', err);
-        setError('Failed to load recipe. Please try again later.');
+        console.error('Error fetching profile:', err);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchRecipe();
-  }, [id]);
+    fetchProfile();
+  }, [recipe.id]);
 
   const handleDelete = async () => {
     if (!recipe || !user || recipe.user_id !== user.id) return;
@@ -156,6 +142,11 @@ export default function RecipePage() {
     <>
       <Head>
         <title>{recipe.title} | [recipes]</title>
+        <meta name="description" content={recipe.description} />
+        <meta property="og:title" content={recipe.title} />
+        <meta property="og:description" content={recipe.description} />
+        {recipe.image_url && <meta property="og:image" content={recipe.image_url} />}
+        <meta name="last-modified" content={lastUpdated} />
       </Head>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
@@ -163,7 +154,7 @@ export default function RecipePage() {
           {recipe.image_url || recipe.image ? (
             <div className="relative w-full h-96">
               <Image
-                src={recipe.image_url || recipe.image}
+                src={recipe.image_url || recipe.image || ''}
                 alt={recipe.title}
                 fill
                 className="object-cover"
@@ -235,17 +226,21 @@ export default function RecipePage() {
             </div>
           </div>
 
-          {/* Nutrition Section for both user and Spoonacular recipes */}
+          {/* Nutrition Section */}
           <div>
             <h2 className="text-xl mb-4 mt-8">nutrition</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {['Calories', 'Protein', 'Fat', 'Carbohydrates'].map((nutrient) => {
                 let value = 'N/A';
-                if (recipe.nutrition && Array.isArray(recipe.nutrition.nutrients)) {
-                  const n = recipe.nutrition.nutrients.find((x: any) => x.name === nutrient);
+                if (recipe.nutrition?.nutrients) {
+                  const n = recipe.nutrition.nutrients.find((x) => x.name === nutrient);
                   if (n) value = `${n.amount} ${n.unit}`;
-                } else if (recipe[nutrient.toLowerCase()]) {
-                  value = recipe[nutrient.toLowerCase()];
+                } else {
+                  const nutrientKey = nutrient.toLowerCase() as keyof typeof recipe.nutrition;
+                  if (recipe.nutrition && nutrientKey in recipe.nutrition) {
+                    const nutritionValue = recipe.nutrition[nutrientKey];
+                    value = typeof nutritionValue === 'string' ? nutritionValue : 'N/A';
+                  }
                 }
                 return (
                   <div key={nutrient} className="text-center">
@@ -268,7 +263,7 @@ export default function RecipePage() {
                       </li>
                     ))
                   : recipe.extendedIngredients &&
-                    recipe.extendedIngredients.map((ing: any, idx: number) => (
+                    recipe.extendedIngredients.map((ing, idx) => (
                       <li key={idx} className="">
                         {ing.original}
                       </li>
@@ -308,3 +303,53 @@ export default function RecipePage() {
     </>
   );
 }
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  // Get the most recent 100 recipes for initial static generation
+  const { data: recipes } = await supabase
+    .from('recipes')
+    .select('id')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  const paths = recipes?.map((recipe) => ({
+    params: { id: recipe.id },
+  })) || [];
+
+  return {
+    paths,
+    fallback: 'blocking', // Show a loading state while generating new pages
+  };
+};
+
+export const getStaticProps: GetStaticProps = async ({ params }) => {
+  const { id } = params as { id: string };
+
+  try {
+    const { data: recipe, error } = await supabase
+      .from('recipes')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    if (!recipe) {
+      return {
+        notFound: true,
+      };
+    }
+
+    return {
+      props: {
+        recipe,
+        lastUpdated: new Date().toISOString(),
+      },
+      revalidate: 60, // Revalidate every 60 seconds
+    };
+  } catch (error) {
+    console.error('Error fetching recipe:', error);
+    return {
+      notFound: true,
+    };
+  }
+};

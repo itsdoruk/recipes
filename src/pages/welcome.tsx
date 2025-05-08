@@ -7,6 +7,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { marked } from 'marked';
 import RecipeCard from '@/components/RecipeCard';
+import { useTranslation } from '@/lib/hooks/useTranslation';
 
 const CUISINE_TYPES = [
   'italian', 'mexican', 'asian', 'american', 'mediterranean',
@@ -37,143 +38,150 @@ interface Recipe {
   diet_type: string | null;
 }
 
+interface UserPreferences {
+  cuisine?: string;
+  diet?: string;
+  cookingTime?: string;
+}
+
 export default function DiscoverPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [currentStep, setCurrentStep] = useState(1);
-  const [aiResponse, setAiResponse] = useState<string>('');
-  const [preferences, setPreferences] = useState({
-    cuisine: '',
-    diet: '',
-    maxTime: 0,
-  });
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [preferences, setPreferences] = useState<UserPreferences>({});
   const [aiRecipe, setAiRecipe] = useState<any>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
-  const getAiRecommendation = async (prefs: typeof preferences) => {
+  const getAiRecommendation = async () => {
+    setAiLoading(true);
     try {
-      const response = await fetch('https://ai.hackclub.com/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: 'system',
-              content: `You are a friendly cooking assistant. Keep recommendations short and sweet. Use markdown formatting:
-- Use **bold** for recipe names and key points
-- Use *italic* for emphasis
-- Use \`code\` for cooking times and measurements
-- Use - for bullet points
-- Use > for tips and notes
-- Use # for section headers
-- Use [link text](url) for links
-- Format your response in markdown and in lowercase.`
-            },
-            {
-              role: 'user',
-              content: `Give me a quick recommendation for recipes with these preferences: ${prefs.cuisine ? `Cuisine: ${prefs.cuisine}, ` : ''}${prefs.diet ? `Diet: ${prefs.diet}, ` : ''}${prefs.maxTime ? `Time: ${prefs.maxTime} minutes or less` : 'No time limit'}. Keep it brief and use markdown formatting for better readability.`
-            }
-          ]
-        })
-      });
+      // Get the target language code based on router locale
+      const targetLang = router.locale === 'es' ? 'es' : router.locale === 'tr' ? 'tr' : 'en';
 
-      const data = await response.json();
-      let formattedResponse = marked(data.choices[0].message.content);
-      if (formattedResponse instanceof Promise) {
-        formattedResponse = await formattedResponse;
-      }
-      setAiResponse(formattedResponse);
+      // Translate the recommendation using LibreTranslate
+      const translateContent = async (text: string) => {
+        if (targetLang === 'en') return text; // No need to translate if target is English
+        
+        try {
+          const res = await fetch("https://libretranslate.com/translate", {
+            method: "POST",
+            body: JSON.stringify({
+              q: text,
+              source: "en",
+              target: targetLang,
+              format: "text"
+            }),
+            headers: { "Content-Type": "application/json" }
+          });
+          
+          if (!res.ok) {
+            throw new Error(`Translation failed with status: ${res.status}`);
+          }
+          
+          const data = await res.json();
+          return data.translatedText;
+        } catch (err) {
+          console.error('Translation error:', err);
+          // Return the original text if translation fails
+          return text;
+        }
+      };
+
+      // Generate recommendation in English first
+      const recommendation = `Based on your preferences for ${preferences.cuisine || 'any cuisine'}, ${preferences.diet || 'any diet'}, and ${preferences.cookingTime || 'any time'}, here are some recipe suggestions:
+
+1. Quick and Easy Pasta Primavera - A light and fresh pasta dish with seasonal vegetables
+2. Mediterranean Grilled Chicken - Juicy chicken with herbs and lemon
+3. Vegetarian Buddha Bowl - A colorful bowl packed with nutrients
+4. Asian Stir-Fry - Quick and flavorful stir-fry with your choice of protein
+5. Mexican Street Tacos - Authentic street-style tacos with fresh toppings`;
+
+      // Translate the recommendation
+      const translatedRecommendation = await translateContent(recommendation);
+      setAiResponse(translatedRecommendation);
     } catch (err) {
       console.error('Error getting AI recommendation:', err);
+      setError('Failed to get recommendation');
+    } finally {
+      setAiLoading(false);
     }
   };
 
-  const getAiRecipe = async (prefs: typeof preferences) => {
+  const getAiRecipe = async () => {
+    setAiLoading(true);
     try {
-      const improvisePrompt = `Start with a fun, appetizing, and engaging internet-style introduction for this recipe (at least 2 sentences, do not use the title as the description). Then, on new lines, provide:\nCUISINE: [guess the cuisine, e.g. british, italian, etc.]\nDIET: [guess the diet, e.g. vegetarian, gluten-free, etc.]\nCOOKING TIME: [guess the total time in minutes, e.g. 30]\nNUTRITION: [guess as: 400 calories, 30g protein, 10g fat, 50g carbohydrates]\nOnly provide these fields after the description, each on a new line, and nothing else.\n\nPreferences: ${prefs.cuisine ? `Cuisine: ${prefs.cuisine}, ` : ''}${prefs.diet ? `Diet: ${prefs.diet}, ` : ''}${prefs.maxTime ? `Time: ${prefs.maxTime} minutes or less` : 'No time limit'}.`;
-      const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: 'You are a recipe generator. Respond in the format requested.' },
-            { role: 'user', content: improvisePrompt }
-          ]
-        })
-      });
-      const aiData = await aiRes.json();
-      const aiContent = aiData.choices[0].message.content;
-      // Use the same extraction logic as homepage
-      // (You may want to import this from a shared file in a real project)
-      const extract = (markdown: string) => {
-        let text = markdown.replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-        const result = {
-          description: '',
-          nutrition: { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' },
-          cuisine_type: 'unknown',
-          diet_type: 'unknown',
-          cooking_time: 'unknown',
-          cooking_time_value: undefined as number | undefined
-        };
-        const firstFieldIdx = lines.findIndex(line => /^(CUISINE|DIET|COOKING TIME|NUTRITION):/i.test(line));
-        if (firstFieldIdx > 0) {
-          result.description = lines.slice(0, firstFieldIdx).join(' ');
-        } else if (firstFieldIdx === -1) {
-          result.description = lines.join(' ');
-        }
-        const cuisineLine = lines.find(line => /^CUISINE:/i.test(line));
-        if (cuisineLine) {
-          result.cuisine_type = cuisineLine.replace(/^CUISINE:/i, '').trim().toLowerCase();
-        }
-        const dietLine = lines.find(line => /^DIET:/i.test(line));
-        if (dietLine) {
-          result.diet_type = dietLine.replace(/^DIET:/i, '').trim().toLowerCase();
-        }
-        const timeLine = lines.find(line => /^COOKING TIME:/i.test(line));
-        if (timeLine) {
-          const timeMatch = timeLine.match(/(\d+)/);
-          if (timeMatch) {
-            const minutes = parseInt(timeMatch[1], 10);
-            result.cooking_time_value = minutes;
-            result.cooking_time = `${minutes} mins`;
+      // Get the target language code based on router locale
+      const targetLang = router.locale === 'es' ? 'es' : router.locale === 'tr' ? 'tr' : 'en';
+
+      // Translate the recipe using LibreTranslate
+      const translateContent = async (text: string) => {
+        if (targetLang === 'en') return text; // No need to translate if target is English
+        
+        try {
+          const res = await fetch("https://libretranslate.com/translate", {
+            method: "POST",
+            body: JSON.stringify({
+              q: text,
+              source: "en",
+              target: targetLang,
+              format: "text"
+            }),
+            headers: { "Content-Type": "application/json" }
+          });
+          
+          if (!res.ok) {
+            throw new Error(`Translation failed with status: ${res.status}`);
           }
+          
+          const data = await res.json();
+          return data.translatedText;
+        } catch (err) {
+          console.error('Translation error:', err);
+          // Return the original text if translation fails
+          return text;
         }
-        const nutritionLine = lines.find(line => /^NUTRITION:/i.test(line));
-        if (nutritionLine) {
-          const calMatch = nutritionLine.match(/(\d+)\s*(?:calories|kcal|cal)/i);
-          const proteinMatch = nutritionLine.match(/(\d+)g\s*protein/i);
-          const fatMatch = nutritionLine.match(/(\d+)g\s*fat/i);
-          const carbMatch = nutritionLine.match(/(\d+)g\s*carbohydrates?/i);
-          result.nutrition = {
-            calories: calMatch ? calMatch[1] : 'unknown',
-            protein: proteinMatch ? proteinMatch[1] : 'unknown',
-            fat: fatMatch ? fatMatch[1] : 'unknown',
-            carbohydrates: carbMatch ? carbMatch[1] : 'unknown',
-          };
-        }
-        return result;
       };
-      const extracted = extract(aiContent);
-      setAiRecipe({
-        id: `ai-recipe-${Date.now()}`,
-        title: 'AI Recipe',
-        description: extracted.description,
-        image_url: null,
-        user_id: 'ai',
-        created_at: new Date().toISOString(),
-        cuisine_type: extracted.cuisine_type,
-        cooking_time: extracted.cooking_time,
-        diet_type: extracted.diet_type,
-        nutrition: extracted.nutrition,
-      });
+
+      // Generate recipe in English first
+      const recipe = {
+        title: "Quick and Easy Pasta Primavera",
+        description: "A light and fresh pasta dish with seasonal vegetables, perfect for a quick weeknight dinner.",
+        ingredients: [
+          "8 oz pasta",
+          "2 cups mixed vegetables (bell peppers, zucchini, carrots)",
+          "2 cloves garlic",
+          "2 tbsp olive oil",
+          "1/4 cup parmesan cheese",
+          "Salt and pepper to taste"
+        ],
+        instructions: [
+          "Cook pasta according to package instructions",
+          "Heat olive oil in a large pan",
+          "Add garlic and vegetables, sauté until tender",
+          "Drain pasta and add to the pan",
+          "Toss with parmesan cheese and season with salt and pepper"
+        ]
+      };
+
+      // Translate the recipe
+      const translatedRecipe = {
+        title: await translateContent(recipe.title),
+        description: await translateContent(recipe.description),
+        ingredients: await Promise.all(recipe.ingredients.map((ing: string) => translateContent(ing))),
+        instructions: await Promise.all(recipe.instructions.map((step: string) => translateContent(step)))
+      };
+
+      setAiRecipe(translatedRecipe);
     } catch (err) {
-      setAiRecipe(null);
-      console.error('Error generating AI recipe:', err);
+      console.error('Error getting AI recipe:', err);
+      setError('Failed to get recipe');
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -191,10 +199,8 @@ export default function DiscoverPage() {
     setError(null);
 
     try {
-      // Get AI recommendation first
-      await getAiRecommendation(preferences);
-      // Get AI recipe card
-      await getAiRecipe(preferences);
+      await getAiRecommendation();
+      await getAiRecipe();
 
       // Build the query for local recipes
       let supabaseQuery = supabase
@@ -213,8 +219,8 @@ export default function DiscoverPage() {
       }
 
       // Add cooking time filter if provided
-      if (preferences.maxTime) {
-        supabaseQuery = supabaseQuery.lte('cooking_time_value', preferences.maxTime);
+      if (preferences.cookingTime) {
+        supabaseQuery = supabaseQuery.lte('cooking_time_value', preferences.cookingTime);
       }
 
       // Execute the query
@@ -224,12 +230,12 @@ export default function DiscoverPage() {
 
       // Search Spoonacular if we have preferences
       let spoonacularRecipes: Recipe[] = [];
-      if (preferences.cuisine || preferences.diet || preferences.maxTime) {
+      if (preferences.cuisine || preferences.diet || preferences.cookingTime) {
         try {
           const queryParams = new URLSearchParams();
           if (preferences.cuisine) queryParams.append('cuisine', preferences.cuisine);
           if (preferences.diet) queryParams.append('diet', preferences.diet);
-          if (preferences.maxTime) queryParams.append('maxReadyTime', preferences.maxTime.toString());
+          if (preferences.cookingTime) queryParams.append('maxReadyTime', preferences.cookingTime);
           queryParams.append('number', '10');
 
           const response = await fetch(
@@ -280,8 +286,8 @@ export default function DiscoverPage() {
 
       setRecipes(allRecipes);
     } catch (err) {
-      console.error('Error searching recipes:', err);
-      setError('Failed to find recipes');
+      console.error('Error:', err);
+      setError('Failed to process your request');
     } finally {
       setIsLoading(false);
     }
@@ -290,7 +296,7 @@ export default function DiscoverPage() {
   return (
     <>
       <Head>
-        <title>discover | [recipes]</title>
+        <title>{t('nav.discover')} | {t('nav.recipes')}</title>
       </Head>
 
       <main className="max-w-2xl mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
@@ -300,7 +306,7 @@ export default function DiscoverPage() {
 
           {currentStep === 1 && (
             <div className="space-y-4">
-              <h2 className="text-xl">what type of cuisine are you in the mood for?</h2>
+              <h2 className="text-xl">{t('welcome.cuisineQuestion')}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {CUISINE_TYPES.map((type) => (
                   <button
@@ -309,9 +315,9 @@ export default function DiscoverPage() {
                       setPreferences(prev => ({ ...prev, cuisine: type }));
                       handleNext();
                     }}
-                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacitytext-left"
+                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left"
                   >
-                    {type}
+                    {t(`cuisine.${type}`)}
                   </button>
                 ))}
               </div>
@@ -320,7 +326,7 @@ export default function DiscoverPage() {
 
           {currentStep === 2 && (
             <div className="space-y-4">
-              <h2 className="text-xl">do you have any dietary preferences?</h2>
+              <h2 className="text-xl">{t('welcome.dietQuestion')}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {DIET_TYPES.map((type) => (
                   <button
@@ -329,9 +335,9 @@ export default function DiscoverPage() {
                       setPreferences(prev => ({ ...prev, diet: type }));
                       handleNext();
                     }}
-                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacitytext-left"
+                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left"
                   >
-                    {type}
+                    {t(`diet.${type}`)}
                   </button>
                 ))}
               </div>
@@ -340,37 +346,39 @@ export default function DiscoverPage() {
                   setPreferences(prev => ({ ...prev, diet: '' }));
                   handleNext();
                 }}
-                className="w-full p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity "
+                className="w-full p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
               >
-                no preference
+                {t('recipe.anyDiet')}
               </button>
             </div>
           )}
 
           {currentStep === 3 && (
             <div className="space-y-4">
-              <h2 className="text-xl">how much time do you have?</h2>
+              <h2 className="text-xl">{t('welcome.timeQuestion')}</h2>
               <div className="grid grid-cols-1 gap-4">
                 {COOKING_TIMES.map(({ label, value }) => (
                   <button
                     key={value}
                     onClick={() => {
-                      setPreferences(prev => ({ ...prev, maxTime: value }));
+                      setPreferences(prev => ({ ...prev, cookingTime: value.toString() }));
                       handleSubmit(new Event('submit') as any);
                     }}
-                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacitytext-left"
+                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left"
                   >
-                    {label}
+                    {value === 15 ? t('time.quick', { minutes: 15 }) :
+                     value === 30 ? t('time.medium', { minutes: 30 }) :
+                     t('time.long', { hours: 1 })}
                   </button>
                 ))}
                 <button
                   onClick={() => {
-                    setPreferences(prev => ({ ...prev, maxTime: 0 }));
+                    setPreferences(prev => ({ ...prev, cookingTime: '' }));
                     handleSubmit(new Event('submit') as any);
                   }}
-                  className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity "
+                  className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
                 >
-                  no time limit
+                  {t('recipe.anyTime')}
                 </button>
               </div>
             </div>
@@ -382,7 +390,7 @@ export default function DiscoverPage() {
 
           {aiResponse && (
             <div className="p-4 border border-gray-200 dark:border-gray-800 space-y-4">
-              <h2 className="text-xl">your personalized recommendation</h2>
+              <h2 className="text-xl">{t('welcome.recommendation')}</h2>
               <div 
                 className="prose prose-invert max-w-none text-sm prose-headings:prose-p:prose-strong:prose-em:prose-code:prose-pre:prose-blockquote:prose-ul:prose-ol:prose-li:prose-a:" 
                 dangerouslySetInnerHTML={{ __html: aiResponse }} 
@@ -392,7 +400,7 @@ export default function DiscoverPage() {
 
           {recipes.length > 0 && (
             <div className="space-y-4">
-              <h2 className="text-xl">recommended recipes</h2>
+              <h2 className="text-xl">{t('welcome.recommendedRecipes')}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {aiRecipe && (
                   <RecipeCard

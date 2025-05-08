@@ -4,6 +4,7 @@ import Head from 'next/head';
 import { supabase } from '@/lib/supabase';
 import { searchRecipes } from '@/lib/spoonacular';
 import RecipeCard from '@/components/RecipeCard';
+import useSWR from 'swr';
 
 interface SpoonacularRecipe {
   id: number;
@@ -27,12 +28,30 @@ interface LocalRecipe {
 
 type Recipe = SpoonacularRecipe | LocalRecipe;
 
+// Fetcher function for SWR
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch data');
+  return res.json();
+};
+
 export default function SearchPage() {
   const router = useRouter();
   const { q: query, cuisine, diet, time } = router.query;
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Use SWR for caching search results
+  const { data: searchResults, error: searchError } = useSWR(
+    query ? `/api/search?q=${query}&cuisine=${cuisine}&diet=${diet}&time=${time}` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 60000, // Cache for 1 minute
+    }
+  );
 
   useEffect(() => {
     if (!query) return;
@@ -124,6 +143,7 @@ export default function SearchPage() {
     <>
       <Head>
         <title>search: {query} | [recipes]</title>
+        <meta name="description" content={`Search results for ${query}`} />
       </Head>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
@@ -149,6 +169,9 @@ export default function SearchPage() {
                   image_url={recipe.image_url}
                   user_id={recipe.user_id}
                   created_at={recipe.created_at}
+                  cuisine_type={recipe.cuisine_type}
+                  cooking_time={recipe.cooking_time}
+                  diet_type={recipe.diet_type}
                 />
               ) : (
                 <RecipeCard
@@ -159,6 +182,9 @@ export default function SearchPage() {
                   image_url={recipe.image}
                   user_id="spoonacular"
                   created_at={new Date().toISOString()}
+                  cuisine_type={null}
+                  cooking_time={recipe.readyInMinutes ? `${recipe.readyInMinutes} mins` : null}
+                  diet_type={null}
                 />
               )
             ))}

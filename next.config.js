@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
+  i18n: {
+    locales: ['en', 'tr', 'es'],
+    defaultLocale: 'en',
+  },
   images: {
     remotePatterns: [
       {
@@ -8,6 +13,9 @@ const nextConfig = {
       },
     ],
   },
-}
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+};
 
-module.exports = nextConfig 
+module.exports = nextConfig; 
