@@ -669,20 +669,39 @@ export const getServerSideProps: GetServerSideProps = async () => {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (supabaseError) throw supabaseError;
+    if (supabaseError) {
+      console.error('Supabase error:', supabaseError);
+      throw new Error(`Database error: ${supabaseError.message}`);
+    }
+
+    if (!supabaseRecipes) {
+      console.error('No recipes found in database');
+      return {
+        props: {
+          initialRecipes: [],
+        },
+      };
+    }
 
     // Transform Supabase recipes to match LocalRecipe interface
-    const transformedRecipes = supabaseRecipes.map(recipe => ({
-      id: recipe.id,
-      title: recipe.title,
-      description: recipe.description,
-      image_url: recipe.image_url,
-      user_id: recipe.user_id,
-      created_at: recipe.created_at,
-      cuisine_type: recipe.cuisine_type,
-      cooking_time: recipe.cooking_time_value ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit}` : null,
-      diet_type: recipe.diet_type,
-    }));
+    const transformedRecipes = supabaseRecipes.map(recipe => {
+      try {
+        return {
+          id: recipe.id,
+          title: recipe.title,
+          description: recipe.description,
+          image_url: recipe.image_url,
+          user_id: recipe.user_id,
+          created_at: recipe.created_at,
+          cuisine_type: recipe.cuisine_type,
+          cooking_time: recipe.cooking_time_value ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit || 'mins'}` : null,
+          diet_type: recipe.diet_type,
+        };
+      } catch (transformError) {
+        console.error('Error transforming recipe:', recipe, transformError);
+        return null;
+      }
+    }).filter(Boolean);
 
     return {
       props: {
@@ -690,10 +709,12 @@ export const getServerSideProps: GetServerSideProps = async () => {
       },
     };
   } catch (error) {
-    console.error('Error fetching initial recipes:', error);
+    console.error('Error in getServerSideProps:', error);
+    // Return a more specific error message
     return {
       props: {
         initialRecipes: [],
+        error: error instanceof Error ? error.message : 'An unknown error occurred',
       },
     };
   }

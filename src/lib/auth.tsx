@@ -129,12 +129,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const verifyOtp = async (email: string, token: string) => {
     try {
-      const { error } = await supabase.auth.verifyOtp({
+      const { data: { user }, error } = await supabase.auth.verifyOtp({
         email,
         token,
         type: 'email'
       });
       if (error) throw error;
+      
+      // Create a profile if one doesn't exist
+      if (user) {
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!existingProfile) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert([
+              {
+                user_id: user.id,
+                username: email.split('@')[0], // Use part of email as username
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }
+            ]);
+
+          if (profileError) {
+            console.error('Error creating profile:', profileError);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error verifying OTP:', error);
       throw error;

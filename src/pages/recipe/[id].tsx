@@ -6,6 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { getRecipeById } from '@/lib/spoonacular';
 import { supabase } from '@/lib/supabase';
+import { Comments } from '@/components/Comments';
 
 interface Profile {
   username: string | null;
@@ -294,6 +295,12 @@ export default function RecipePage() {
                   ))}
                 </ol>
               )}
+            </div>
+          )}
+
+          {hasId(recipe) && (
+            <div className="mt-8">
+              <Comments recipeId={recipe.id.toString()} />
             </div>
           )}
         </div>
