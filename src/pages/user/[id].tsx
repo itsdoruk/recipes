@@ -4,6 +4,7 @@ import Head from 'next/head';
 import { supabase } from '@/lib/supabase';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth';
 
 interface Profile {
   id: string;
@@ -12,6 +13,8 @@ interface Profile {
   bio: string | null;
   avatar_url: string | null;
   created_at: string;
+  is_private: boolean;
+  show_email: boolean;
 }
 
 interface Recipe {
@@ -20,12 +23,12 @@ interface Recipe {
   description: string;
   image_url: string | null;
   created_at: string;
-  user_id: string;
 }
 
 export default function UserProfile() {
   const router = useRouter();
   const { id } = router.query;
+  const { user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,7 +38,7 @@ export default function UserProfile() {
     if (!id) return;
 
     fetchUserData();
-  }, [id]);
+  }, [id, user]);
 
   const fetchUserData = async () => {
     try {
@@ -47,7 +50,17 @@ export default function UserProfile() {
         .single();
 
       if (profileError) throw profileError;
-      setProfile(profileData);
+      
+      // If profile is private and user is not the owner, show limited info
+      if (profileData.is_private && profileData.user_id !== user?.id) {
+        setProfile({
+          ...profileData,
+          bio: null,
+          show_email: false
+        });
+      } else {
+        setProfile(profileData);
+      }
 
       // Fetch user's recipes
       const { data: recipesData, error: recipesError } = await supabase
@@ -103,6 +116,11 @@ export default function UserProfile() {
               {profile.bio && (
                 <p className="text-gray-500 dark:text-gray-400 mt-2">
                   {profile.bio}
+                </p>
+              )}
+              {profile.show_email && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                  {user?.email}
                 </p>
               )}
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">

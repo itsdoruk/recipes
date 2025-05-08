@@ -1,12 +1,14 @@
-import { useRouter } from 'next/router';
-import Link from 'next/link';
-import { useAuth } from '@/lib/auth';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 
 interface Profile {
-  username: string | null;
+  username: string;
   avatar_url: string | null;
+  is_private: boolean;
+  show_email: boolean;
 }
 
 export default function Navbar() {
@@ -14,17 +16,32 @@ export default function Navbar() {
   const { user, signOut } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user) return;
-      const { data } = await supabase
-        .from('profiles')
-        .select('username, avatar_url')
-        .eq('user_id', user.id)
-        .single();
-      setProfile(data);
+      if (!user) {
+        setProfile(null);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username, avatar_url, is_private, show_email')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error) throw error;
+        setProfile(data);
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      } finally {
+        setIsLoading(false);
+      }
     };
+
     fetchProfile();
   }, [user]);
 
@@ -38,7 +55,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="border-b border-gray-200 dark:border-gray-800">
+    <nav className="border-b border-gray-200 dark:border-gray-800" style={{ background: "var(--background)", color: "var(--foreground)" }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center gap-4">
@@ -93,9 +110,9 @@ export default function Navbar() {
                     >
                       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
                         <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
-                          {profile?.username ? `@${profile.username}` : user.email}
+                          {profile?.username ? `@${profile.username}` : 'anonymous'}
                         </p>
-                        {profile?.username && (
+                        {profile?.show_email && (
                           <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
                             {user.email}
                           </p>

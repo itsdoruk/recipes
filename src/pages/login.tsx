@@ -2,31 +2,59 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 export default function Login() {
   const router = useRouter();
   const { signIn, signUp } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
-  const [error, setError] = useState('');
+  const [isOtpLogin, setIsOtpLogin] = useState(false);
+  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [otpSent, setOtpSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setIsLoading(true);
+    setError(null);
 
     try {
-      if (isSignUp) {
-        await signUp(email, password);
+      if (isOtpLogin) {
+        if (!otpSent) {
+          // Send OTP
+          const { error: otpError } = await supabase.auth.signInWithOtp({
+            email,
+            options: {
+              emailRedirectTo: `${window.location.origin}/auth/callback`
+            }
+          });
+          if (otpError) throw otpError;
+          setOtpSent(true);
+        } else {
+          // Verify OTP
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            email,
+            token: otp,
+            type: 'email'
+          });
+          if (verifyError) throw verifyError;
+          router.push('/');
+        }
+      } else if (isSignUp) {
+        // Sign up with email, password, and username
+        await signUp(email, password, username);
+        router.push('/');
       } else {
+        // Regular sign in
         await signIn(email, password);
+        router.push('/');
       }
-      router.push('/');
-    } catch (err) {
-      console.error('Auth error:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
     } finally {
       setIsLoading(false);
     }
@@ -40,7 +68,7 @@ export default function Login() {
 
       <main className="max-w-sm mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <h1 className="text-2xl mb-8 text-center">
-          {isSignUp ? 'create account' : 'sign in'}
+          {isOtpLogin ? 'magic link login' : isSignUp ? 'create account' : 'sign in'}
         </h1>
 
         {error && (
@@ -59,14 +87,43 @@ export default function Login() {
             required
           />
 
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="password"
-            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none"
-            required
-          />
+          {isSignUp && (
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="username"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none"
+              required
+              minLength={3}
+              maxLength={20}
+              pattern="[a-zA-Z0-9_-]+"
+              title="Username can only contain letters, numbers, underscores, and hyphens"
+            />
+          )}
+
+          {!isOtpLogin && (
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="password"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none"
+              required
+              minLength={6}
+            />
+          )}
+
+          {isOtpLogin && otpSent && (
+            <input
+              type="text"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              placeholder="enter the code sent to your email"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none"
+              required
+            />
+          )}
 
           <div className="flex gap-2 pt-2">
             <button
@@ -74,17 +131,31 @@ export default function Login() {
               disabled={isLoading}
               className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? '...' : isSignUp ? 'create' : 'sign in'}
+              {isLoading ? '...' : isOtpLogin ? (otpSent ? 'verify' : 'send magic link') : isSignUp ? 'create' : 'sign in'}
             </button>
           </div>
         </form>
 
-        <div className="mt-4 text-center">
+        <div className="mt-4 space-y-2 text-center">
           <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-sm text-gray-600 dark:text-gray-400 hover:underline"
+            onClick={() => {
+              setIsSignUp(!isSignUp);
+              setIsOtpLogin(false);
+              setOtpSent(false);
+            }}
+            className="text-sm text-gray-600 dark:text-gray-400 hover:underline block w-full"
           >
             {isSignUp ? 'already have an account?' : 'need an account?'}
+          </button>
+          <button
+            onClick={() => {
+              setIsOtpLogin(!isOtpLogin);
+              setIsSignUp(false);
+              setOtpSent(false);
+            }}
+            className="text-sm text-gray-600 dark:text-gray-400 hover:underline block w-full"
+          >
+            {isOtpLogin ? 'use password instead' : 'use magic link instead'}
           </button>
         </div>
       </main>
