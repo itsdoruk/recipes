@@ -11,6 +11,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   signInWithOtp: (email: string) => Promise<void>;
   verifyOtp: (email: string, token: string) => Promise<void>;
+  banned: boolean;
+  warnings: number;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,6 +21,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [banned, setBanned] = useState(false);
+  const [warnings, setWarnings] = useState<number>(0);
   const router = useRouter();
 
   // Helper function to create profile with retries
@@ -86,10 +90,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: existingProfile } = await supabase
           .from('profiles')
-          .select('user_id')
+          .select('user_id, banned, warnings')
           .eq('user_id', user.id)
           .single();
-
+        if (existingProfile) {
+          setBanned(!!existingProfile.banned);
+          setWarnings(existingProfile.warnings || 0);
+          if (existingProfile.banned && router.pathname !== '/banned') {
+            router.push('/banned');
+          }
+        }
         if (!existingProfile) {
           // Use email prefix as default username
           const emailPrefix = user.email ? user.email.split('@')[0] : 'user';
@@ -105,7 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     ensureProfile();
-  }, [user]);
+  }, [user, router]);
 
   // Only render children after loading and profile creation are complete
   if (loading || profileLoading) {
@@ -238,7 +248,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, signInWithOtp, verifyOtp }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, signInWithOtp, verifyOtp, banned, warnings }}>
       {children}
     </AuthContext.Provider>
   );

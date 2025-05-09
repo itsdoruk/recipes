@@ -20,7 +20,7 @@ export const NAVBAR_HEIGHT = 80; // px, matches h-20 in Tailwind for mobile, adj
 
 export default function Navbar() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, signOut, warnings } = useAuth();
   const { theme, setTheme } = useTheme();
   const [showSettings, setShowSettings] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -99,103 +99,111 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 dark:border-gray-800 shadow-md" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex flex-col md:flex-row justify-between items-center h-20 md:h-16 py-2 md:py-0">
-          <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-            <div className="flex justify-center w-full md:w-auto">
-              <Link href="/" className="hover:opacity-80 transition-opacity text-lg">
-                [recipes]
-              </Link>
+    <>
+      {warnings > 0 && (
+        <div className="w-full bg-yellow-200 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100 text-center py-2 flex items-center justify-center gap-2">
+          <span className="text-xl">⚠️</span>
+          <span>You have {warnings} warning{warnings > 1 ? 's' : ''} on your account. Please follow the community guidelines.</span>
+        </div>
+      )}
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 dark:border-gray-800 shadow-md" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row justify-between items-center h-20 md:h-16 py-2 md:py-0">
+            <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+              <div className="flex justify-center w-full md:w-auto">
+                <Link href="/" className="hover:opacity-80 transition-opacity text-lg">
+                  [recipes]
+                </Link>
+              </div>
+              <div className="flex justify-center w-full md:w-auto gap-6 mt-2 md:mt-0">
+                <Link href="/discover" className="hover:opacity-80 transition-opacity">
+                  discover
+                </Link>
+                <Link href="/timer" className="hover:opacity-80 transition-opacity">
+                  timer
+                </Link>
+                {user && (
+                  <Link href="/create" className="hover:opacity-80 transition-opacity">
+                    create
+                  </Link>
+                )}
+              </div>
             </div>
-            <div className="flex justify-center w-full md:w-auto gap-6 mt-2 md:mt-0">
-              <Link href="/discover" className="hover:opacity-80 transition-opacity">
-                discover
-              </Link>
-              <Link href="/timer" className="hover:opacity-80 transition-opacity">
-                timer
-              </Link>
-              {user && (
-                <Link href="/create" className="hover:opacity-80 transition-opacity">
-                  create
+            <div className="flex items-center gap-4 mt-4 md:mt-0">
+              {user ? (
+                <>
+                  <NotificationsDropdown />
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowSettings((v) => !v)}
+                      className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                    >
+                      <div className="relative w-8 h-8 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+                        <Avatar avatar_url={profile?.avatar_url} username={profile?.username} size={32} />
+                      </div>
+                    </button>
+                    {showSettings && (
+                      <div
+                        className="absolute right-0 mt-2 w-64 border border-gray-200 dark:border-gray-800 shadow-lg z-50"
+                        style={{ background: "var(--background)", color: "var(--foreground)" }}
+                      >
+                        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+                          <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
+                            {profile?.username ? `@${profile.username.toLowerCase()}` : 'anonymous'}
+                          </p>
+                          {profile?.show_email && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
+                              {user.email?.toLowerCase()}
+                            </p>
+                          )}
+                        </div>
+                        <Link
+                          href={`/user/${user.id}`}
+                          className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
+                          style={{ color: 'inherit', fontFamily: 'inherit' }}
+                          onClick={() => setShowSettings(false)}
+                        >
+                          profile
+                        </Link>
+                        <Link
+                          href="/account"
+                          className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
+                          style={{ color: 'inherit', fontFamily: 'inherit' }}
+                          onClick={() => setShowSettings(false)}
+                        >
+                          account settings
+                        </Link>
+                        <Link
+                          href="/settings"
+                          className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
+                          style={{ color: 'inherit', fontFamily: 'inherit' }}
+                          onClick={() => setShowSettings(false)}
+                        >
+                          app settings
+                        </Link>
+                        <button
+                          onClick={() => {
+                            setShowSettings(false);
+                            handleSignOut();
+                          }}
+                          className="w-full text-left px-4 py-2 text-base font-normal text-red-500 hover:opacity-80 transition-opacity"
+                          style={{ fontFamily: 'inherit' }}
+                        >
+                          sign out
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <Link href="/login" className="hover:opacity-80 transition-opacity">
+                  login
                 </Link>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-4 mt-4 md:mt-0">
-            {user ? (
-              <>
-                <NotificationsDropdown />
-                <div className="relative">
-                  <button
-                    onClick={() => setShowSettings((v) => !v)}
-                    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-                  >
-                    <div className="relative w-8 h-8 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                      <Avatar avatar_url={profile?.avatar_url} username={profile?.username} size={32} />
-                    </div>
-                  </button>
-                  {showSettings && (
-                    <div
-                      className="absolute right-0 mt-2 w-64 border border-gray-200 dark:border-gray-800 shadow-lg z-50"
-                      style={{ background: "var(--background)", color: "var(--foreground)" }}
-                    >
-                      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
-                        <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
-                          {profile?.username ? `@${profile.username.toLowerCase()}` : 'anonymous'}
-                        </p>
-                        {profile?.show_email && (
-                          <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
-                            {user.email?.toLowerCase()}
-                          </p>
-                        )}
-                      </div>
-                      <Link
-                        href={`/user/${user.id}`}
-                        className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
-                        style={{ color: 'inherit', fontFamily: 'inherit' }}
-                        onClick={() => setShowSettings(false)}
-                      >
-                        profile
-                      </Link>
-                      <Link
-                        href="/account"
-                        className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
-                        style={{ color: 'inherit', fontFamily: 'inherit' }}
-                        onClick={() => setShowSettings(false)}
-                      >
-                        account settings
-                      </Link>
-                      <Link
-                        href="/settings"
-                        className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
-                        style={{ color: 'inherit', fontFamily: 'inherit' }}
-                        onClick={() => setShowSettings(false)}
-                      >
-                        app settings
-                      </Link>
-                      <button
-                        onClick={() => {
-                          setShowSettings(false);
-                          handleSignOut();
-                        }}
-                        className="w-full text-left px-4 py-2 text-base font-normal text-red-500 hover:opacity-80 transition-opacity"
-                        style={{ fontFamily: 'inherit' }}
-                      >
-                        sign out
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <Link href="/login" className="hover:opacity-80 transition-opacity">
-                login
-              </Link>
-            )}
-          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+    </>
   );
 }

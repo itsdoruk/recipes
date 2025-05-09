@@ -4,17 +4,33 @@ import { ThemeProvider } from 'next-themes';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { SessionContextProvider } from '@supabase/auth-helpers-react';
-import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs';
 import Layout from '@/components/Layout';
 import { AuthProvider } from '@/lib/auth';
 
 export default function App({ Component, pageProps }: AppProps) {
-  const [supabaseClient] = useState(() => createPagesBrowserClient());
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session && router.pathname !== '/login') {
+          router.push('/login');
+        } else if (session && router.pathname === '/login') {
+          router.push('/');
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && router.pathname === '/login') {
         router.push('/');
       } else if (event === 'SIGNED_OUT' && router.pathname !== '/login') {
@@ -27,17 +43,19 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, [router]);
 
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
   return (
-    <SessionContextProvider supabaseClient={supabaseClient}>
-      <ThemeProvider attribute="class" defaultTheme="system">
-        <AuthProvider>
-          <div style={{ background: String('var(--background)'), color: String('var(--foreground)') }}>
-            <Layout>
-              <Component {...pageProps} />
-            </Layout>
-          </div>
-        </AuthProvider>
-      </ThemeProvider>
-    </SessionContextProvider>
+    <ThemeProvider attribute="class" defaultTheme="system">
+      <AuthProvider>
+        <div style={{ background: String('var(--background)'), color: String('var(--foreground)') }}>
+          <Layout>
+            <Component {...pageProps} />
+          </Layout>
+        </div>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
