@@ -91,9 +91,62 @@ export default function CreateRecipePage() {
     }
   };
 
+  const validateForm = () => {
+    if (!title.trim()) {
+      setError('Recipe title is required');
+      return false;
+    }
+
+    if (title.length > 100) {
+      setError('Title must be less than 100 characters');
+      return false;
+    }
+
+    if (!description.trim()) {
+      setError('Recipe description is required');
+      return false;
+    }
+
+    if (description.length > 2000) {
+      setError('Description must be less than 2000 characters');
+      return false;
+    }
+
+    if (!ingredients.trim()) {
+      setError('At least one ingredient is required');
+      return false;
+    }
+
+    if (!instructions.trim()) {
+      setError('At least one instruction is required');
+      return false;
+    }
+
+    if (cookingTimeValue && (isNaN(parseInt(cookingTimeValue)) || parseInt(cookingTimeValue) <= 0)) {
+      setError('Cooking time must be a positive number');
+      return false;
+    }
+
+    if (imageFile && imageFile.size > 5 * 1024 * 1024) {
+      setError('Image size must be less than 5MB');
+      return false;
+    }
+
+    if (imageFile && !imageFile.type.startsWith('image/')) {
+      setError('File must be an image');
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (!validateForm()) {
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
@@ -110,31 +163,6 @@ export default function CreateRecipePage() {
           setIsSubmitting(false);
           return;
         }
-      }
-
-      // Validate required fields
-      if (!title.trim()) {
-        setError('Recipe title is required');
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (!description.trim()) {
-        setError('Recipe description is required');
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (!ingredients.trim()) {
-        setError('At least one ingredient is required');
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (!instructions.trim()) {
-        setError('At least one instruction is required');
-        setIsSubmitting(false);
-        return;
       }
 
       const recipeData = {
@@ -154,8 +182,6 @@ export default function CreateRecipePage() {
         fat: fat || 'unknown',
         carbohydrates: carbohydrates || 'unknown'
       };
-
-      console.log('Creating recipe with data:', recipeData);
 
       const { data: recipe, error: insertError } = await supabase
         .from('recipes')

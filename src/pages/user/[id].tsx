@@ -40,6 +40,7 @@ export default function UserProfile() {
   const [following, setFollowing] = useState<Profile[]>([]);
   const [followers, setFollowers] = useState<Profile[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isRequestPending, setIsRequestPending] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -156,6 +157,16 @@ export default function UserProfile() {
           .eq('following_id', id)
           .single();
         setIsFollowing(!!isFollowingData);
+
+        // Check if follow request is pending
+        const { data: requestData } = await supabase
+          .from('follow_requests')
+          .select('id, status')
+          .eq('requester_id', user.id)
+          .eq('target_id', id)
+          .eq('status', 'pending')
+          .single();
+        setIsRequestPending(!!requestData);
       }
 
       setLoading(false);
@@ -173,6 +184,31 @@ export default function UserProfile() {
           .delete()
           .eq('follower_id', user.id)
           .eq('following_id', id);
+        setIsFollowing(false);
+      } else if (profile?.is_private) {
+        // Send follow request
+        const { error: followRequestError } = await supabase
+          .from('follow_requests')
+          .insert({
+            requester_id: user.id,
+            target_id: id,
+            status: 'pending'
+          });
+        if (followRequestError) {
+          console.error('Error sending follow request:', followRequestError);
+        }
+        setIsRequestPending(true);
+        // Send notification for follow request
+        const { error: notificationError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: id,
+            type: 'follow_request',
+            actor_id: user.id
+          });
+        if (notificationError) {
+          console.error('Error sending follow request notification:', notificationError);
+        }
       } else {
         await supabase
           .from('follows')
@@ -180,11 +216,27 @@ export default function UserProfile() {
             follower_id: user.id,
             following_id: id
           });
+        setIsFollowing(true);
+        // Send notification for follow
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: id,
+            type: 'follow',
+            actor_id: user.id
+          });
       }
-      setIsFollowing(!isFollowing);
     } catch (error) {
       console.error('error toggling follow:', error);
     }
+  };
+
+  const canViewContent = () => {
+    if (!profile) return false;
+    if (!profile.is_private) return true;
+    if (!user) return false;
+    if (user.id === id) return true;
+    return isFollowing;
   };
 
   if (loading) {
@@ -220,69 +272,89 @@ export default function UserProfile() {
               <button
                 onClick={handleFollow}
                 className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+                disabled={isRequestPending}
               >
-                {isFollowing ? 'unfollow' : 'follow'}
+                {isFollowing ? 'unfollow' : isRequestPending ? 'requested' : 'follow'}
               </button>
             )}
           </div>
 
           <div className="flex gap-4 text-sm text-gray-500 dark:text-gray-400">
-            <div>
+            <Link href={`/followers?id=${id}`} className="hover:opacity-80 transition-opacity">
               <span className="font-medium">{followers.length}</span> followers
-            </div>
-            <div>
+            </Link>
+            <Link href={`/following?id=${id}`} className="hover:opacity-80 transition-opacity">
               <span className="font-medium">{following.length}</span> following
-            </div>
+            </Link>
           </div>
 
-          <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-            <h2 className="text-xl mb-4">recipes</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {recipes.length > 0 ? (
-                recipes.map((recipe) => (
-                  <RecipeCard
-                    key={recipe.id}
-                    id={recipe.id}
-                    title={recipe.title}
-                    description={recipe.description}
-                    image_url={recipe.image_url}
-                    user_id={recipe.user_id}
-                    created_at={recipe.created_at}
-                    cuisine_type={recipe.cuisine_type}
-                    cooking_time={recipe.cooking_time}
-                    diet_type={recipe.diet_type}
-                  />
-                ))
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400">no recipes yet</p>
-              )}
-            </div>
-          </div>
+          {canViewContent() ? (
+            <>
+              <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+                <h2 className="text-xl mb-4">recipes</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {recipes.length > 0 ? (
+                    recipes.map((recipe) => (
+                      <RecipeCard
+                        key={recipe.id}
+                        id={recipe.id}
+                        title={recipe.title}
+                        description={recipe.description}
+                        image_url={recipe.image_url}
+                        user_id={recipe.user_id}
+                        created_at={recipe.created_at}
+                        cuisine_type={recipe.cuisine_type}
+                        cooking_time={recipe.cooking_time}
+                        diet_type={recipe.diet_type}
+                      />
+                    ))
+                  ) : (
+                    <p className="text-gray-500 dark:text-gray-400">no recipes yet</p>
+                  )}
+                </div>
+              </div>
 
-          <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-            <h2 className="text-xl mb-4">starred recipes</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {starredRecipes.length > 0 ? (
-                starredRecipes.map((recipe) => (
-                  <RecipeCard
-                    key={recipe.id}
-                    id={recipe.id}
-                    title={recipe.title}
-                    description={recipe.description}
-                    image_url={recipe.image_url}
-                    user_id={recipe.user_id}
-                    created_at={recipe.created_at}
-                    cuisine_type={recipe.cuisine_type}
-                    cooking_time={recipe.cooking_time}
-                    diet_type={recipe.diet_type}
-                    link={recipe.recipe_type === 'ai' ? `/internet-recipe/${recipe.id}` : `/recipe/${recipe.id}`}
-                  />
-                ))
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400">no starred recipes yet</p>
-              )}
+              <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+                <h2 className="text-xl mb-4">starred recipes</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {starredRecipes.length > 0 ? (
+                    starredRecipes.map((recipe) => (
+                      <RecipeCard
+                        key={recipe.id}
+                        id={recipe.id}
+                        title={recipe.title}
+                        description={recipe.description}
+                        image_url={recipe.image_url}
+                        user_id={recipe.user_id}
+                        created_at={recipe.created_at}
+                        cuisine_type={recipe.cuisine_type}
+                        cooking_time={recipe.cooking_time}
+                        diet_type={recipe.diet_type}
+                        link={recipe.recipe_type === 'ai' ? `/internet-recipe/${recipe.id}` : `/recipe/${recipe.id}`}
+                      />
+                    ))
+                  ) : (
+                    <p className="text-gray-500 dark:text-gray-400">no starred recipes yet</p>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+              <div className="text-center py-8">
+                <p className="text-gray-500 dark:text-gray-400 mb-4">this profile is private</p>
+                {user && user.id !== id && !isFollowing && (
+                  <button
+                    onClick={handleFollow}
+                    className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+                    disabled={isRequestPending}
+                  >
+                    {isRequestPending ? 'requested' : 'follow to see recipes'}
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </main>
     </>

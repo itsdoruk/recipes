@@ -4,6 +4,8 @@ import { useRouter } from 'next/router';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
+import NotificationsDropdown from './NotificationsDropdown';
+import Image from 'next/image';
 
 interface Profile {
   username: string | null;
@@ -11,6 +13,8 @@ interface Profile {
   is_private: boolean;
   show_email: boolean;
 }
+
+export const NAVBAR_HEIGHT = 80; // px, matches h-20 in Tailwind for mobile, adjust if needed
 
 export default function Navbar() {
   const router = useRouter();
@@ -64,57 +68,51 @@ export default function Navbar() {
   const isActive = (path: string) => router.pathname === path;
 
   return (
-    <nav className="border-b border-gray-200 dark:border-gray-800" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center gap-4">
-            <Link href="/">
-              [recipes]
-            </Link>
-            <div className="flex items-center gap-4">
-              <Link
-                href="/welcome"
-                className={`transition-opacity hover:opacity-80 ${router.pathname === '/welcome' ? 'opacity-80' : ''}`}
-              >
-                discover
-              </Link>
-              <Link
-                href="/timer"
-                className={`transition-opacity hover:opacity-80 ${router.pathname === '/timer' ? 'opacity-80' : ''}`}
-              >
-                timer
+    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 dark:border-gray-800 shadow-md" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex flex-col md:flex-row justify-between items-center h-20 md:h-16 py-2 md:py-0">
+          <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+            <div className="flex justify-center w-full md:w-auto">
+              <Link href="/" className="hover:opacity-80 transition-opacity text-lg">
+                [recipes]
               </Link>
             </div>
+            <div className="flex justify-center w-full md:w-auto gap-6 mt-2 md:mt-0">
+              <Link href="/discover" className="hover:opacity-80 transition-opacity">
+                discover
+              </Link>
+              <Link href="/timer" className="hover:opacity-80 transition-opacity">
+                timer
+              </Link>
+              {user && (
+                <Link href="/create" className="hover:opacity-80 transition-opacity">
+                  create
+                </Link>
+              )}
+            </div>
           </div>
-
-          {/* Desktop Navigation */}
-          <div className="hidden sm:flex sm:items-center sm:space-x-8">
+          <div className="flex items-center gap-4 mt-4 md:mt-0">
             {user ? (
               <>
-                <Link
-                  href="/create"
-                  className="h-10 flex items-center px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-                >
-                  create new recipe
-                </Link>
+                <NotificationsDropdown />
                 <div className="relative">
                   <button
                     onClick={() => setShowSettings((v) => !v)}
-                    className="h-10 flex items-center hover:opacity-80 transition-opacity"
+                    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                   >
-                    {profile?.avatar_url ? (
-                      <img
-                        src={profile.avatar_url}
-                        alt={profile.username || 'anonymous'}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {profile?.username?.[0]?.toLowerCase() || user.email?.[0]?.toLowerCase() || 'a'}
-                        </span>
-                      </div>
-                    )}
+                    <div className="relative w-8 h-8 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+                      {profile?.avatar_url ? (
+                        <Image
+                          src={profile.avatar_url}
+                          alt={profile.username || 'avatar'}
+                          width={32}
+                          height={32}
+                          className="object-cover aspect-square"
+                        />
+                      ) : (
+                        <span className="text-sm">{profile?.username?.[0]?.toLowerCase() || 'a'}</span>
+                      )}
+                    </div>
                   </button>
                   {showSettings && (
                     <div
@@ -170,181 +168,11 @@ export default function Navbar() {
                 </div>
               </>
             ) : (
-              <Link
-                href="/login"
-                className="h-10 flex items-center px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-              >
-                sign in
+              <Link href="/login" className="hover:opacity-80 transition-opacity">
+                login
               </Link>
             )}
           </div>
-
-          {/* Mobile menu button */}
-          <div className="flex items-center sm:hidden gap-2">
-            {user && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="h-10 flex items-center hover:opacity-80 transition-opacity"
-                >
-                  {profile?.avatar_url ? (
-                    <img
-                      src={profile.avatar_url}
-                      alt={profile.username || 'anonymous'}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {profile?.username?.[0]?.toLowerCase() || user.email?.[0]?.toLowerCase() || 'a'}
-                      </span>
-                    </div>
-                  )}
-                </button>
-                {showSettings && (
-                  <div
-                    className="absolute right-0 mt-2 w-64 border border-gray-200 dark:border-gray-800 shadow-lg z-50"
-                    style={{ background: "var(--background)", color: "var(--foreground)" }}
-                  >
-                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
-                      <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
-                        {profile?.username ? `@${profile.username.toLowerCase()}` : 'anonymous'}
-                      </p>
-                      {profile?.show_email && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
-                          {user.email?.toLowerCase()}
-                        </p>
-                      )}
-                    </div>
-                    <Link
-                      href={`/user/${user.id}`}
-                      className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
-                      style={{ color: 'inherit', fontFamily: 'inherit' }}
-                      onClick={() => setShowSettings(false)}
-                    >
-                      profile
-                    </Link>
-                    <Link
-                      href="/account"
-                      className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
-                      style={{ color: 'inherit', fontFamily: 'inherit' }}
-                      onClick={() => setShowSettings(false)}
-                    >
-                      account settings
-                    </Link>
-                    <Link
-                      href="/settings"
-                      className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
-                      style={{ color: 'inherit', fontFamily: 'inherit' }}
-                      onClick={() => setShowSettings(false)}
-                    >
-                      app settings
-                    </Link>
-                    <button
-                      onClick={() => {
-                        setShowSettings(false);
-                        handleSignOut();
-                      }}
-                      className="w-full text-left px-4 py-2 text-base font-normal text-red-500 hover:opacity-80 transition-opacity"
-                      style={{ fontFamily: 'inherit' }}
-                    >
-                      sign out
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            <button
-              onClick={toggleMenu}
-              className="inline-flex items-center justify-center p-2 rounded-md hover:opacity-80 transition-opacity"
-              aria-expanded="false"
-            >
-              <span className="sr-only"></span>
-              {/* Hamburger icon */}
-              <svg
-                className={`${isMenuOpen ? 'hidden' : 'block'} h-6 w-6`}
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              </svg>
-              {/* Close icon */}
-              <svg
-                className={`${isMenuOpen ? 'block' : 'hidden'} h-6 w-6`}
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile menu */}
-      <div className={`${isMenuOpen ? 'block' : 'hidden'} sm:hidden`}>
-        <div className="px-2 pt-2 pb-3 space-y-1">
-          <Link
-            href="/welcome"
-            className={`block px-3 py-2 hover:opacity-80 transition-opacity ${
-              router.pathname === '/welcome' ? 'opacity-100' : 'opacity-60'
-            }`}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            discover
-          </Link>
-          <Link
-            href="/timer"
-            className={`block px-3 py-2 hover:opacity-80 transition-opacity ${
-              router.pathname === '/timer' ? 'opacity-100' : 'opacity-60'
-            }`}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            timer
-          </Link>
-          {user && (
-            <Link
-              href="/create"
-              className="block px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              create new recipe
-            </Link>
-          )}
-          <button
-            onClick={() => {
-              setTheme(theme === 'dark' ? 'light' : 'dark');
-              setIsMenuOpen(false);
-            }}
-            className="block w-full text-left px-3 py-2 hover:opacity-80 transition-opacity"
-          >
-            {theme === 'dark' ? 'light' : 'dark'}
-          </button>
-          {!user && (
-            <Link
-              href="/login"
-              className={`block px-3 py-2 hover:opacity-80 transition-opacity ${
-                router.pathname === '/login' ? 'opacity-100' : 'opacity-60'
-              }`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              sign in
-            </Link>
-          )}
         </div>
       </div>
     </nav>

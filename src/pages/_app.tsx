@@ -15,8 +15,10 @@ export default function App({ Component, pageProps }: AppProps) {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
+      if (event === 'SIGNED_IN' && router.pathname === '/login') {
         router.push('/');
+      } else if (event === 'SIGNED_OUT' && router.pathname !== '/login') {
+        router.push('/login');
       }
     });
 

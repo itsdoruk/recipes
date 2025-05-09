@@ -41,6 +41,7 @@ export default function SearchPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
   // Use SWR for caching search results
   const { data: searchResults, error: searchError } = useSWR(
@@ -59,6 +60,7 @@ export default function SearchPage() {
     const performSearch = async () => {
       setIsLoading(true);
       setError(null);
+      setHasSearched(true);
 
       try {
         // Search local recipes with expanded search criteria
@@ -139,6 +141,42 @@ export default function SearchPage() {
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <p className="">searching...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <p className="text-red-500">{error}</p>
+        <button
+          onClick={() => router.push('/')}
+          className="mt-4 px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+        >
+          Return to Home
+        </button>
+      </div>
+    );
+  }
+
+  if (hasSearched && recipes.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <p className="">no recipes found for "{query}"</p>
+        <button
+          onClick={() => router.push('/')}
+          className="mt-4 px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+        >
+          Return to Home
+        </button>
+      </div>
+    );
+  }
+
   return (
     <>
       <Head>
@@ -151,45 +189,37 @@ export default function SearchPage() {
           search results for "{query}"
         </h1>
 
-        {isLoading ? (
-          <p className="">searching...</p>
-        ) : error ? (
-          <p className="text-red-500">{error}</p>
-        ) : recipes.length === 0 ? (
-          <p className="">no recipes found</p>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {recipes.map((recipe) => (
-              'user_id' in recipe ? (
-                <RecipeCard
-                  key={recipe.id}
-                  id={recipe.id}
-                  title={recipe.title}
-                  description={recipe.description}
-                  image_url={recipe.image_url}
-                  user_id={recipe.user_id}
-                  created_at={recipe.created_at}
-                  cuisine_type={recipe.cuisine_type}
-                  cooking_time={recipe.cooking_time}
-                  diet_type={recipe.diet_type}
-                />
-              ) : (
-                <RecipeCard
-                  key={recipe.id}
-                  id={recipe.id.toString()}
-                  title={recipe.title}
-                  description={recipe.description || ''}
-                  image_url={recipe.image}
-                  user_id="spoonacular"
-                  created_at={new Date().toISOString()}
-                  cuisine_type={null}
-                  cooking_time={recipe.readyInMinutes ? `${recipe.readyInMinutes} mins` : null}
-                  diet_type={null}
-                />
-              )
-            ))}
-          </div>
-        )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {recipes.map((recipe) => (
+            'user_id' in recipe ? (
+              <RecipeCard
+                key={recipe.id}
+                id={recipe.id}
+                title={recipe.title}
+                description={recipe.description}
+                image_url={recipe.image_url}
+                user_id={recipe.user_id}
+                created_at={recipe.created_at}
+                cuisine_type={recipe.cuisine_type}
+                cooking_time={recipe.cooking_time}
+                diet_type={recipe.diet_type}
+              />
+            ) : (
+              <RecipeCard
+                key={recipe.id}
+                id={recipe.id.toString()}
+                title={recipe.title}
+                description={recipe.description || ''}
+                image_url={recipe.image}
+                user_id="spoonacular"
+                created_at={new Date().toISOString()}
+                cuisine_type={null}
+                cooking_time={recipe.readyInMinutes ? `${recipe.readyInMinutes} mins` : null}
+                diet_type={null}
+              />
+            )
+          ))}
+        </div>
       </main>
     </>
   );

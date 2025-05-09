@@ -8,8 +8,20 @@ export default function TimerPage() {
   const [inputHours, setInputHours] = useState('');
   const [inputMinutes, setInputMinutes] = useState('');
   const [initialTime, setInitialTime] = useState(0);
+  const [audioError, setAudioError] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    // Preload audio
+    if (audioRef.current) {
+      audioRef.current.load();
+      audioRef.current.onerror = () => {
+        console.error('Failed to load audio file');
+        setAudioError(true);
+      };
+    }
+  }, []);
 
   useEffect(() => {
     if (isRunning) {
@@ -19,8 +31,11 @@ export default function TimerPage() {
             setIsRunning(false);
             if (timerRef.current) clearInterval(timerRef.current);
             // Play alarm sound when timer reaches zero
-            if (audioRef.current) {
-              audioRef.current.play();
+            if (audioRef.current && !audioError) {
+              audioRef.current.play().catch(err => {
+                console.error('Failed to play audio:', err);
+                setAudioError(true);
+              });
             }
             return 0;
           }
@@ -34,7 +49,7 @@ export default function TimerPage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isRunning]);
+  }, [isRunning, audioError]);
 
   const handleStart = () => {
     const hours = parseInt(inputHours) || 0;
@@ -171,7 +186,12 @@ export default function TimerPage() {
         </div>
       </main>
       {/* Hidden audio element for alarm sound */}
-      <audio ref={audioRef} src="/alarmbeep.mp3" />
+      <audio 
+        ref={audioRef} 
+        src="/alarmbeep.mp3" 
+        preload="auto"
+        onError={() => setAudioError(true)}
+      />
     </>
   );
 } 

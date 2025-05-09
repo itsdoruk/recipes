@@ -10,7 +10,9 @@ export default async function handler(
 ) {
   try {
     const { stdout } = await execAsync('git rev-parse HEAD');
-    res.status(200).json({ hash: stdout.trim() });
+    const fullHash = stdout.trim();
+    const shortHash = fullHash.substring(0, 7);
+    res.status(200).json({ hash: shortHash });
   } catch (error) {
     console.error('Failed to get commit hash:', error);
     res.status(500).json({ error: 'Failed to get commit hash' });
