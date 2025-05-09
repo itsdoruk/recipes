@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { useTranslation } from '@/lib/hooks/useTranslation';
 
 interface Profile {
   username: string | null;
@@ -38,7 +37,6 @@ export default function RecipeCard({
   link,
   loading = false,
 }: RecipeCardProps) {
-  const { t } = useTranslation();
   const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
@@ -89,13 +87,13 @@ export default function RecipeCard({
           {profile?.avatar_url ? (
             <img
               src={profile.avatar_url}
-              alt={profile.username || t('common.anonymous')}
+              alt={profile.username || 'anonymous'}
               className="w-8 h-8 rounded-full object-cover flex-shrink-0"
             />
           ) : (
             <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "var(--background)", color: "var(--foreground)" }}>
               <span className="text-xs">
-                {profile?.username?.[0]?.toUpperCase() || 'A'}
+                {profile?.username?.[0]?.toUpperCase() || 'a'}
               </span>
             </div>
           )}
@@ -106,7 +104,7 @@ export default function RecipeCard({
               className="text-sm font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate"
               style={{ color: "var(--foreground)" }}
             >
-              {profile?.username || t('common.anonymous')}
+              {profile?.username || 'anonymous'}
             </Link>
             <div className="flex items-center gap-2">
               {cooking_time && (

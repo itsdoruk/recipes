@@ -7,7 +7,6 @@ import { getPopularRecipes } from '@/lib/spoonacular';
 import RecipeCard from '@/components/RecipeCard';
 import { marked } from 'marked';
 import { GetServerSideProps } from 'next';
-import { useTranslation } from '@/lib/hooks/useTranslation';
 
 interface SearchFilters {
   diet: string;
@@ -173,7 +172,6 @@ function extractRecipePropertiesFromMarkdown(markdown: string) {
 }
 
 export default function Home({ initialRecipes }: HomeProps) {
-  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   // Controlled search input
@@ -438,7 +436,29 @@ export default function Home({ initialRecipes }: HomeProps) {
           };
 
           if (typeof window !== 'undefined') {
-            localStorage.setItem(randomRecipeObj.id, JSON.stringify(randomRecipeObj));
+            try {
+              // Clean up old recipes before storing new ones
+              const keys = Object.keys(localStorage);
+              const recipeKeys = keys.filter(key => key.startsWith('random-internet-'));
+              
+              // If we have more than 20 recipes stored, remove the oldest ones
+              if (recipeKeys.length > 20) {
+                const sortedKeys = recipeKeys.sort((a, b) => {
+                  const timeA = parseInt(a.split('-').pop() || '0');
+                  const timeB = parseInt(b.split('-').pop() || '0');
+                  return timeA - timeB;
+                });
+                
+                // Remove oldest recipes until we have space for new ones
+                const keysToRemove = sortedKeys.slice(0, recipeKeys.length - 20);
+                keysToRemove.forEach(key => localStorage.removeItem(key));
+              }
+              
+              localStorage.setItem(randomRecipeObj.id, JSON.stringify(randomRecipeObj));
+            } catch (storageError) {
+              console.warn('Failed to store recipe in localStorage:', storageError);
+              // Continue execution even if storage fails
+            }
           }
           return randomRecipeObj;
         } catch (err) {
@@ -469,13 +489,13 @@ export default function Home({ initialRecipes }: HomeProps) {
   return (
     <>
       <Head>
-        <title>{t('nav.recipes')}</title>
+        <title>recipes</title>
       </Head>
 
       <main className="max-w-2xl mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="space-y-8">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl">{t('nav.recipes')}</h1>
+            <h1 className="text-2xl">recipes</h1>
           </div>
 
           <form onSubmit={handleSearch} className="space-y-4">
@@ -484,7 +504,7 @@ export default function Home({ initialRecipes }: HomeProps) {
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={t('recipe.searchRecipes')}
+                placeholder="search recipes..."
                 className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
               />
               <button
@@ -492,7 +512,7 @@ export default function Home({ initialRecipes }: HomeProps) {
                 disabled={isLoading}
                 className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
               >
-                {isLoading ? t('recipe.searching') : t('recipe.search')}
+                {isLoading ? 'Searching...' : 'Search'}
               </button>
             </div>
 
@@ -502,9 +522,9 @@ export default function Home({ initialRecipes }: HomeProps) {
                 onChange={(e) => handleFilterChange("diet", e.target.value)}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
-                <option value="">{t('recipe.anyDiet')}</option>
+                <option value="">any diet</option>
                 {DIET_TYPES.map((type) => (
-                  <option key={type} value={type}>{t(`diet.${type}`)}</option>
+                  <option key={type} value={type}>{type}</option>
                 ))}
               </select>
 
@@ -513,9 +533,9 @@ export default function Home({ initialRecipes }: HomeProps) {
                 onChange={(e) => handleFilterChange("cuisine", e.target.value)}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
-                <option value="">{t('recipe.anyCuisine')}</option>
+                <option value="">any cuisine</option>
                 {CUISINE_TYPES.map((type) => (
-                  <option key={type} value={type}>{t(`cuisine.${type}`)}</option>
+                  <option key={type} value={type}>{type}</option>
                 ))}
               </select>
 
@@ -524,11 +544,11 @@ export default function Home({ initialRecipes }: HomeProps) {
                 onChange={(e) => handleFilterChange("maxReadyTime", Number(e.target.value))}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
               >
-                <option value="0">{t('recipe.anyTime')}</option>
-                <option value="15">{t('time.quick', { minutes: 15 })}</option>
-                <option value="30">{t('time.medium', { minutes: 30 })}</option>
-                <option value="45">{t('time.medium', { minutes: 45 })}</option>
-                <option value="60">{t('time.long', { hours: 1 })}</option>
+                <option value="0">any time</option>
+                <option value="15">quick (15 mins or less)</option>
+                <option value="30">medium (30 mins or less)</option>
+                <option value="45">medium (45 mins or less)</option>
+                <option value="60">long (1 hour or less)</option>
               </select>
             </div>
           </form>
@@ -537,17 +557,16 @@ export default function Home({ initialRecipes }: HomeProps) {
             <p className="text-red-500">{error}</p>
           )}
 
-          {/* Main Recipe Grid: 5 AI recipes first, then popular/community recipes */}
           <div className="space-y-4">
-            <h2 className="text-xl">{t('recipe.recipes')}</h2>
+            <h2 className="text-xl">recipes</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {aiLoading
                 ? Array.from({ length: 5 }).map((_, idx) => (
                     <RecipeCard
                       key={`ai-loading-${idx}`}
                       id={`ai-loading-${idx}`}
-                      title={t('ai.loading')}
-                      description={t('ai.generating')}
+                      title="Loading..."
+                      description="Generating a new recipe..."
                       image_url={RANDOM_CARD_IMG}
                       user_id="recipes-ai"
                       created_at={new Date().toISOString()}
@@ -580,7 +599,6 @@ export default function Home({ initialRecipes }: HomeProps) {
                       link={`/internet-recipe/${recipe.id}`}
                     />
                   ))}
-              {/* Show popular recipes first */}
               {popularRecipes.map((recipe) => (
                 <RecipeCard
                   key={recipe.id}
@@ -596,10 +614,9 @@ export default function Home({ initialRecipes }: HomeProps) {
                   readyInMinutes={recipe.readyInMinutes}
                 />
               ))}
-              {/* Then show user recipes */}
-            {recipes.map((recipe) => (
+              {recipes.map((recipe) => (
                 <RecipeCard
-                key={recipe.id}
+                  key={recipe.id}
                   id={recipe.id}
                   title={recipe.title}
                   description={recipe.description}
@@ -611,11 +628,10 @@ export default function Home({ initialRecipes }: HomeProps) {
                   diet_type={recipe.diet_type}
                 />
               ))}
-                </div>
-            {/* Loading indicator */}
+            </div>
             <div ref={loadingRef} className="h-10 flex items-center justify-center">
-              {isLoading && <p>{t('recipe.loadMore')}</p>}
-              </div>
+              {isLoading && <p>Loading more recipes...</p>}
+            </div>
           </div>
         </div>
       </main>

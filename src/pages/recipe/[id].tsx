@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { Comments } from '@/components/Comments';
 import { GetStaticProps, GetStaticPaths } from 'next';
 import { marked } from 'marked';
+import StarButton from '@/components/StarButton';
 
 interface Profile {
   username: string | null;
@@ -149,7 +150,10 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
         <meta name="last-modified" content={lastUpdated} />
       </Head>
 
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <div 
+        className="max-w-2xl mx-auto px-4 py-8"
+        style={{ background: "var(--background)", color: "var(--foreground)" }}
+      >
         <div className="space-y-8">
           {recipe.image_url || recipe.image ? (
             <div className="relative w-full h-96">
@@ -163,7 +167,10 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
           ) : null}
 
           <div>
-            <h1 className="text-3xl">{recipe.title}</h1>
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl">{recipe.title}</h1>
+              <StarButton recipeId={recipe.id} recipeType="user" />
+            </div>
             {profile && (
               <div className="flex items-center gap-2 mt-4">
                 {profile.avatar_url && (
@@ -186,14 +193,14 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
                   <div className="flex gap-2 ml-auto">
                     <Link
                       href={`/edit-recipe/${recipe.id}`}
-                      className="px-3 py-1 text-sm border rounded hover:bg-gray-100"
+                      className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
                     >
                       edit
                     </Link>
                     <button
                       onClick={handleDelete}
                       disabled={isDeleting}
-                      className="px-3 py-1 text-sm border rounded text-red-500 hover:bg-red-50 disabled:opacity-50"
+                      className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 text-red-500 dark:text-red-400"
                     >
                       {isDeleting ? 'deleting...' : 'delete'}
                     </button>
@@ -299,7 +306,7 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
             </div>
           )}
         </div>
-      </main>
+      </div>
     </>
   );
 }

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Image from 'next/image';
-
-const RANDOM_CARD_IMG = String('https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80');
+import StarButton from '@/components/StarButton';
+import { RANDOM_CARD_IMG } from '@/lib/constants';
 
 function splitInstructions(instructions: string): string[] {
   return instructions
@@ -76,7 +76,10 @@ export default function InternetRecipePage() {
             </div>
           )}
           <div>
-            <h1 className="text-3xl">{recipe.title}</h1>
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl">{recipe.title}</h1>
+              <StarButton recipeId={recipe.id} recipeType="ai" />
+            </div>
             <span className="text-gray-500 dark:text-gray-400 block mt-2">
               {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString() : ''}
             </span>

@@ -1,23 +1,23 @@
 # [recipes]
 
-A simple app to create and manage your recipes, made for Hack Club's neighborhood
+a simple app to create and manage your recipes, made for hack club's neighborhood
 
-## Features
+## features
 
 - minimalistic design
-- Create your own recipes
+- create your own recipes
 
-## Dependencies
+## dependencies
 
-- Spoonacular API
-- Next.js
-- Supabase
+- spoonacular api
+- next.js
+- supabase
 
-## Setup
+## setup
 
-1. Clone the repo
-2. Install dependencies
-3. Set up your API keys
-4. Run the app
+1. clone the repo
+2. install dependencies
+3. set up your api keys
+4. run the app
 
-Enjoy!
+enjoy!

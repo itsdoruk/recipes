@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { useTranslation } from '@/lib/hooks/useTranslation';
 
 interface Profile {
   username: string | null;
@@ -15,7 +14,6 @@ interface Profile {
 export default function Navbar() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { t } = useTranslation();
   const [showSettings, setShowSettings] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,7 +36,7 @@ export default function Navbar() {
         if (error) throw error;
         setProfile(data);
       } catch (error) {
-        console.error('Error fetching profile:', error);
+        console.error('error fetching profile:', error);
       } finally {
         setIsLoading(false);
       }
@@ -52,7 +50,7 @@ export default function Navbar() {
       await signOut();
       router.push('/login');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('error signing out:', error);
     }
   };
 
@@ -65,14 +63,14 @@ export default function Navbar() {
               href="/" 
               className="flex items-center hover:opacity-80 transition-opacity"
             >
-              {t('nav.recipes')}
+              [recipes]
             </Link>
             <div className="flex items-center hover:opacity-80 transition-opacity">
               <Link
                 href="/welcome"
                 className={`transition-opacity hover:opacity-80 ${router.pathname === '/welcome' ? 'opacity-80' : ''}`}
               >
-                {t('nav.discover')}
+                discover
               </Link>
             </div>
           </div>
@@ -84,7 +82,7 @@ export default function Navbar() {
                   href="/create"
                   className="h-10 flex items-center px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
                 >
-                  {t('common.createNewRecipe')}
+                  create new recipe
                 </Link>
                 <div className="relative">
                   <button
@@ -94,13 +92,13 @@ export default function Navbar() {
                     {profile?.avatar_url ? (
                       <img
                         src={profile.avatar_url}
-                        alt={profile.username || t('common.anonymous')}
+                        alt={profile.username || 'anonymous'}
                         className="w-8 h-8 rounded-full object-cover"
                       />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                         <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'A'}
+                          {profile?.username?.[0]?.toLowerCase() || user.email?.[0]?.toLowerCase() || 'a'}
                         </span>
                       </div>
                     )}
@@ -112,11 +110,11 @@ export default function Navbar() {
                     >
                       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
                         <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
-                          {profile?.username ? `@${profile.username}` : t('common.anonymous')}
+                          {profile?.username ? `@${profile.username.toLowerCase()}` : 'anonymous'}
                         </p>
                         {profile?.show_email && (
                           <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
-                            {user.email}
+                            {user.email.toLowerCase()}
                           </p>
                         )}
                       </div>
@@ -126,7 +124,7 @@ export default function Navbar() {
                         style={{ color: 'inherit', fontFamily: 'inherit' }}
                         onClick={() => setShowSettings(false)}
                       >
-                        {t('nav.profile')}
+                        profile
                       </Link>
                       <Link
                         href="/account"
@@ -134,7 +132,7 @@ export default function Navbar() {
                         style={{ color: 'inherit', fontFamily: 'inherit' }}
                         onClick={() => setShowSettings(false)}
                       >
-                        {t('common.accountSettings')}
+                        account settings
                       </Link>
                       <Link
                         href="/settings"
@@ -142,7 +140,7 @@ export default function Navbar() {
                         style={{ color: 'inherit', fontFamily: 'inherit' }}
                         onClick={() => setShowSettings(false)}
                       >
-                        {t('common.appSettings')}
+                        app settings
                       </Link>
                       <button
                         onClick={() => {
@@ -152,7 +150,7 @@ export default function Navbar() {
                         className="w-full text-left px-4 py-2 text-base font-normal text-red-500 hover:opacity-80 transition-opacity"
                         style={{ fontFamily: 'inherit' }}
                       >
-                        {t('common.signOut')}
+                        sign out
                       </button>
                     </div>
                   )}
@@ -163,7 +161,7 @@ export default function Navbar() {
                 href="/login"
                 className="h-10 flex items-center px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
               >
-                {t('common.signIn')}
+                sign in
               </Link>
             )}
           </div>
