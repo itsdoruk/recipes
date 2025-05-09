@@ -7,12 +7,14 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleAuthCallback = async () => {
-      const { error } = await supabase.auth.getSession();
+      const { data: { user }, error } = await supabase.auth.getUser();
       if (error) {
         console.error('Error in auth callback:', error);
         router.push('/login');
-      } else {
+      } else if (user) {
         router.push('/');
+      } else {
+        router.push('/login');
       }
     };
 

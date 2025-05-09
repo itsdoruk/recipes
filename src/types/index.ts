@@ -45,3 +45,20 @@ export interface Recipe {
       unit: string;
     }[];
   }
+
+  export interface Profile {
+    id: string;
+    user_id: string;
+    username: string | null;
+    email?: string | null;
+    avatar_url?: string | null;
+    is_admin: boolean;
+    banned?: boolean;
+    warnings?: number;
+    created_at: string;
+    ban_expiry?: string | null;
+    ban_type?: 'temporary' | 'permanent' | 'warning' | null;
+    ban_reason?: string | null;
+    last_ban_date?: string | null;
+    ban_count?: number;
+  }

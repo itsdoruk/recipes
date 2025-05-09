@@ -32,15 +32,23 @@ export default function NotificationsDropdown() {
         .from('notifications')
         .select(`
           *,
-          actor:profiles!actor_id(username, avatar_url)
+          profiles!notifications_actor_id_fkey(username, avatar_url)
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10);
 
       if (data) {
-        setNotifications(data);
-        setUnreadCount(data.filter(n => !n.read).length);
+        // Transform the data to match the expected format
+        const transformedData = data.map(notification => ({
+          ...notification,
+          actor: {
+            username: notification.profiles?.username || null,
+            avatar_url: notification.profiles?.avatar_url || null
+          }
+        }));
+        setNotifications(transformedData);
+        setUnreadCount(transformedData.filter(n => !n.read).length);
       }
     };
 
@@ -54,8 +62,23 @@ export default function NotificationsDropdown() {
         schema: 'public',
         table: 'notifications',
         filter: `user_id=eq.${user.id}`
-      }, (payload) => {
-        setNotifications(prev => [payload.new as Notification, ...prev]);
+      }, async (payload) => {
+        // Fetch the actor's profile for the new notification
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('user_id', payload.new.actor_id)
+          .single();
+
+        const newNotification = {
+          ...payload.new,
+          actor: {
+            username: profile?.username || null,
+            avatar_url: profile?.avatar_url || null
+          }
+        };
+
+        setNotifications(prev => [newNotification as Notification, ...prev]);
         setUnreadCount(prev => prev + 1);
       })
       .subscribe();

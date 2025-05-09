@@ -58,14 +58,14 @@ const DIET_TYPES = [
 
 function mapToAllowedCuisine(cuisine: string) {
   if (!cuisine) return String('unknown');
-  cuisine = cuisine.toLowerCase();
-  return CUISINE_TYPES.find(type => cuisine.includes(type)) || String('unknown');
+  cuisine = cuisine.trim().toLowerCase();
+  return CUISINE_TYPES.find(type => cuisine === type) || String('unknown');
 }
 
 function mapToAllowedDiet(diet: string) {
   if (!diet) return String('unknown');
-  diet = diet.toLowerCase();
-  return DIET_TYPES.find(type => diet.includes(type)) || String('unknown');
+  diet = diet.trim().toLowerCase();
+  return DIET_TYPES.find(type => diet === type) || String('unknown');
 }
 
 function mapToAllowedTime(minutes: number | undefined) {
@@ -312,7 +312,18 @@ export default function Home({ initialRecipes }: HomeProps) {
   };
 
   const handleFilterChange = (key: keyof SearchFilters, value: string | number) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    let mappedValue = value;
+    
+    // Map the value to an allowed value based on the filter type
+    if (key === 'cuisine') {
+      mappedValue = mapToAllowedCuisine(value as string);
+    } else if (key === 'diet') {
+      mappedValue = mapToAllowedDiet(value as string);
+    } else if (key === 'maxReadyTime') {
+      mappedValue = mapToAllowedTime(value as number);
+    }
+
+    setFilters(prev => ({ ...prev, [key]: mappedValue }));
     setPage(1);
     setRecipes([]);
     setHasMore(true);
@@ -490,13 +501,8 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
 
   // Filter and search AI recipes
   const filteredAiRecipes = aiRecipes.filter(recipe => {
-    // Search
-    const matchesQuery = !query || recipe.title.toLowerCase().includes(query.toLowerCase()) || (recipe.description && recipe.description.toLowerCase().includes(query.toLowerCase()));
-    // Filters
-    const matchesCuisine = !filters.cuisine || recipe.cuisine_type === filters.cuisine;
-    const matchesDiet = !filters.diet || recipe.diet_type === filters.diet;
-    const matchesTime = !filters.maxReadyTime || (recipe.cooking_time_value && recipe.cooking_time_value <= filters.maxReadyTime);
-    return matchesQuery && matchesCuisine && matchesDiet && matchesTime;
+    // Only apply search, no filters
+    return !query || recipe.title.toLowerCase().includes(query.toLowerCase()) || (recipe.description && recipe.description.toLowerCase().includes(query.toLowerCase()));
   });
 
   return (
@@ -527,6 +533,39 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
               >
                 {isLoading ? 'Searching...' : 'Search'}
               </button>
+            </div>
+            {/* Filtering dropdowns */}
+            <div className="flex gap-2 mt-2">
+              <select
+                value={filters.diet}
+                onChange={e => handleFilterChange('diet', e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+              >
+                <option value="">all diets</option>
+                {DIET_TYPES.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+              <select
+                value={filters.cuisine}
+                onChange={e => handleFilterChange('cuisine', e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+              >
+                <option value="">all cuisines</option>
+                {CUISINE_TYPES.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+              <select
+                value={filters.maxReadyTime || ''}
+                onChange={e => handleFilterChange('maxReadyTime', Number(e.target.value))}
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+              >
+                <option value="">any time</option>
+                <option value="15">15 mins or less</option>
+                <option value="30">30 mins or less</option>
+                <option value="60">1 hour or less</option>
+              </select>
             </div>
           </form>
 

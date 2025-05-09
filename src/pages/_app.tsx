@@ -14,11 +14,16 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { user }, error } = await supabase.auth.getUser();
         
-        if (!session && router.pathname !== '/login') {
+        if (error) {
+          console.error('Error initializing auth:', error);
+          if (router.pathname !== '/login') {
+            router.push('/login');
+          }
+        } else if (!user && router.pathname !== '/login') {
           router.push('/login');
-        } else if (session && router.pathname === '/login') {
+        } else if (user && router.pathname === '/login') {
           router.push('/');
         }
       } catch (error) {
@@ -30,8 +35,15 @@ export default function App({ Component, pageProps }: AppProps) {
 
     initializeAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && router.pathname === '/login') {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        console.error('Error getting user:', error);
+        return;
+      }
+
+      if (event === 'SIGNED_IN' && user && router.pathname === '/login') {
         router.push('/');
       } else if (event === 'SIGNED_OUT' && router.pathname !== '/login') {
         router.push('/login');
