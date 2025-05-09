@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import StarButton from './StarButton';
+import Avatar from './Avatar';
 
 interface Profile {
   username: string | null;
@@ -98,17 +99,9 @@ export default function RecipeCard({
         </p>
         <div className="mt-auto flex items-center gap-3 pt-4 border-t" style={{ borderColor: "var(--outline)" }}>
           {profile?.avatar_url ? (
-            <img
-              src={profile.avatar_url}
-              alt={profile.username || 'anonymous'}
-              className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-            />
+            <Avatar avatar_url={profile.avatar_url} username={profile.username} size={32} />
           ) : (
-            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-              <span className="text-xs">
-                {profile?.username?.[0]?.toUpperCase() || 'a'}
-              </span>
-            </div>
+            <Avatar username={profile?.username} size={32} />
           )}
           <div className="flex flex-col min-w-0">
             <Link

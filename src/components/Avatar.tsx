@@ -1,15 +1,30 @@
-import { User } from '@supabase/supabase-js';
+import Image from 'next/image';
+import React from 'react';
 
 interface AvatarProps {
-  user: User;
+  avatar_url?: string | null;
+  username?: string | null;
+  alt?: string;
+  size?: number; // px
+  className?: string;
 }
 
-export function Avatar({ user }: AvatarProps) {
-  return (
-    <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-      <span className="text-sm text-gray-500 dark:text-gray-400">
-        {user.email?.[0]?.toUpperCase() || 'Anonymous'}
-      </span>
+export default function Avatar({ avatar_url, username, alt, size = 48, className = '' }: AvatarProps) {
+  return avatar_url ? (
+    <Image
+      src={avatar_url}
+      alt={alt || username || 'user avatar'}
+      width={size}
+      height={size}
+      className={`object-cover rounded-full aspect-square bg-gray-100 dark:bg-gray-800 ${className}`}
+      style={{ width: size, height: size }}
+    />
+  ) : (
+    <div
+      className={`flex items-center justify-center rounded-full aspect-square bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-bold select-none ${className}`}
+      style={{ width: size, height: size, fontSize: size * 0.5 }}
+    >
+      {username?.[0]?.toUpperCase() || 'A'}
     </div>
   );
 } 

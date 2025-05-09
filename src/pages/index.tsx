@@ -8,6 +8,8 @@ import RecipeCard from '@/components/RecipeCard';
 import { marked } from 'marked';
 import { GetServerSideProps } from 'next';
 import { toLowerCaseObject } from '@/lib/utils';
+import Image from 'next/image';
+import UserCard from '@/components/UserCard';
 
 interface SearchFilters {
   diet: string;
@@ -211,6 +213,10 @@ export default function Home({ initialRecipes }: HomeProps) {
   const [aiRecipes, setAiRecipes] = useState<any[]>([]);
   const [aiLoading, setAiLoading] = useState(true);
 
+  const [userResults, setUserResults] = useState<{ user_id: string; username: string | null; avatar_url: string | null }[]>([]);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     const fetchPopularRecipes = async () => {
       try {
@@ -279,6 +285,30 @@ export default function Home({ initialRecipes }: HomeProps) {
     setRecipes([]);
     setHasMore(true);
     setQuery(searchInput); // Set the main query to the input value
+    
+    // Fetch users matching the query
+    if (searchInput.trim().length > 0) {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('user_id, username, avatar_url, bio')
+          .ilike('username', `%${searchInput}%`)
+          .limit(12);
+        
+        if (error) {
+          console.error('Error searching profiles:', error);
+          setUserResults([]);
+          return;
+        }
+        
+        setUserResults(data || []);
+      } catch (err) {
+        console.error('Error in profile search:', err);
+        setUserResults([]);
+      }
+    } else {
+      setUserResults([]);
+    }
   };
 
   const handleFilterChange = (key: keyof SearchFilters, value: string | number) => {
@@ -487,7 +517,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="search recipes..."
+                placeholder="search recipes or users..."
                 className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
               />
               <button
@@ -498,43 +528,19 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 {isLoading ? 'Searching...' : 'Search'}
               </button>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <select
-                value={filters.diet}
-                onChange={(e) => handleFilterChange("diet", e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
-              >
-                <option value="">any diet</option>
-                {DIET_TYPES.map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-
-              <select
-                value={filters.cuisine}
-                onChange={(e) => handleFilterChange("cuisine", e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
-              >
-                <option value="">any cuisine</option>
-                {CUISINE_TYPES.map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-
-              <select
-                value={filters.maxReadyTime}
-                onChange={(e) => handleFilterChange("maxReadyTime", Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
-              >
-                <option value="0">any time</option>
-                <option value="15">quick (15 mins or less)</option>
-                <option value="30">medium (30 mins or less)</option>
-                <option value="45">medium (45 mins or less)</option>
-                <option value="60">long (1 hour or less)</option>
-              </select>
-            </div>
           </form>
+
+          {/* User search results section */}
+          {userResults.length > 0 && (
+            <div className="space-y-2">
+              <h2 className="text-xl mt-8 mb-2">users</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {userResults.map((user) => (
+                  <UserCard key={user.user_id} user={user} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {error && (
             <p className="text-red-500">{error}</p>

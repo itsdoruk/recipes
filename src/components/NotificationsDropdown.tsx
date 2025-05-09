@@ -3,6 +3,7 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import Image from 'next/image';
+import Avatar from './Avatar';
 
 interface Notification {
   id: string;
@@ -133,45 +134,39 @@ export default function NotificationsDropdown() {
           </div>
           <div className="max-h-96 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-800">
             {notifications.length > 0 ? (
-              notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer ${!notification.read ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                  onClick={() => markAsRead(notification.id)}
-                >
-                  <Link
-                    href={`/user/${notification.actor_id}`}
-                    className="flex items-center gap-3"
+              notifications.map((notification) => {
+                const isFollow = notification.type === 'follow';
+                const isFollowRequest = notification.type === 'follow_request';
+                return (
+                  <div
+                    key={notification.id}
+                    className={`px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer ${!notification.read ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${isFollowRequest ? 'border-l-4 border-yellow-400' : ''}`}
+                    onClick={() => markAsRead(notification.id)}
                   >
-                    <div className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                      {notification.actor.avatar_url ? (
-                        <Image
-                          src={notification.actor.avatar_url}
-                          alt={notification.actor.username || 'avatar'}
-                          width={40}
-                          height={40}
-                          className="object-cover aspect-square"
-                        />
-                      ) : (
-                        <span className="text-lg">{notification.actor.username?.[0]?.toLowerCase() || 'a'}</span>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm">
-                        <span className="font-medium">{notification.actor.username || 'anonymous'}</span>
-                        {' '}
-                        {notification.type === 'follow' && 'started following you'}
-                        {notification.type === 'follow_request' && 'requested to follow you'}
-                        {notification.type === 'recipe_like' && 'liked your recipe'}
-                        {notification.type === 'recipe_comment' && 'commented on your recipe'}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(notification.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </Link>
-                </div>
-              ))
+                    <Link
+                      href={`/user/${notification.actor_id}`}
+                      className="flex items-center gap-3"
+                    >
+                      <div className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                        <Avatar avatar_url={notification.actor.avatar_url} username={notification.actor.username} size={40} />
+                      </div>
+                      <div>
+                        <p className="text-sm">
+                          <span className="font-medium text-blue-600 dark:text-blue-400">{notification.actor.username || 'anonymous'}</span>
+                          {' '}
+                          {isFollow && <span>started following you</span>}
+                          {isFollowRequest && <span className="text-yellow-600 dark:text-yellow-400">requested to follow you</span>}
+                          {notification.type === 'recipe_like' && 'liked your recipe'}
+                          {notification.type === 'recipe_comment' && 'commented on your recipe'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {new Date(notification.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </Link>
+                  </div>
+                );
+              })
             ) : (
               <div className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
                 no notifications yet

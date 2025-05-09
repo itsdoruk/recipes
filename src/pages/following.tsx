@@ -5,6 +5,8 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import Image from 'next/image';
 import Link from 'next/link';
+import Avatar from '@/components/Avatar';
+import UserCard from '@/components/UserCard';
 
 interface Profile {
   user_id: string;
@@ -26,29 +28,30 @@ export default function FollowingPage() {
         router.push('/login');
         return;
       }
-
       try {
         // Get users that the current user is following
         const { data: followingData } = await supabase
           .from('follows')
           .select('following_id')
           .eq('follower_id', user.id);
-
         if (followingData?.length) {
           // Get profiles of followed users
+          const followingIds = followingData.map(f => f.following_id);
           const { data: profiles } = await supabase
             .from('profiles')
             .select('*')
-            .in('user_id', followingData.map(f => f.following_id));
+            .in('user_id', followingIds);
           setFollowing(profiles || []);
+        } else {
+          setFollowing([]);
         }
       } catch (error) {
         console.error('Error fetching following:', error);
+        setFollowing([]);
       } finally {
         setLoading(false);
       }
     };
-
     fetchFollowing();
   }, [user, router]);
 
@@ -77,35 +80,11 @@ export default function FollowingPage() {
 
           <div className="space-y-4">
             {following.length > 0 ? (
-              following.map((profile) => (
-                <Link
-                  key={profile.user_id}
-                  href={`/user/${profile.user_id}`}
-                  className="flex items-center gap-4 p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-                >
-                  <div className="relative w-12 h-12 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                    {profile.avatar_url ? (
-                      <Image
-                        src={profile.avatar_url}
-                        alt={profile.username || 'avatar'}
-                        width={48}
-                        height={48}
-                        className="object-cover aspect-square"
-                      />
-                    ) : (
-                      <span className="text-xl">{profile.username?.[0]?.toLowerCase() || 'a'}</span>
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="text-lg">
-                      {profile.username || 'anonymous'} {profile.is_private && '🔒'}
-                    </h2>
-                    {profile.bio && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{profile.bio}</p>
-                    )}
-                  </div>
-                </Link>
-              ))
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {following.map((profile) => (
+                  <UserCard key={profile.user_id} user={profile} />
+                ))}
+              </div>
             ) : (
               <p className="text-gray-500 dark:text-gray-400">not following anyone yet</p>
             )}

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import Avatar from '@/components/Avatar';
 
 interface Recipe {
   id: string;
@@ -175,11 +176,7 @@ export default function AccountPage() {
           <form onSubmit={handleSave} className="space-y-6">
             <div className="flex flex-col items-center gap-4">
               <div className="relative w-24 h-24 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                {avatarUrl ? (
-                  <Image src={avatarUrl} alt={form.username || 'avatar'} width={96} height={96} className="object-cover aspect-square" />
-                ) : (
-                  <span className="text-4xl">{form.username?.[0]?.toLowerCase() || user.email?.[0]?.toLowerCase() || 'a'}</span>
-                )}
+                <Avatar avatar_url={avatarUrl} username={form.username} size={96} />
                 {isUploading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
                     <div className="text-white text-sm">{uploadProgress}%</div>
@@ -254,19 +251,7 @@ export default function AccountPage() {
                     href={`/user/${profile.user_id}`}
                     className="flex items-center gap-3 h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
                   >
-                    {profile.avatar_url ? (
-                      <Image
-                        src={profile.avatar_url}
-                        alt={profile.username || 'avatar'}
-                        width={24}
-                        height={24}
-                        className="rounded-full"
-                      />
-                    ) : (
-                      <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                        <span className="text-xs">{profile.username?.[0]?.toLowerCase() || 'a'}</span>
-                      </div>
-                    )}
+                    <Avatar avatar_url={profile.avatar_url} username={profile.username} size={24} />
                     <span>@{profile.username}</span>
                   </Link>
                 ))

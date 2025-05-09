@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import Avatar from './Avatar';
 
 interface Comment {
   id: string;
@@ -177,17 +178,7 @@ export function Comments({ recipeId }: CommentsProps) {
           <div key={comment.id} className="p-4 border border-gray-200 dark:border-gray-800">
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
-                {comment.profiles?.avatar_url ? (
-                  <img
-                    src={comment.profiles.avatar_url}
-                    alt={comment.profiles.username}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
-                    {comment.profiles?.username?.[0]?.toUpperCase() || 'a'}
-                  </div>
-                )}
+                <Avatar avatar_url={comment.profiles?.avatar_url} username={comment.profiles?.username} size={40} />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">

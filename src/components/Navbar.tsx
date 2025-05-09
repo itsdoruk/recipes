@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
 import NotificationsDropdown from './NotificationsDropdown';
 import Image from 'next/image';
+import { useRef } from 'react';
+import Avatar from './Avatar';
 
 interface Profile {
   username: string | null;
@@ -24,6 +26,10 @@ export default function Navbar() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [userResults, setUserResults] = useState<{ user_id: string; username: string | null; avatar_url: string | null }[]>([]);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -67,6 +73,31 @@ export default function Navbar() {
 
   const isActive = (path: string) => router.pathname === path;
 
+  const handleUserSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearch(value);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (value.trim().length === 0) {
+      setUserResults([]);
+      setShowUserDropdown(false);
+      return;
+    }
+    searchTimeout.current = setTimeout(async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, username, avatar_url')
+        .or(`username.ilike.%${value}%,email.ilike.%${value}%`)
+        .limit(8);
+      if (!error && data) {
+        setUserResults(data);
+        setShowUserDropdown(true);
+      } else {
+        setUserResults([]);
+        setShowUserDropdown(false);
+      }
+    }, 300);
+  };
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 dark:border-gray-800 shadow-md" style={{ background: "var(--background)", color: "var(--foreground)" }}>
       <div className="max-w-7xl mx-auto px-4">
@@ -101,17 +132,7 @@ export default function Navbar() {
                     className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                   >
                     <div className="relative w-8 h-8 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                      {profile?.avatar_url ? (
-                        <Image
-                          src={profile.avatar_url}
-                          alt={profile.username || 'avatar'}
-                          width={32}
-                          height={32}
-                          className="object-cover aspect-square"
-                        />
-                      ) : (
-                        <span className="text-sm">{profile?.username?.[0]?.toLowerCase() || 'a'}</span>
-                      )}
+                      <Avatar avatar_url={profile?.avatar_url} username={profile?.username} size={32} />
                     </div>
                   </button>
                   {showSettings && (

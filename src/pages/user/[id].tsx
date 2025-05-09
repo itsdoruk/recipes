@@ -7,6 +7,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import StarButton from '@/components/StarButton';
 import RecipeCard from '@/components/RecipeCard';
+import Avatar from '@/components/Avatar';
 
 interface Recipe {
   id: string;
@@ -42,6 +43,7 @@ export default function UserProfile() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [isRequestPending, setIsRequestPending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [followError, setFollowError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -176,6 +178,8 @@ export default function UserProfile() {
   }, [id, user]);
 
   const handleFollow = async () => {
+    setFollowError(null);
+    console.log('Follow button clicked');
     if (!user || !id) return;
     try {
       if (isFollowing) {
@@ -195,7 +199,9 @@ export default function UserProfile() {
             status: 'pending'
           });
         if (followRequestError) {
+          setFollowError('Error sending follow request: ' + followRequestError.message);
           console.error('Error sending follow request:', followRequestError);
+          return;
         }
         setIsRequestPending(true);
         // Send notification for follow request
@@ -207,26 +213,37 @@ export default function UserProfile() {
             actor_id: user.id
           });
         if (notificationError) {
+          setFollowError('Error sending follow request notification: ' + notificationError.message);
           console.error('Error sending follow request notification:', notificationError);
         }
       } else {
-        await supabase
+        const { error: followError } = await supabase
           .from('follows')
           .insert({
             follower_id: user.id,
             following_id: id
           });
+        if (followError) {
+          setFollowError('Error following user: ' + followError.message);
+          console.error('Error following user:', followError);
+          return;
+        }
         setIsFollowing(true);
         // Send notification for follow
-        await supabase
+        const { error: notificationError } = await supabase
           .from('notifications')
           .insert({
             user_id: id,
             type: 'follow',
             actor_id: user.id
           });
+        if (notificationError) {
+          setFollowError('Error sending follow notification: ' + notificationError.message);
+          console.error('Error sending follow notification:', notificationError);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
+      setFollowError(error.message || 'Unknown error');
       console.error('error toggling follow:', error);
     }
   };
@@ -256,11 +273,7 @@ export default function UserProfile() {
         <div className="space-y-8">
           <div className="flex items-center gap-4">
             <div className="relative w-16 h-16 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-              {profile.avatar_url ? (
-                <Image src={profile.avatar_url} alt={profile.username || 'avatar'} width={64} height={64} className="object-cover aspect-square" />
-              ) : (
-                <span className="text-2xl">{profile.username?.[0]?.toLowerCase() || 'a'}</span>
-              )}
+              <Avatar avatar_url={profile.avatar_url} username={profile.username} size={64} />
             </div>
             <div>
               <h1 className="text-2xl">
@@ -269,13 +282,16 @@ export default function UserProfile() {
               {profile.bio && <p className="text-gray-500 dark:text-gray-400">{profile.bio}</p>}
             </div>
             {user && user.id !== id && (
-              <button
-                onClick={handleFollow}
-                className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-                disabled={isRequestPending}
-              >
-                {isFollowing ? 'unfollow' : isRequestPending ? 'requested' : 'follow'}
-              </button>
+              <div>
+                <button
+                  onClick={handleFollow}
+                  className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+                  disabled={isRequestPending}
+                >
+                  {isFollowing ? 'unfollow' : isRequestPending ? 'requested' : 'follow'}
+                </button>
+                {followError && <p className="text-red-500 text-sm mt-2">{followError}</p>}
+              </div>
             )}
           </div>
 

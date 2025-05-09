@@ -5,6 +5,8 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import Image from 'next/image';
 import Link from 'next/link';
+import Avatar from '@/components/Avatar';
+import UserCard from '@/components/UserCard';
 
 interface Profile {
   user_id: string;
@@ -26,29 +28,30 @@ export default function FollowersPage() {
         router.push('/login');
         return;
       }
-
       try {
         // Get users who are following the current user
         const { data: followersData } = await supabase
           .from('follows')
           .select('follower_id')
           .eq('following_id', user.id);
-
         if (followersData?.length) {
           // Get profiles of followers
+          const followerIds = followersData.map(f => f.follower_id);
           const { data: profiles } = await supabase
             .from('profiles')
             .select('*')
-            .in('user_id', followersData.map(f => f.follower_id));
+            .in('user_id', followerIds);
           setFollowers(profiles || []);
+        } else {
+          setFollowers([]);
         }
       } catch (error) {
         console.error('Error fetching followers:', error);
+        setFollowers([]);
       } finally {
         setLoading(false);
       }
     };
-
     fetchFollowers();
   }, [user, router]);
 
@@ -77,35 +80,11 @@ export default function FollowersPage() {
 
           <div className="space-y-4">
             {followers.length > 0 ? (
-              followers.map((profile) => (
-                <Link
-                  key={profile.user_id}
-                  href={`/user/${profile.user_id}`}
-                  className="flex items-center gap-4 p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-                >
-                  <div className="relative w-12 h-12 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                    {profile.avatar_url ? (
-                      <Image
-                        src={profile.avatar_url}
-                        alt={profile.username || 'avatar'}
-                        width={48}
-                        height={48}
-                        className="object-cover aspect-square"
-                      />
-                    ) : (
-                      <span className="text-xl">{profile.username?.[0]?.toLowerCase() || 'a'}</span>
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="text-lg">
-                      {profile.username || 'anonymous'} {profile.is_private && '🔒'}
-                    </h2>
-                    {profile.bio && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{profile.bio}</p>
-                    )}
-                  </div>
-                </Link>
-              ))
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {followers.map((profile) => (
+                  <UserCard key={profile.user_id} user={profile} />
+                ))}
+              </div>
             ) : (
               <p className="text-gray-500 dark:text-gray-400">no followers yet</p>
             )}

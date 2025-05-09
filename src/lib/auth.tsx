@@ -18,7 +18,42 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const router = useRouter();
+
+  // Helper function to create profile with retries
+  const createProfile = async (userId: string, username: string, retries = 3): Promise<boolean> => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([
+            {
+              user_id: userId,
+              username: username,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+          ]);
+        
+        if (!profileError) return true;
+        
+        // If profile already exists, that's fine
+        if (profileError.code === '23505') return true;
+        
+        console.error(`Profile creation attempt ${i + 1} failed:`, profileError);
+        if (i < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+        }
+      } catch (err) {
+        console.error(`Profile creation attempt ${i + 1} failed:`, err);
+        if (i < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+      }
+    }
+    return false;
+  };
 
   useEffect(() => {
     // Get initial session
@@ -43,8 +78,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, [router]);
 
-  // Only render children after loading is complete
-  if (loading) {
+  useEffect(() => {
+    // Ensure every authenticated user has a profile
+    const ensureProfile = async () => {
+      if (!user) return;
+      setProfileLoading(true);
+      try {
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!existingProfile) {
+          // Use email prefix as default username
+          const emailPrefix = user.email ? user.email.split('@')[0] : 'user';
+          const success = await createProfile(user.id, emailPrefix);
+          if (!success) {
+            console.error('Failed to create profile after multiple attempts');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking/creating profile:', error);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+    ensureProfile();
+  }, [user]);
+
+  // Only render children after loading and profile creation are complete
+  if (loading || profileLoading) {
     return <div className="p-8 text-center">Loading...</div>;
   }
 
@@ -138,27 +202,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Create a profile if one doesn't exist
       if (user) {
-        const { data: existingProfile } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .eq('user_id', user.id)
-          .single();
-
-        if (!existingProfile) {
-          const { error: profileError } = await supabase
+        setProfileLoading(true);
+        try {
+          const { data: existingProfile } = await supabase
             .from('profiles')
-            .insert([
-              {
-                user_id: user.id,
-                username: email.split('@')[0], // Use part of email as username
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              }
-            ]);
+            .select('user_id')
+            .eq('user_id', user.id)
+            .single();
 
-          if (profileError) {
-            console.error('Error creating profile:', profileError);
+          if (!existingProfile) {
+            const username = email.split('@')[0]; // Use part of email as username
+            const success = await createProfile(user.id, username);
+            if (!success) {
+              throw new Error('Failed to create profile after multiple attempts');
+            }
           }
+        } finally {
+          setProfileLoading(false);
         }
       }
     } catch (error) {
