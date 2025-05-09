@@ -1,33 +1,29 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { useTranslation } from "@/lib/hooks/useTranslation";
+import Image from "next/image";
 
 const CUISINE_TYPES = [
-  'italian',
-  'mexican',
-  'asian',
-  'american',
-  'mediterranean',
+  'italian', 'mexican', 'asian', 'american', 'mediterranean',
+  'french', 'chinese', 'japanese', 'indian', 'thai', 'greek',
+  'spanish', 'british', 'turkish', 'korean', 'vietnamese', 'german', 'caribbean', 'african', 'middle eastern', 'russian', 'brazilian'
 ];
 
 const DIET_TYPES = [
-  'vegetarian',
-  'vegan',
-  'gluten-free',
-  'ketogenic',
-  'paleo',
+  'vegetarian', 'vegan', 'gluten-free', 'ketogenic', 'paleo',
+  'pescatarian', 'lacto-vegetarian', 'ovo-vegetarian', 'whole30', 'low-fodmap', 'dairy-free', 'nut-free', 'halal', 'kosher'
 ];
 
 export default function CreateRecipePage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
   const [cuisineType, setCuisineType] = useState('');
   const [cookingTimeValue, setCookingTimeValue] = useState('');
   const [cookingTimeUnit, setCookingTimeUnit] = useState('mins');
@@ -40,56 +36,146 @@ export default function CreateRecipePage() {
   const [protein, setProtein] = useState('');
   const [fat, setFat] = useState('');
   const [carbohydrates, setCarbohydrates] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadImage = async (file: File): Promise<string> => {
+    try {
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('Image size should be less than 5MB');
+      }
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        throw new Error('File must be an image');
+      }
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `${user?.id}/${fileName}`;
+
+      // Upload the file
+      const { error: uploadError } = await supabase.storage
+        .from('recipe-images')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        if (uploadError.message.includes('violates row-level security policy')) {
+          throw new Error('You do not have permission to upload images. Please sign in.');
+        }
+        throw new Error(uploadError.message);
+      }
+
+      // Get the public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('recipe-images')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error: any) {
+      console.error('Image upload error:', error);
+      throw new Error(error.message || 'Failed to upload image. Please try again.');
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-
-    // Validate cooking time value is a number
-    if (!/^\d+$/.test(cookingTimeValue)) {
-      setError('Cooking time must be a number');
-      return;
-    }
 
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const ingredientsArray = ingredients
-        .split('\n')
-        .map((i) => i.trim())
-        .filter(Boolean);
-      const instructionsArray = instructions
-        .split('\n')
-        .map((i) => i.trim())
-        .filter(Boolean);
-      const { data, error } = await supabase
+      let finalImageUrl = imageUrl;
+      
+      if (imageFile) {
+        try {
+          finalImageUrl = await uploadImage(imageFile);
+        } catch (uploadError: any) {
+          console.error('Error uploading image:', uploadError);
+          setError(uploadError.message || 'Failed to upload image. Please try again.');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Validate required fields
+      if (!title.trim()) {
+        setError('Recipe title is required');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!description.trim()) {
+        setError('Recipe description is required');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!ingredients.trim()) {
+        setError('At least one ingredient is required');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!instructions.trim()) {
+        setError('At least one instruction is required');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const recipeData = {
+        title: title.trim(),
+        description: description.trim(),
+        image_url: finalImageUrl,
+        user_id: user.id,
+        cuisine_type: cuisineType || null,
+        cooking_time: cookingTimeValue ? `${cookingTimeValue} ${cookingTimeUnit}` : null,
+        cooking_time_value: cookingTimeValue ? parseInt(cookingTimeValue) : null,
+        cooking_time_unit: cookingTimeUnit,
+        diet_type: dietType || null,
+        ingredients: ingredients.split('\n').map(i => i.trim()).filter(Boolean),
+        instructions: instructions.split('\n').map(i => i.trim()).filter(Boolean),
+        calories: calories || 'unknown',
+        protein: protein || 'unknown',
+        fat: fat || 'unknown',
+        carbohydrates: carbohydrates || 'unknown'
+      };
+
+      console.log('Creating recipe with data:', recipeData);
+
+      const { data: recipe, error: insertError } = await supabase
         .from('recipes')
-        .insert({
-          title,
-          description,
-          image_url: imageUrl || null,
-          user_id: user.id,
-          cuisine_type: cuisineType || null,
-          cooking_time_value: cookingTimeValue || null,
-          cooking_time_unit: cookingTimeUnit || null,
-          diet_type: dietType || null,
-          ingredients: ingredientsArray,
-          instructions: instructionsArray,
-          calories: calories || null,
-          protein: protein || null,
-          fat: fat || null,
-          carbohydrates: carbohydrates || null,
-        })
+        .insert([recipeData])
         .select()
         .single();
 
-      if (error) throw error;
+      if (insertError) {
+        console.error('Supabase insert error:', insertError);
+        throw new Error(insertError.message);
+      }
 
-      router.push(`/recipe/${data.id}`);
-    } catch (err) {
+      if (!recipe) {
+        throw new Error('No recipe data returned after insert');
+      }
+
+      router.push(`/recipe/${recipe.id}`);
+    } catch (err: any) {
       console.error('Error creating recipe:', err);
-      setError('Failed to create recipe');
+      setError(err.message || 'Failed to create recipe. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -98,7 +184,7 @@ export default function CreateRecipePage() {
   if (!user) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="">{t('recipe.pleaseSignIn')}</p>
+        <p className="">please sign in to create a recipe</p>
       </div>
     );
   }
@@ -106,198 +192,231 @@ export default function CreateRecipePage() {
   return (
     <>
       <Head>
-        <title>{t('recipe.editRecipe')} | {t('nav.recipes')}</title>
+        <title>create recipe | [recipes]</title>
       </Head>
       <main className="max-w-2xl mx-auto px-4 py-8">
         <div className="space-y-8">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl">create recipe</h1>
+            <h1 className="text-3xl">create recipe</h1>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="title" className="blockmb-2">
-                title
-              </label>
-              <input
-                type="text"
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="description" className="blockmb-2">
-                description
-              </label>
-              <textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparenth-32"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="image_url" className="blockmb-2">
-                image url
-              </label>
-              <input
-                type="url"
-                id="image_url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent "
-              />
-            </div>
-
-            <div>
-              <label htmlFor="ingredients" className="blockmb-2">
-                ingredients (one per line)
-              </label>
-              <textarea
-                id="ingredients"
-                value={ingredients}
-                onChange={(e) => setIngredients(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparenth-32"
-                required
-                placeholder={`e.g. 2 eggs
-1 cup flour
-1/2 cup sugar`}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="instructions" className="blockmb-2">
-                instructions (one step per line)
-              </label>
-              <textarea
-                id="instructions"
-                value={instructions}
-                onChange={(e) => setInstructions(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparenth-32"
-                required
-                placeholder={`e.g. Preheat oven to 350F
-Mix flour and sugar
-Add eggs and stir
-Bake for 30 minutes`}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <select
-                id="cuisine_type"
-                value={cuisineType}
-                onChange={(e) => setCuisineType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
-              >
-                <option value="">{t('recipe.anyCuisine')}</option>
-                {CUISINE_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {t(`cuisine.${type}`)}
-                  </option>
-                ))}
-              </select>
-
-              <div className="flex gap-2 items-center">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="title" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                  recipe name
+                </label>
                 <input
                   type="text"
-                  id="cooking_time_value"
-                  value={cookingTimeValue}
-                  onChange={(e) => {
-                    // Only allow numeric characters
-                    const val = e.target.value.replace(/[^0-9]/g, '');
-                    setCookingTimeValue(val);
-                  }}
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
-                  min="0"
-                  placeholder={t('recipe.cookingTime')}
                   required
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  autoComplete="off"
+                  placeholder="enter recipe name"
                 />
+              </div>
+
+              <div>
+                <label htmlFor="description" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                  recipe description
+                </label>
+                <textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                  rows={4}
+                  required
+                  placeholder="describe your recipe"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                  recipe image
+                </label>
+                <div className="space-y-4">
+                  <div className="flex gap-4">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+                    >
+                      upload image
+                    </button>
+                    <input
+                      type="url"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                      placeholder="or paste image url"
+                    />
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  {(imagePreview || imageUrl) && (
+                    <div className="relative w-full h-48">
+                      <Image
+                        src={imagePreview || imageUrl}
+                        alt="recipe preview"
+                        fill
+                        className="object-cover rounded"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="ingredients" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                  ingredients
+                </label>
+                <textarea
+                  id="ingredients"
+                  value={ingredients}
+                  onChange={(e) => setIngredients(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                  rows={4}
+                  required
+                  placeholder="list ingredients (one per line)"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="instructions" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                  instructions
+                </label>
+                <textarea
+                  id="instructions"
+                  value={instructions}
+                  onChange={(e) => setInstructions(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                  rows={4}
+                  required
+                  placeholder="list steps (one per line)"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <select
-                  id="cooking_time_unit"
-                  value={cookingTimeUnit}
-                  onChange={(e) => setCookingTimeUnit(e.target.value)}
+                  id="cuisine_type"
+                  value={cuisineType}
+                  onChange={(e) => setCuisineType(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
                 >
-                  <option value="seconds">{t('common.seconds')}</option>
-                  <option value="mins">{t('common.minutes')}</option>
-                  <option value="days">{t('common.days')}</option>
+                  <option value="">select cuisine</option>
+                  {CUISINE_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    id="cooking_time_value"
+                    value={cookingTimeValue}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      setCookingTimeValue(val);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                    min="0"
+                    placeholder="cooking time"
+                    required
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="off"
+                  />
+                  <select
+                    id="cooking_time_unit"
+                    value={cookingTimeUnit}
+                    onChange={(e) => setCookingTimeUnit(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                  >
+                    <option value="seconds">seconds</option>
+                    <option value="mins">minutes</option>
+                    <option value="days">days</option>
+                  </select>
+                </div>
+
+                <select
+                  id="diet_type"
+                  value={dietType}
+                  onChange={(e) => setDietType(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                >
+                  <option value="">select diet</option>
+                  {DIET_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              <select
-                id="diet_type"
-                value={dietType}
-                onChange={(e) => setDietType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
-              >
-                <option value="">{t('recipe.anyDiet')}</option>
-                {DIET_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {t(`diet.${type}`)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <h2 className="text-xl mb-4 mt-8">{t('recipe.nutrition')}</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label htmlFor="calories" className="block mb-2">{t('recipe.calories')}</label>
-                  <input
-                    type="number"
-                    id="calories"
-                    value={calories}
-                    onChange={(e) => setCalories(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
-                    placeholder={t('recipe.calories')}
-                    defaultValue="0"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="protein" className="block mb-2">{t('recipe.protein')}</label>
-                  <input
-                    type="number"
-                    id="protein"
-                    value={protein}
-                    onChange={(e) => setProtein(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
-                    placeholder={t('recipe.protein')}
-                    defaultValue="0"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="fat" className="block mb-2">{t('recipe.fat')}</label>
-                  <input
-                    type="number"
-                    id="fat"
-                    value={fat}
-                    onChange={(e) => setFat(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
-                    placeholder={t('recipe.fat')}
-                    defaultValue="0"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="carbohydrates" className="block mb-2">{t('recipe.carbohydrates')}</label>
-                  <input
-                    type="number"
-                    id="carbohydrates"
-                    value={carbohydrates}
-                    onChange={(e) => setCarbohydrates(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
-                    placeholder={t('recipe.carbohydrates')}
-                    defaultValue="0"
-                  />
+              <div>
+                <h2 className="text-xl mb-4">nutrition facts</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <label htmlFor="calories" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                      calories
+                    </label>
+                    <input
+                      type="text"
+                      id="calories"
+                      value={calories}
+                      onChange={(e) => setCalories(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                      placeholder="enter calories"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="protein" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                      protein
+                    </label>
+                    <input
+                      type="text"
+                      id="protein"
+                      value={protein}
+                      onChange={(e) => setProtein(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                      placeholder="enter protein"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="fat" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                      fat
+                    </label>
+                    <input
+                      type="text"
+                      id="fat"
+                      value={fat}
+                      onChange={(e) => setFat(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                      placeholder="enter fat"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="carbohydrates" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                      carbohydrates
+                    </label>
+                    <input
+                      type="text"
+                      id="carbohydrates"
+                      value={carbohydrates}
+                      onChange={(e) => setCarbohydrates(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                      placeholder="enter carbohydrates"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -312,7 +431,7 @@ Bake for 30 minutes`}
                 disabled={isSubmitting}
                 className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
               >
-                {isSubmitting ? t('recipe.saving') : t('common.save')}
+                {isSubmitting ? 'saving...' : 'save recipe'}
               </button>
             </div>
           </form>

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { useTheme } from 'next-themes';
 
 interface Profile {
   username: string | null;
@@ -14,9 +15,11 @@ interface Profile {
 export default function Navbar() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [showSettings, setShowSettings] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -45,6 +48,10 @@ export default function Navbar() {
     fetchProfile();
   }, [user]);
 
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -54,28 +61,34 @@ export default function Navbar() {
     }
   };
 
+  const isActive = (path: string) => router.pathname === path;
+
   return (
     <nav className="border-b border-gray-200 dark:border-gray-800" style={{ background: "var(--background)", color: "var(--foreground)" }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center gap-4">
-            <Link 
-              href="/" 
-              className="flex items-center hover:opacity-80 transition-opacity"
-            >
+            <Link href="/">
               [recipes]
             </Link>
-            <div className="flex items-center hover:opacity-80 transition-opacity">
+            <div className="flex items-center gap-4">
               <Link
                 href="/welcome"
                 className={`transition-opacity hover:opacity-80 ${router.pathname === '/welcome' ? 'opacity-80' : ''}`}
               >
                 discover
               </Link>
+              <Link
+                href="/timer"
+                className={`transition-opacity hover:opacity-80 ${router.pathname === '/timer' ? 'opacity-80' : ''}`}
+              >
+                timer
+              </Link>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* Desktop Navigation */}
+          <div className="hidden sm:flex sm:items-center sm:space-x-8">
             {user ? (
               <>
                 <Link
@@ -114,7 +127,7 @@ export default function Navbar() {
                         </p>
                         {profile?.show_email && (
                           <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
-                            {user.email.toLowerCase()}
+                            {user.email?.toLowerCase()}
                           </p>
                         )}
                       </div>
@@ -165,6 +178,173 @@ export default function Navbar() {
               </Link>
             )}
           </div>
+
+          {/* Mobile menu button */}
+          <div className="flex items-center sm:hidden gap-2">
+            {user && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="h-10 flex items-center hover:opacity-80 transition-opacity"
+                >
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt={profile.username || 'anonymous'}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {profile?.username?.[0]?.toLowerCase() || user.email?.[0]?.toLowerCase() || 'a'}
+                      </span>
+                    </div>
+                  )}
+                </button>
+                {showSettings && (
+                  <div
+                    className="absolute right-0 mt-2 w-64 border border-gray-200 dark:border-gray-800 shadow-lg z-50"
+                    style={{ background: "var(--background)", color: "var(--foreground)" }}
+                  >
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+                      <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
+                        {profile?.username ? `@${profile.username.toLowerCase()}` : 'anonymous'}
+                      </p>
+                      {profile?.show_email && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
+                          {user.email?.toLowerCase()}
+                        </p>
+                      )}
+                    </div>
+                    <Link
+                      href={`/user/${user.id}`}
+                      className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
+                      style={{ color: 'inherit', fontFamily: 'inherit' }}
+                      onClick={() => setShowSettings(false)}
+                    >
+                      profile
+                    </Link>
+                    <Link
+                      href="/account"
+                      className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
+                      style={{ color: 'inherit', fontFamily: 'inherit' }}
+                      onClick={() => setShowSettings(false)}
+                    >
+                      account settings
+                    </Link>
+                    <Link
+                      href="/settings"
+                      className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
+                      style={{ color: 'inherit', fontFamily: 'inherit' }}
+                      onClick={() => setShowSettings(false)}
+                    >
+                      app settings
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setShowSettings(false);
+                        handleSignOut();
+                      }}
+                      className="w-full text-left px-4 py-2 text-base font-normal text-red-500 hover:opacity-80 transition-opacity"
+                      style={{ fontFamily: 'inherit' }}
+                    >
+                      sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              onClick={toggleMenu}
+              className="inline-flex items-center justify-center p-2 rounded-md hover:opacity-80 transition-opacity"
+              aria-expanded="false"
+            >
+              <span className="sr-only"></span>
+              {/* Hamburger icon */}
+              <svg
+                className={`${isMenuOpen ? 'hidden' : 'block'} h-6 w-6`}
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
+              </svg>
+              {/* Close icon */}
+              <svg
+                className={`${isMenuOpen ? 'block' : 'hidden'} h-6 w-6`}
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      <div className={`${isMenuOpen ? 'block' : 'hidden'} sm:hidden`}>
+        <div className="px-2 pt-2 pb-3 space-y-1">
+          <Link
+            href="/welcome"
+            className={`block px-3 py-2 hover:opacity-80 transition-opacity ${
+              router.pathname === '/welcome' ? 'opacity-100' : 'opacity-60'
+            }`}
+            onClick={() => setIsMenuOpen(false)}
+          >
+            discover
+          </Link>
+          <Link
+            href="/timer"
+            className={`block px-3 py-2 hover:opacity-80 transition-opacity ${
+              router.pathname === '/timer' ? 'opacity-100' : 'opacity-60'
+            }`}
+            onClick={() => setIsMenuOpen(false)}
+          >
+            timer
+          </Link>
+          {user && (
+            <Link
+              href="/create"
+              className="block px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              create new recipe
+            </Link>
+          )}
+          <button
+            onClick={() => {
+              setTheme(theme === 'dark' ? 'light' : 'dark');
+              setIsMenuOpen(false);
+            }}
+            className="block w-full text-left px-3 py-2 hover:opacity-80 transition-opacity"
+          >
+            {theme === 'dark' ? 'light' : 'dark'}
+          </button>
+          {!user && (
+            <Link
+              href="/login"
+              className={`block px-3 py-2 hover:opacity-80 transition-opacity ${
+                router.pathname === '/login' ? 'opacity-100' : 'opacity-60'
+              }`}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              sign in
+            </Link>
+          )}
         </div>
       </div>
     </nav>

@@ -7,6 +7,7 @@ import { getPopularRecipes } from '@/lib/spoonacular';
 import RecipeCard from '@/components/RecipeCard';
 import { marked } from 'marked';
 import { GetServerSideProps } from 'next';
+import { toLowerCaseObject } from '@/lib/utils';
 
 interface SearchFilters {
   diet: string;
@@ -361,119 +362,101 @@ export default function Home({ initialRecipes }: HomeProps) {
           const recipeData = await recipeRes.json();
           const meal = recipeData.meals?.[0];
           if (!meal) throw new Error('No random recipe found');
+          const improvisePrompt = `Start with a fun, appetizing, and engaging internet-style introduction for this recipe (at least 2 sentences, do not use the title as the description). Then, on new lines, provide:
+CUISINE: [guess the cuisine, e.g. british, italian, etc.]
+DIET: [guess the diet, e.g. vegetarian, gluten-free, etc.]
+COOKING TIME: [guess the total time in minutes, e.g. 30]
+NUTRITION: [guess as: 400 calories, 30g protein, 10g fat, 50g carbohydrates]
+Only provide these fields after the description, each on a new line, and nothing else.
 
-          // Get the target language code based on router locale
-          const targetLang = router.locale === 'es' ? 'es' : router.locale === 'tr' ? 'tr' : 'en';
-
-          // Translate the recipe content using LibreTranslate
-          const translateContent = async (text: string) => {
-            if (targetLang === 'en') return text; // No need to translate if target is English
-            
-            try {
-              const res = await fetch("https://libretranslate.com/translate", {
-                method: "POST",
-                body: JSON.stringify({
-                  q: text,
-                  source: "en",
-                  target: targetLang,
-                  format: "text"
-                }),
-                headers: { "Content-Type": "application/json" }
-              });
-              
-              if (!res.ok) {
-                throw new Error(`Translation failed with status: ${res.status}`);
-              }
-              
-              const data = await res.json();
-              return data.translatedText;
-            } catch (err) {
-              console.error('Translation error:', err);
-              // Return the original text if translation fails
-              return text;
-            }
+Title: ${meal.strMeal}
+Category: ${meal.strCategory}
+Area: ${meal.strArea}
+Instructions: ${meal.strInstructions}
+Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && meal[k]).map(k => meal[k]).join(', ')}`;
+          const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [
+                { role: 'system', content: 'You are a recipe formatter. Always format recipes with these exact section headers in this order: DESCRIPTION, CUISINE, DIET, COOKING TIME, NUTRITION, INGREDIENTS, INSTRUCTIONS. Each section should start on a new line with its header in uppercase followed by a colon. Ingredients should be bullet points starting with "-". Instructions should be numbered steps starting with "1."' },
+                { role: 'user', content: improvisePrompt }
+              ]
+            })
+          });
+          const aiData = await aiRes.json();
+          let aiContent = aiData.choices[0].message.content;
+          if (aiContent instanceof Promise) {
+            aiContent = await aiContent;
+          }
+          // Extract properties from AI markdown
+          const extracted = extractRecipePropertiesFromMarkdown(aiContent);
+          // Helper to check if description is just the title
+          const isDescriptionJustTitle = (desc: string, title: string) => {
+            if (!desc || !title) return true;
+            const d = desc.trim().toLowerCase();
+            const t = title.trim().toLowerCase();
+            return d === t || d.startsWith(t) || t.startsWith(d);
           };
-
-          // Translate title and description
-          const title = await translateContent(meal.strMeal);
-          const description = await translateContent(meal.strInstructions);
-
-          // Translate ingredients
-          const ingredients = await Promise.all(
-            Object.keys(meal)
-              .filter(k => k.startsWith('strIngredient') && meal[k] && meal[k].trim() && meal[k].toLowerCase() !== 'null')
-              .map(k => translateContent(meal[k].trim()))
+          // Fallbacks: use AI's value if present, else use a friendly default
+          const description =
+            extracted.description &&
+            extracted.description !== 'unknown' &&
+            !isDescriptionJustTitle(extracted.description, meal.strMeal)
+              ? extracted.description
+              : "A delicious dish you'll love!";
+          const ingredients = extracted.ingredients && extracted.ingredients.length > 0 ? extracted.ingredients : Object.keys(meal)
+            .filter(k => k.startsWith('strIngredient') && meal[k] && meal[k].trim() && meal[k].toLowerCase() !== 'null')
+            .map(k => meal[k].trim());
+          const instructions = extracted.instructions && extracted.instructions.length > 0 ? extracted.instructions : (meal.strInstructions
+            ? meal.strInstructions.split(/\r?\n|\.\s+/).map((s: string) => s.trim()).filter(Boolean)
+            : []);
+          const nutrition = (extracted.nutrition && extracted.nutrition.calories !== 'unknown') ? extracted.nutrition : { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' };
+          // Normalize cuisine_type and diet_type for AI recipes to match filter options
+          const cuisine_type = mapToAllowedCuisine(
+            extracted.cuisine_type && extracted.cuisine_type !== 'unknown'
+              ? extracted.cuisine_type
+              : meal.strArea || meal.strCategory || ''
           );
-
-          // Translate instructions
-          const instructions = await Promise.all(
-            meal.strInstructions
-              .split(/\r?\n|\.\s+/)
-              .map((s: string) => s.trim())
-              .filter(Boolean)
-              .map((step: string) => translateContent(step))
+          const diet_type = mapToAllowedDiet(
+            extracted.diet_type && extracted.diet_type !== 'unknown'
+              ? extracted.diet_type
+              : meal.strCategory || ''
           );
-
-          // Map cuisine and diet types
-          const cuisine_type = mapToAllowedCuisine(meal.strArea || meal.strCategory || '');
-          const diet_type = mapToAllowedDiet(meal.strCategory || '');
-          const cooking_time = '30 mins'; // Default cooking time
-
+          const mappedTime = extracted.cooking_time_value || 0;
+          const cooking_time = extracted.cooking_time && extracted.cooking_time !== 'unknown' ? extracted.cooking_time : (mappedTime ? `${mappedTime} mins` : 'unknown');
+          // Clean up instructions: remove duplicate number bullets if present
+          const cleanedInstructions = instructions.map((step: string) => step.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
           const randomRecipeObj = {
             id: `random-internet-${meal.idMeal}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            title,
+            title: meal.strMeal,
             description,
             image_url: meal.strMealThumb || RANDOM_CARD_IMG,
             user_id: 'internet',
             created_at: new Date().toISOString(),
             ingredients,
-            instructions,
-            nutrition: { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' },
+            instructions: cleanedInstructions,
+            nutrition,
             cuisine_type,
             diet_type,
             cooking_time,
-            cooking_time_value: 30
+            cooking_time_value: mappedTime
           };
-
           if (typeof window !== 'undefined') {
-            try {
-              // Clean up old recipes before storing new ones
-              const keys = Object.keys(localStorage);
-              const recipeKeys = keys.filter(key => key.startsWith('random-internet-'));
-              
-              // If we have more than 20 recipes stored, remove the oldest ones
-              if (recipeKeys.length > 20) {
-                const sortedKeys = recipeKeys.sort((a, b) => {
-                  const timeA = parseInt(a.split('-').pop() || '0');
-                  const timeB = parseInt(b.split('-').pop() || '0');
-                  return timeA - timeB;
-                });
-                
-                // Remove oldest recipes until we have space for new ones
-                const keysToRemove = sortedKeys.slice(0, recipeKeys.length - 20);
-                keysToRemove.forEach(key => localStorage.removeItem(key));
-              }
-              
-              localStorage.setItem(randomRecipeObj.id, JSON.stringify(randomRecipeObj));
-            } catch (storageError) {
-              console.warn('Failed to store recipe in localStorage:', storageError);
-              // Continue execution even if storage fails
-            }
+            localStorage.setItem(randomRecipeObj.id, JSON.stringify(randomRecipeObj));
           }
           return randomRecipeObj;
         } catch (err) {
-          console.error('Error generating recipe:', err);
           return null;
         }
       });
-
       const aiResults = await Promise.all(aiRecipePromises);
       setAiRecipes(aiResults.filter(Boolean));
       setAiLoading(false);
     };
     generateMultipleAiRecipes();
     // eslint-disable-next-line
-  }, [router.locale]);
+  }, []);
 
   // Filter and search AI recipes
   const filteredAiRecipes = aiRecipes.filter(recipe => {
@@ -576,6 +559,7 @@ export default function Home({ initialRecipes }: HomeProps) {
                       readyInMinutes={undefined}
                       link={undefined}
                       loading={true}
+                      recipeType="ai"
                     />
                   ))
                 : (filteredAiRecipes.length > 0
@@ -589,6 +573,7 @@ export default function Home({ initialRecipes }: HomeProps) {
                       id={recipe.id}
                       title={recipe.title}
                       description={recipe.description}
+                      funDescription={recipe.funDescription}
                       image_url={recipe.image_url}
                       user_id={recipe.user_id}
                       created_at={recipe.created_at}
@@ -597,6 +582,7 @@ export default function Home({ initialRecipes }: HomeProps) {
                       diet_type={recipe.diet_type}
                       readyInMinutes={undefined}
                       link={`/internet-recipe/${recipe.id}`}
+                      recipeType="ai"
                     />
                   ))}
               {popularRecipes.map((recipe) => (

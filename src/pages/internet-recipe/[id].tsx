@@ -4,6 +4,32 @@ import Head from 'next/head';
 import Image from 'next/image';
 import StarButton from '@/components/StarButton';
 import { RANDOM_CARD_IMG } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
+import { toLowerCaseObject } from '@/lib/utils';
+import { extractRecipePropertiesFromMarkdown } from '@/lib/recipeUtils';
+
+const CUISINE_TYPES = [
+  'italian', 'mexican', 'asian', 'american', 'mediterranean',
+  'french', 'chinese', 'japanese', 'indian', 'thai', 'greek',
+  'spanish', 'british', 'turkish', 'korean', 'vietnamese', 'german', 'caribbean', 'african', 'middle eastern', 'russian', 'brazilian'
+];
+
+const DIET_TYPES = [
+  'vegetarian', 'vegan', 'gluten-free', 'ketogenic', 'paleo',
+  'pescatarian', 'lacto-vegetarian', 'ovo-vegetarian', 'whole30', 'low-fodmap', 'dairy-free', 'nut-free', 'halal', 'kosher'
+];
+
+function mapToAllowedCuisine(cuisine: string) {
+  if (!cuisine) return 'unknown';
+  cuisine = cuisine.toLowerCase();
+  return CUISINE_TYPES.find(type => cuisine.includes(type)) || 'unknown';
+}
+
+function mapToAllowedDiet(diet: string) {
+  if (!diet) return 'unknown';
+  diet = diet.toLowerCase();
+  return DIET_TYPES.find(type => diet.includes(type)) || 'unknown';
+}
 
 function splitInstructions(instructions: string): string[] {
   return instructions
@@ -20,18 +46,160 @@ export default function InternetRecipePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) return;
-    setIsLoading(true);
-    setError(null);
-    if (typeof window !== 'undefined' && typeof id === 'string') {
-      const local = localStorage.getItem(id);
-      if (local) {
-        setRecipe(JSON.parse(local));
-      } else {
-        setError('Could not find this AI-improvised recipe.');
+    const fetchRecipe = async () => {
+      if (!id || typeof id !== 'string') {
+        setError('Invalid recipe ID');
+        setIsLoading(false);
+        return;
       }
-      setIsLoading(false);
-    }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // First try to get from localStorage
+        const storedRecipe = localStorage.getItem(id);
+        if (storedRecipe) {
+          setRecipe(JSON.parse(storedRecipe));
+          setIsLoading(false);
+          return;
+        }
+
+        // If not in localStorage, check if it's a starred recipe
+        const parts = id.split('-');
+        if (parts[0] === 'random' && parts[1] === 'internet') {
+          const mealId = parts[2];
+          const { data: starredRecipe, error: starredError } = await supabase
+            .from('starred_recipes')
+            .select('*')
+            .eq('recipe_id', id)
+            .single();
+
+          if (starredRecipe) {
+            setRecipe(starredRecipe);
+            setIsLoading(false);
+            return;
+          }
+
+          // If not starred, fetch from TheMealDB
+          const response = await fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${mealId}`);
+          const data = await response.json();
+          const meal = data.meals?.[0];
+
+          if (!meal) {
+            throw new Error('Recipe not found');
+          }
+
+          // Generate AI content for the recipe
+          const improvisePrompt = `Start with a fun, appetizing, and engaging internet-style introduction for this recipe (at least 2 sentences, do not use the title as the description). Then, on new lines, provide:
+CUISINE: [guess the cuisine, e.g. british, italian, etc.]
+DIET: [guess the diet, e.g. vegetarian, gluten-free, etc.]
+COOKING TIME: [guess the total time in minutes, e.g. 30]
+NUTRITION: [guess as: 400 calories, 30g protein, 10g fat, 50g carbohydrates]
+Only provide these fields after the description, each on a new line, and nothing else.
+
+Title: ${meal.strMeal}
+Category: ${meal.strCategory}
+Area: ${meal.strArea}
+Instructions: ${meal.strInstructions}
+Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && meal[k]).map(k => meal[k]).join(', ')}`;
+
+          const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [
+                { role: 'system', content: 'You are a recipe formatter. Always format recipes with these exact section headers in this order: DESCRIPTION, CUISINE, DIET, COOKING TIME, NUTRITION, INGREDIENTS, INSTRUCTIONS. Each section should start on a new line with its header in uppercase followed by a colon. Ingredients should be bullet points starting with "-". Instructions should be numbered steps starting with "1."' },
+                { role: 'user', content: improvisePrompt }
+              ]
+            })
+          });
+
+          const aiData = await aiRes.json();
+          let aiContent = aiData.choices[0].message.content;
+          if (aiContent instanceof Promise) {
+            aiContent = await aiContent;
+          }
+
+          // Extract properties from AI markdown
+          const extracted = extractRecipePropertiesFromMarkdown(aiContent);
+
+          // Helper to check if description is just the title
+          const isDescriptionJustTitle = (desc: string, title: string) => {
+            if (!desc || !title) return true;
+            const d = desc.trim().toLowerCase();
+            const t = title.trim().toLowerCase();
+            return d === t || d.startsWith(t) || t.startsWith(d);
+          };
+
+          // Fallbacks: use AI's value if present, else use a friendly default
+          const description =
+            extracted.description &&
+            extracted.description !== 'unknown' &&
+            !isDescriptionJustTitle(extracted.description, meal.strMeal)
+              ? extracted.description
+              : "A delicious dish you'll love!";
+
+          const ingredients = extracted.ingredients && extracted.ingredients.length > 0 ? extracted.ingredients : Object.keys(meal)
+            .filter(k => k.startsWith('strIngredient') && meal[k] && meal[k].trim() && meal[k].toLowerCase() !== 'null')
+            .map(k => meal[k].trim());
+
+          const instructions = extracted.instructions && extracted.instructions.length > 0 ? extracted.instructions : (meal.strInstructions
+            ? meal.strInstructions.split(/\r?\n|\.\s+/).map((s: string) => s.trim()).filter(Boolean)
+            : []);
+
+          const nutrition = (extracted.nutrition && extracted.nutrition.calories !== 'unknown') ? extracted.nutrition : { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' };
+
+          // Normalize cuisine_type and diet_type for AI recipes to match filter options
+          const cuisine_type = mapToAllowedCuisine(
+            extracted.cuisine_type && extracted.cuisine_type !== 'unknown'
+              ? extracted.cuisine_type
+              : meal.strArea || meal.strCategory || ''
+          );
+
+          const diet_type = mapToAllowedDiet(
+            extracted.diet_type && extracted.diet_type !== 'unknown'
+              ? extracted.diet_type
+              : meal.strCategory || ''
+          );
+
+          const mappedTime = extracted.cooking_time_value || 0;
+          const cooking_time = extracted.cooking_time && extracted.cooking_time !== 'unknown' ? extracted.cooking_time : (mappedTime ? `${mappedTime} mins` : 'unknown');
+
+          // Clean up instructions: remove duplicate number bullets if present
+          const cleanedInstructions = instructions.map((step: string) => step.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
+
+          const recipe = {
+            id,
+            title: meal.strMeal,
+            description,
+            image_url: meal.strMealThumb || RANDOM_CARD_IMG,
+            user_id: 'internet',
+            created_at: new Date().toISOString(),
+            ingredients,
+            instructions: cleanedInstructions,
+            nutrition,
+            cuisine_type,
+            diet_type,
+            cooking_time,
+            cooking_time_value: mappedTime
+          };
+
+          // Store in localStorage for future use
+          localStorage.setItem(id, JSON.stringify(recipe));
+          setRecipe(recipe);
+        } else {
+          throw new Error('Invalid recipe ID format');
+        }
+      } catch (err) {
+        console.error('Error fetching recipe:', err);
+        setError('Failed to load recipe');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRecipe();
   }, [id]);
 
   if (isLoading) {
@@ -53,7 +221,15 @@ export default function InternetRecipePage() {
   if (error || !recipe) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="text-red-500">{error || 'Recipe not found'}</p>
+        <div className="p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900">
+          <p className="text-red-500">{error || 'Recipe not found'}</p>
+          <button
+            onClick={() => router.push('/')}
+            className="mt-4 px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+          >
+            Return to Home
+          </button>
+        </div>
       </div>
     );
   }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import StarButton from './StarButton';
 
 interface Profile {
   username: string | null;
@@ -21,6 +22,8 @@ interface RecipeCardProps {
   readyInMinutes?: number;
   link?: string; // Optional custom link
   loading?: boolean; // New prop
+  recipeType?: 'ai' | 'spoonacular' | 'user'; // New prop for recipe type
+  funDescription?: string; // New prop for AI recipe fun descriptions
 }
 
 export default function RecipeCard({
@@ -36,6 +39,8 @@ export default function RecipeCard({
   readyInMinutes,
   link,
   loading = false,
+  recipeType = 'user', // Default to user type
+  funDescription,
 }: RecipeCardProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
 
@@ -79,7 +84,15 @@ export default function RecipeCard({
         <div className="w-full h-48 flex-shrink-0" style={{ background: "var(--background)" }} />
       )}
       <div className="flex-1 flex flex-col p-4">
-        <h2 className="text-lg mb-2 line-clamp-1" style={{ color: "var(--foreground)" }}>{title}</h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg line-clamp-1" style={{ color: "var(--foreground)" }}>{title}</h2>
+          {recipeType === 'ai' && <StarButton recipeId={id} recipeType="ai" />}
+        </div>
+        {funDescription && (
+          <p className="text-sm-600 dark:text-blue-400 mb-2 line-clamp-1">
+            {funDescription}
+          </p>
+        )}
         <p className="text-sm mb-4 line-clamp-2" style={{ color: "var(--foreground)" }}>
           {formatDescription(description)}
         </p>
