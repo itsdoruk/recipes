@@ -34,20 +34,24 @@ export default function BannedPage() {
     }
   };
 
+  const handleLogout = () => {
+    // Implement the logout logic here
+  };
+
   return (
     <>
       <Head>
         <title>Banned | [recipes]</title>
       </Head>
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-4xl mx-auto px-4 py-8 rounded-2xl">
         <div className="space-y-8">
-          <div className="flex flex-col items-center gap-4 p-8 border border-red-400 bg-red-50 dark:bg-red-900/20 shadow-md">
+          <div className="flex flex-col items-center gap-4 p-8 border border-red-400 bg-red-50 dark:bg-red-900/20 shadow-md rounded-xl">
             <span className="text-6xl">🔒</span>
             <h2 className="text-2xl font-bold">account banned</h2>
             <p className="text-lg text-center">{toLower('your account has been banned. if you believe this is a mistake, please contact support.')}</p>
           </div>
 
-          <div className="p-4 border border-gray-200 dark:border-gray-800" style={{ background: 'var(--background)' }}>
+          <div className="p-4 border border-gray-200 dark:border-gray-800 rounded-xl" style={{ background: 'var(--background)' }}>
             <h2 className="text-xl font-semibold mb-4">ban details</h2>
             <div className="space-y-2">
               <p><span className="font-medium">type:</span> {toLower(getBanTypeDisplay(banInfo.banType))}</p>
@@ -63,6 +67,13 @@ export default function BannedPage() {
               )}
             </div>
           </div>
+
+          <button
+            onClick={handleLogout}
+            className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
+          >
+            Logout
+          </button>
         </div>
       </main>
     </>

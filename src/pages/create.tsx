@@ -54,12 +54,12 @@ export default function CreateRecipePage() {
     try {
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        throw new Error('Image size should be less than 5MB');
+        throw new Error('image size should be less than 5mb');
       }
 
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        throw new Error('File must be an image');
+        throw new Error('file must be an image');
       }
 
       const fileExt = file.name.split('.').pop();
@@ -76,7 +76,7 @@ export default function CreateRecipePage() {
         if (uploadError.message.includes('violates row-level security policy')) {
           throw new Error('You do not have permission to upload images. Please sign in.');
         }
-        throw new Error(uploadError.message);
+        throw new Error(uploadError.message || 'failed to upload image. please try again.');
       }
 
       // Get the public URL
@@ -93,47 +93,47 @@ export default function CreateRecipePage() {
 
   const validateForm = () => {
     if (!title.trim()) {
-      setError('Recipe title is required');
+      setError('recipe title is required');
       return false;
     }
 
     if (title.length > 100) {
-      setError('Title must be less than 100 characters');
+      setError('title must be less than 100 characters');
       return false;
     }
 
     if (!description.trim()) {
-      setError('Recipe description is required');
+      setError('recipe description is required');
       return false;
     }
 
     if (description.length > 2000) {
-      setError('Description must be less than 2000 characters');
+      setError('description must be less than 2000 characters');
       return false;
     }
 
     if (!ingredients.trim()) {
-      setError('At least one ingredient is required');
+      setError('at least one ingredient is required');
       return false;
     }
 
     if (!instructions.trim()) {
-      setError('At least one instruction is required');
+      setError('at least one instruction is required');
       return false;
     }
 
     if (cookingTimeValue && (isNaN(parseInt(cookingTimeValue)) || parseInt(cookingTimeValue) <= 0)) {
-      setError('Cooking time must be a positive number');
+      setError('cooking time must be a positive number');
       return false;
     }
 
     if (imageFile && imageFile.size > 5 * 1024 * 1024) {
-      setError('Image size must be less than 5MB');
+      setError('image size must be less than 5mb');
       return false;
     }
 
     if (imageFile && !imageFile.type.startsWith('image/')) {
-      setError('File must be an image');
+      setError('file must be an image');
       return false;
     }
 
@@ -159,7 +159,7 @@ export default function CreateRecipePage() {
           finalImageUrl = await uploadImage(imageFile);
         } catch (uploadError: any) {
           console.error('Error uploading image:', uploadError);
-          setError(uploadError.message || 'Failed to upload image. Please try again.');
+          setError(uploadError.message || 'failed to upload image. please try again.');
           setIsSubmitting(false);
           return;
         }
@@ -201,7 +201,7 @@ export default function CreateRecipePage() {
       router.push(`/recipe/${recipe.id}`);
     } catch (err: any) {
       console.error('Error creating recipe:', err);
-      setError(err.message || 'Failed to create recipe. Please try again.');
+      setError(err.message || 'failed to create recipe. please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -448,7 +448,9 @@ export default function CreateRecipePage() {
             </div>
 
             {error && (
-              <p className="text-red-500">{error}</p>
+              <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl mb-4">
+                <p className="text-red-500">{error}</p>
+              </div>
             )}
 
             <div className="flex justify-end">

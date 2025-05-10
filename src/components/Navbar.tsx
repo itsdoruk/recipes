@@ -108,14 +108,13 @@ export default function Navbar() {
       )}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 dark:border-gray-800 shadow-md" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center h-20 md:h-16 py-2 md:py-0">
-            <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-              <div className="flex justify-center w-full md:w-auto">
-                <Link href="/" className="hover:opacity-80 transition-opacity text-lg">
-                  [recipes]
-                </Link>
-              </div>
-              <div className="flex justify-center w-full md:w-auto gap-6 mt-2 md:mt-0">
+          <div className="flex justify-between items-center h-16">
+            {/* Logo and Navigation Links */}
+            <div className="flex items-center gap-6">
+              <Link href="/" className="hover:opacity-80 transition-opacity text-lg">
+                [recipes]
+              </Link>
+              <div className="hidden md:flex items-center gap-6">
                 <Link href="/discover" className="hover:opacity-80 transition-opacity">
                   discover
                 </Link>
@@ -129,7 +128,40 @@ export default function Navbar() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-4 mt-4 md:mt-0">
+
+            {/* Mobile Menu Button */}
+            <div className="md:hidden">
+              <button
+                onClick={toggleMenu}
+                className="p-2 hover:opacity-80 transition-opacity"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-6 h-6"
+                >
+                  {isMenuOpen ? (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  ) : (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+                    />
+                  )}
+                </svg>
+              </button>
+            </div>
+
+            {/* Desktop User Menu */}
+            <div className="hidden md:flex items-center gap-4">
               {user ? (
                 <>
                   <NotificationsDropdown />
@@ -144,7 +176,7 @@ export default function Navbar() {
                     </button>
                     {showSettings && (
                       <div
-                        className="absolute right-0 mt-2 w-64 border border-gray-200 dark:border-gray-800 shadow-lg z-50"
+                        className="absolute right-0 mt-2 w-64 border border-gray-200 dark:border-gray-800 shadow-lg z-50 rounded-xl"
                         style={{ background: "var(--background)", color: "var(--foreground)" }}
                       >
                         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
@@ -202,6 +234,72 @@ export default function Navbar() {
               )}
             </div>
           </div>
+
+          {/* Mobile Menu */}
+          {isMenuOpen && (
+            <div className="md:hidden border-t border-gray-200 dark:border-gray-800 py-4">
+              <div className="flex flex-col gap-4">
+                <Link
+                  href="/discover"
+                  className="hover:opacity-80 transition-opacity"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  discover
+                </Link>
+                <Link
+                  href="/timer"
+                  className="hover:opacity-80 transition-opacity"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  timer
+                </Link>
+                {user && (
+                  <>
+                    <Link
+                      href="/create"
+                      className="hover:opacity-80 transition-opacity"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      create
+                    </Link>
+                    <div className="flex items-center gap-4">
+                      <NotificationsDropdown />
+                      <Link
+                        href={`/user/${user.id}`}
+                        className="hover:opacity-80 transition-opacity"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        profile
+                      </Link>
+                      <Link
+                        href="/account"
+                        className="hover:opacity-80 transition-opacity"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        account
+                      </Link>
+                      <Link
+                        href="/settings"
+                        className="hover:opacity-80 transition-opacity"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        settings
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          handleSignOut();
+                        }}
+                        className="text-red-500 hover:opacity-80 transition-opacity"
+                      >
+                        sign out
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </nav>
     </>

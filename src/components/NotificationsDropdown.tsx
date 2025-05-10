@@ -143,7 +143,10 @@ export default function NotificationsDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 border border-gray-200 dark:border-gray-800 shadow-lg z-50" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+        <div 
+          className="fixed md:absolute right-0 mt-2 w-[calc(100vw-2rem)] md:w-80 border border-gray-200 dark:border-gray-800 shadow-lg z-50 rounded-xl"
+          style={{ background: "var(--background)", color: "var(--foreground)" }}
+        >
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
             <h3 className="font-medium">notifications</h3>
             {unreadCount > 0 && (
@@ -155,7 +158,7 @@ export default function NotificationsDropdown() {
               </button>
             )}
           </div>
-          <div className="max-h-96 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-800">
+          <div className="max-h-[60vh] md:max-h-96 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-800">
             {notifications.length > 0 ? (
               notifications.map((notification) => {
                 const isFollow = notification.type === 'follow';
@@ -173,8 +176,8 @@ export default function NotificationsDropdown() {
                       <div className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-800">
                         <Avatar avatar_url={notification.actor.avatar_url} username={notification.actor.username} size={40} />
                       </div>
-                      <div>
-                        <p className="text-sm">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">
                           <span className="font-medium text-blue-600 dark:text-blue-400">{notification.actor.username || 'anonymous'}</span>
                           {' '}
                           {isFollow && <span>started following you</span>}

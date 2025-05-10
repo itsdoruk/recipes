@@ -31,8 +31,8 @@ type Recipe = SpoonacularRecipe | LocalRecipe;
 // Fetcher function for SWR
 const fetcher = async (url: string) => {
   const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch data');
-  return res.json();
+  if (!res.ok) throw new Error('failed to fetch data');
+  return res.json();asd
 };
 
 export default function SearchPage() {
@@ -90,7 +90,7 @@ export default function SearchPage() {
 
         if (localError) {
           console.error('Error searching local recipes:', localError);
-          setError('Failed to search local recipes');
+          setError('failed to search local recipes');
           setRecipes([]);
           return;
         }
@@ -123,7 +123,7 @@ export default function SearchPage() {
         setRecipes(allRecipes);
       } catch (err) {
         console.error('Error searching recipes:', err);
-        setError('Failed to search recipes');
+        setError('failed to search recipes');
         setRecipes([]);
       } finally {
         setIsLoading(false);
@@ -152,10 +152,12 @@ export default function SearchPage() {
   if (error) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="text-red-500">{error}</p>
+        <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl mb-4">
+          <p className="text-red-500">{error}</p>
+        </div>
         <button
           onClick={() => router.push('/')}
-          className="mt-4 px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+          className="px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-xl"
         >
           Return to Home
         </button>

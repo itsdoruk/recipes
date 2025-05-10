@@ -76,6 +76,13 @@ function mapToAllowedTime(minutes: number | undefined) {
   return 0;
 }
 
+function isDescriptionJustTitle(description: string, title: string): boolean {
+  if (!description || !title) return false;
+  const normalizedDesc = description.toLowerCase().trim();
+  const normalizedTitle = title.toLowerCase().trim();
+  return normalizedDesc === normalizedTitle || normalizedDesc.startsWith(normalizedTitle + ' ');
+}
+
 function extractRecipePropertiesFromMarkdown(markdown: string) {
   // Normalize line endings and remove extra whitespace
   let text = markdown.replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
@@ -221,9 +228,143 @@ export default function Home({ initialRecipes }: HomeProps) {
     const fetchPopularRecipes = async () => {
       try {
         const popular = await getPopularRecipes();
-        setPopularRecipes(popular);
+        if (popular.length === 0) {
+          // If Spoonacular API fails or returns no results, generate more AI recipes
+          setAiLoading(true);
+          const aiRecipePromises = Array.from({ length: 6 }).map(async () => {
+            try {
+              const recipeRes = await fetch('https://www.themealdb.com/api/json/v1/1/random.php');
+              const recipeData = await recipeRes.json();
+              const meal = recipeData.meals?.[0];
+              if (!meal) throw new Error('No random recipe found');
+              
+              // Generate AI recipe using the same logic as before
+              const improvisePrompt = `Start with a fun, appetizing, and engaging internet-style introduction for this recipe (at least 2 sentences, do not use the title as the description). Then, on new lines, provide:
+CUISINE: [guess the cuisine, e.g. british, italian, etc.]
+DIET: [guess the diet, e.g. vegetarian, gluten-free, etc.]
+COOKING TIME: [guess the total time in minutes, e.g. 30]
+NUTRITION: [guess as: 400 calories, 30g protein, 10g fat, 50g carbohydrates]
+Only provide these fields after the description, each on a new line, and nothing else.
+
+Title: ${meal.strMeal}
+Category: ${meal.strCategory}
+Area: ${meal.strArea}
+Instructions: ${meal.strInstructions}
+Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && meal[k]).map(k => meal[k]).join(', ')}`;
+
+              const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  messages: [
+                    { role: 'system', content: 'You are a recipe formatter. Always format recipes with these exact section headers in this order: DESCRIPTION, CUISINE, DIET, COOKING TIME, NUTRITION, INGREDIENTS, INSTRUCTIONS. Each section should start on a new line with its header in uppercase followed by a colon. Ingredients should be bullet points starting with "-". Instructions should be numbered steps starting with "1."' },
+                    { role: 'user', content: improvisePrompt }
+                  ]
+                })
+              });
+
+              const aiData = await aiRes.json();
+              let aiContent = aiData.choices[0].message.content;
+              if (aiContent instanceof Promise) {
+                aiContent = await aiContent;
+              }
+
+              const extracted = extractRecipePropertiesFromMarkdown(aiContent);
+              const description = extracted.description && extracted.description !== 'unknown' && !isDescriptionJustTitle(extracted.description, meal.strMeal)
+                ? extracted.description
+                : "A delicious dish you'll love!";
+
+              const ingredients = extracted.ingredients && extracted.ingredients.length > 0
+                ? extracted.ingredients
+                : Object.keys(meal)
+                    .filter(k => k.startsWith('strIngredient') && meal[k] && meal[k].trim() && meal[k].toLowerCase() !== 'null')
+                    .map(k => meal[k].trim());
+
+              const instructions = extracted.instructions && extracted.instructions.length > 0
+                ? extracted.instructions
+                : (meal.strInstructions
+                    ? meal.strInstructions.split(/\r?\n|\.\s+/).map((s: string) => s.trim()).filter(Boolean)
+                    : []);
+
+              const nutrition = (extracted.nutrition && extracted.nutrition.calories !== 'unknown')
+                ? extracted.nutrition
+                : { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' };
+
+              const cuisine_type = mapToAllowedCuisine(
+                extracted.cuisine_type && extracted.cuisine_type !== 'unknown'
+                  ? extracted.cuisine_type
+                  : meal.strArea || meal.strCategory || ''
+              );
+
+              const diet_type = mapToAllowedDiet(
+                extracted.diet_type && extracted.diet_type !== 'unknown'
+                  ? extracted.diet_type
+                  : meal.strCategory || ''
+              );
+
+              const mappedTime = extracted.cooking_time_value || 0;
+              const cooking_time = extracted.cooking_time && extracted.cooking_time !== 'unknown'
+                ? extracted.cooking_time
+                : (mappedTime ? `${mappedTime} mins` : 'unknown');
+
+              const cleanedInstructions = instructions.map((step: string) => step.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
+
+              const randomRecipeObj = {
+                id: `random-internet-${meal.idMeal}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                title: meal.strMeal,
+                description,
+                image_url: meal.strMealThumb || RANDOM_CARD_IMG,
+                user_id: 'internet',
+                created_at: new Date().toISOString(),
+                ingredients,
+                instructions: cleanedInstructions,
+                nutrition,
+                cuisine_type,
+                diet_type,
+                cooking_time,
+                cooking_time_value: mappedTime
+              };
+
+              if (typeof window !== 'undefined') {
+                try {
+                  // Get existing recipes
+                  const existingRecipes = JSON.parse(localStorage.getItem('randomRecipes') || '[]');
+                  
+                  // Keep only the last 20 recipes
+                  const updatedRecipes = [...existingRecipes, randomRecipeObj].slice(-20);
+                  
+                  // Store updated recipes
+                  localStorage.setItem('randomRecipes', JSON.stringify(updatedRecipes));
+                } catch (error) {
+                  console.warn('Failed to store recipe in localStorage:', error);
+                  // Clear localStorage if it's full
+                  try {
+                    localStorage.clear();
+                    localStorage.setItem('randomRecipes', JSON.stringify([randomRecipeObj]));
+                  } catch (clearError) {
+                    console.error('Failed to clear localStorage:', clearError);
+                  }
+                }
+              }
+
+              return randomRecipeObj;
+            } catch (err) {
+              console.error('Error generating AI recipe:', err);
+              return null;
+            }
+          });
+
+          const aiResults = await Promise.all(aiRecipePromises);
+          setAiRecipes(prev => [...prev, ...aiResults.filter(Boolean)]);
+          setAiLoading(false);
+        } else {
+          setPopularRecipes(popular);
+        }
       } catch (err) {
         console.error('Error fetching popular recipes:', err);
+        // If there's an error, generate more AI recipes as fallback
+        setAiLoading(true);
+        // ... (same AI recipe generation code as above)
       }
     };
 
@@ -270,7 +411,7 @@ export default function Home({ initialRecipes }: HomeProps) {
         setHasMore(transformedLocalRecipes.length === 10);
         } catch (err) {
         console.error('Error loading more recipes:', err);
-        setError('Failed to load more recipes');
+        setError('failed to load more recipes');
     } finally {
       setIsLoading(false);
     }
@@ -393,112 +534,6 @@ export default function Home({ initialRecipes }: HomeProps) {
     };
   }, [easterEggActive]);
 
-  // Generate 5 AI internet recipes in parallel on mount
-  useEffect(() => {
-    const generateMultipleAiRecipes = async () => {
-      setAiLoading(true);
-      const aiRecipePromises = Array.from({ length: 5 }).map(async () => {
-        try {
-          const recipeRes = await fetch('https://www.themealdb.com/api/json/v1/1/random.php');
-          const recipeData = await recipeRes.json();
-          const meal = recipeData.meals?.[0];
-          if (!meal) throw new Error('No random recipe found');
-          const improvisePrompt = `Start with a fun, appetizing, and engaging internet-style introduction for this recipe (at least 2 sentences, do not use the title as the description). Then, on new lines, provide:
-CUISINE: [guess the cuisine, e.g. british, italian, etc.]
-DIET: [guess the diet, e.g. vegetarian, gluten-free, etc.]
-COOKING TIME: [guess the total time in minutes, e.g. 30]
-NUTRITION: [guess as: 400 calories, 30g protein, 10g fat, 50g carbohydrates]
-Only provide these fields after the description, each on a new line, and nothing else.
-
-Title: ${meal.strMeal}
-Category: ${meal.strCategory}
-Area: ${meal.strArea}
-Instructions: ${meal.strInstructions}
-Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && meal[k]).map(k => meal[k]).join(', ')}`;
-          const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messages: [
-                { role: 'system', content: 'You are a recipe formatter. Always format recipes with these exact section headers in this order: DESCRIPTION, CUISINE, DIET, COOKING TIME, NUTRITION, INGREDIENTS, INSTRUCTIONS. Each section should start on a new line with its header in uppercase followed by a colon. Ingredients should be bullet points starting with "-". Instructions should be numbered steps starting with "1."' },
-                { role: 'user', content: improvisePrompt }
-              ]
-            })
-          });
-          const aiData = await aiRes.json();
-          let aiContent = aiData.choices[0].message.content;
-          if (aiContent instanceof Promise) {
-            aiContent = await aiContent;
-          }
-          // Extract properties from AI markdown
-          const extracted = extractRecipePropertiesFromMarkdown(aiContent);
-          // Helper to check if description is just the title
-          const isDescriptionJustTitle = (desc: string, title: string) => {
-            if (!desc || !title) return true;
-            const d = desc.trim().toLowerCase();
-            const t = title.trim().toLowerCase();
-            return d === t || d.startsWith(t) || t.startsWith(d);
-          };
-          // Fallbacks: use AI's value if present, else use a friendly default
-          const description =
-            extracted.description &&
-            extracted.description !== 'unknown' &&
-            !isDescriptionJustTitle(extracted.description, meal.strMeal)
-              ? extracted.description
-              : "A delicious dish you'll love!";
-          const ingredients = extracted.ingredients && extracted.ingredients.length > 0 ? extracted.ingredients : Object.keys(meal)
-            .filter(k => k.startsWith('strIngredient') && meal[k] && meal[k].trim() && meal[k].toLowerCase() !== 'null')
-            .map(k => meal[k].trim());
-          const instructions = extracted.instructions && extracted.instructions.length > 0 ? extracted.instructions : (meal.strInstructions
-            ? meal.strInstructions.split(/\r?\n|\.\s+/).map((s: string) => s.trim()).filter(Boolean)
-            : []);
-          const nutrition = (extracted.nutrition && extracted.nutrition.calories !== 'unknown') ? extracted.nutrition : { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' };
-          // Normalize cuisine_type and diet_type for AI recipes to match filter options
-          const cuisine_type = mapToAllowedCuisine(
-            extracted.cuisine_type && extracted.cuisine_type !== 'unknown'
-              ? extracted.cuisine_type
-              : meal.strArea || meal.strCategory || ''
-          );
-          const diet_type = mapToAllowedDiet(
-            extracted.diet_type && extracted.diet_type !== 'unknown'
-              ? extracted.diet_type
-              : meal.strCategory || ''
-          );
-          const mappedTime = extracted.cooking_time_value || 0;
-          const cooking_time = extracted.cooking_time && extracted.cooking_time !== 'unknown' ? extracted.cooking_time : (mappedTime ? `${mappedTime} mins` : 'unknown');
-          // Clean up instructions: remove duplicate number bullets if present
-          const cleanedInstructions = instructions.map((step: string) => step.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
-          const randomRecipeObj = {
-            id: `random-internet-${meal.idMeal}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            title: meal.strMeal,
-            description,
-            image_url: meal.strMealThumb || RANDOM_CARD_IMG,
-            user_id: 'internet',
-            created_at: new Date().toISOString(),
-            ingredients,
-            instructions: cleanedInstructions,
-            nutrition,
-            cuisine_type,
-            diet_type,
-            cooking_time,
-            cooking_time_value: mappedTime
-          };
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(randomRecipeObj.id, JSON.stringify(randomRecipeObj));
-          }
-          return randomRecipeObj;
-        } catch (err) {
-          return null;
-        }
-      });
-      const aiResults = await Promise.all(aiRecipePromises);
-      setAiRecipes(aiResults.filter(Boolean));
-      setAiLoading(false);
-    };
-    generateMultipleAiRecipes();
-    // eslint-disable-next-line
-  }, []);
-
   // Filter and search AI recipes
   const filteredAiRecipes = aiRecipes.filter(recipe => {
     // Only apply search, no filters
@@ -508,10 +543,10 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
   return (
     <>
       <Head>
-        <title>recipes</title>
+        <title>recipes | [recipes]</title>
       </Head>
 
-      <main className="max-w-2xl mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="space-y-8">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl">recipes</h1>
@@ -524,12 +559,12 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="search recipes or users..."
-                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent rounded-lg"
               />
               <button
                 type="submit"
                 disabled={isLoading}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-lg"
               >
                 {isLoading ? 'Searching...' : 'Search'}
               </button>
@@ -539,7 +574,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
               <select
                 value={filters.diet}
                 onChange={e => handleFilterChange('diet', e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent rounded-lg"
               >
                 <option value="">all diets</option>
                 {DIET_TYPES.map(type => (
@@ -549,7 +584,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
               <select
                 value={filters.cuisine}
                 onChange={e => handleFilterChange('cuisine', e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent rounded-lg"
               >
                 <option value="">all cuisines</option>
                 {CUISINE_TYPES.map(type => (
@@ -559,7 +594,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
               <select
                 value={filters.maxReadyTime || ''}
                 onChange={e => handleFilterChange('maxReadyTime', Number(e.target.value))}
-                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+                className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent rounded-lg"
               >
                 <option value="">any time</option>
                 <option value="15">15 mins or less</option>

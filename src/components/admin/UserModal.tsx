@@ -19,7 +19,7 @@ export default function UserModal({ isOpen, onClose, user, warnings, activity }:
       overlayClassName="fixed inset-0 bg-black/50"
       ariaHideApp={false}
     >
-      <div className="p-8 shadow-2xl max-w-lg w-full border" style={{ background: 'var(--background)', borderColor: 'var(--outline)', color: 'var(--foreground)', borderRadius: 0 }}>
+      <div className="p-8 shadow-2xl max-w-lg w-full border rounded-xl" style={{ background: 'var(--background)', borderColor: 'var(--outline)', color: 'var(--foreground)' }}>
         <h2 className="text-2xl font-bold mb-4">User Details</h2>
         <div className="flex items-center gap-4 mb-4">
           <div className="w-16 h-16 rounded-full overflow-hidden border border-gray-200 dark:border-gray-800 flex items-center justify-center">

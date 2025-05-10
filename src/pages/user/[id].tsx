@@ -44,6 +44,8 @@ export default function UserProfile() {
   const [isRequestPending, setIsRequestPending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [followError, setFollowError] = useState<string | null>(null);
+  const [showUnfollowModal, setShowUnfollowModal] = useState(false);
+  const [isUnfollowing, setIsUnfollowing] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -256,6 +258,24 @@ export default function UserProfile() {
     return isFollowing;
   };
 
+  const handleUnfollow = async () => {
+    setFollowError(null);
+    console.log('Unfollow button clicked');
+    if (!user || !id) return;
+    try {
+      await supabase
+        .from('follows')
+        .delete()
+        .eq('follower_id', user.id)
+        .eq('following_id', id);
+      setIsFollowing(false);
+      setShowUnfollowModal(false);
+    } catch (error) {
+      console.error('Error unfollowing user:', error);
+      setFollowError('Failed to unfollow user');
+    }
+  };
+
   if (loading) {
     return <div className="max-w-2xl mx-auto px-4 py-8">loading...</div>;
   }
@@ -269,7 +289,7 @@ export default function UserProfile() {
       <Head>
         <title>{profile.username || 'anonymous'} | [recipes]</title>
       </Head>
-      <main className="max-w-2xl mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="space-y-8">
           <div className="flex items-center gap-4">
             <div className="relative w-16 h-16 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
@@ -285,7 +305,7 @@ export default function UserProfile() {
               <div>
                 <button
                   onClick={handleFollow}
-                  className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+                  className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
                   disabled={isRequestPending}
                 >
                   {isFollowing ? 'unfollow' : isRequestPending ? 'requested' : 'follow'}

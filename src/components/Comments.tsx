@@ -63,7 +63,7 @@ export function Comments({ recipeId }: CommentsProps) {
       setComments(transformedComments);
     } catch (error) {
       console.error('Error fetching comments:', error);
-      setError('Failed to load comments');
+      setError('failed to load comments');
     }
   };
 
@@ -98,7 +98,7 @@ export function Comments({ recipeId }: CommentsProps) {
       fetchComments();
     } catch (error) {
       console.error('Error posting comment:', error);
-      setError('Failed to post comment');
+      setError('failed to post comment');
     } finally {
       setIsLoading(false);
     }
@@ -119,7 +119,7 @@ export function Comments({ recipeId }: CommentsProps) {
       fetchComments();
     } catch (error) {
       console.error('Error deleting comment:', error);
-      setError('Failed to delete comment');
+      setError('failed to delete comment');
     }
   };
 
@@ -139,7 +139,7 @@ export function Comments({ recipeId }: CommentsProps) {
       fetchComments();
     } catch (error) {
       console.error('Error editing comment:', error);
-      setError('Failed to edit comment');
+      setError('failed to edit comment');
     }
   };
 
@@ -158,16 +158,20 @@ export function Comments({ recipeId }: CommentsProps) {
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
             placeholder="write a comment..."
-            className="w-full min-h-[100px] px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none"
+            className="w-full min-h-[100px] px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none rounded-xl"
           />
           <button
             type="submit"
             disabled={isLoading || !newComment.trim()}
-            className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
+            className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-xl"
           >
             {isLoading ? 'posting...' : 'post comment'}
           </button>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {error && (
+            <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl mb-4">
+              <p className="text-red-500 text-sm">{error}</p>
+            </div>
+          )}
         </form>
       ) : (
         <p className="text-gray-500 dark:text-gray-400">please log in to leave a comment.</p>
@@ -175,7 +179,7 @@ export function Comments({ recipeId }: CommentsProps) {
 
       <div className="space-y-4">
         {comments.map((comment) => (
-          <div key={comment.id} className="p-4 border border-gray-200 dark:border-gray-800">
+          <div key={comment.id} className="p-4 border border-gray-200 dark:border-gray-800 rounded-xl">
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
                 <Avatar avatar_url={comment.profiles?.avatar_url} username={comment.profiles?.username} size={40} />
@@ -193,14 +197,14 @@ export function Comments({ recipeId }: CommentsProps) {
                       {user?.id === comment.user_id && (
                         <button
                           onClick={() => startEditing(comment)}
-                          className="text-sm px-2 py-1 border border-gray-200 dark:border-gray-800 hover:opacity-80"
+                          className="text-sm px-2 py-1 border border-gray-200 dark:border-gray-800 hover:opacity-80 rounded-lg"
                         >
                           edit
                         </button>
                       )}
                       <button
                         onClick={() => handleDelete(comment.id)}
-                        className="text-sm px-2 py-1 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80"
+                        className="text-sm px-2 py-1 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 rounded-lg"
                       >
                         delete
                       </button>
@@ -212,12 +216,12 @@ export function Comments({ recipeId }: CommentsProps) {
                     <textarea
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none rounded-xl"
                     />
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEdit(comment.id)}
-                        className="px-3 py-1 text-sm border border-gray-200 dark:border-gray-800 hover:opacity-80"
+                        className="px-3 py-1 text-sm border border-gray-200 dark:border-gray-800 hover:opacity-80 rounded-xl"
                       >
                         save
                       </button>
@@ -226,7 +230,7 @@ export function Comments({ recipeId }: CommentsProps) {
                           setEditingComment(null);
                           setEditContent('');
                         }}
-                        className="px-3 py-1 text-sm border border-gray-200 dark:border-gray-800 hover:opacity-80"
+                        className="px-3 py-1 text-sm border border-gray-200 dark:border-gray-800 hover:opacity-80 rounded-xl"
                       >
                         cancel
                       </button>

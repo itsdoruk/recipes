@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import StarButton from './StarButton';
 import Avatar from './Avatar';
 
 interface Profile {
@@ -21,10 +20,10 @@ interface RecipeCardProps {
   cooking_time?: string | null;
   diet_type?: string | null;
   readyInMinutes?: number;
-  link?: string; // Optional custom link
-  loading?: boolean; // New prop
-  recipeType?: 'ai' | 'spoonacular' | 'user'; // New prop for recipe type
-  funDescription?: string; // New prop for AI recipe fun descriptions
+  link?: string;
+  loading?: boolean;
+  recipeType?: 'ai' | 'spoonacular' | 'user';
+  funDescription?: string;
 }
 
 export default function RecipeCard({
@@ -40,23 +39,31 @@ export default function RecipeCard({
   readyInMinutes,
   link,
   loading = false,
-  recipeType = 'user', // Default to user type
+  recipeType = 'user',
   funDescription,
 }: RecipeCardProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (user_id === 'spoonacular' || user_id === 'internet') {
-        setProfile({ username: user_id, avatar_url: null });
-        return;
+      try {
+        if (user_id === 'spoonacular' || user_id === 'internet') {
+          setProfile({ username: user_id, avatar_url: null });
+          return;
+        }
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('user_id', user_id)
+          .single();
+
+        if (error) throw error;
+        setProfile(data);
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+        setError('failed to load user profile');
       }
-      const { data } = await supabase
-        .from('profiles')
-        .select('username, avatar_url')
-        .eq('user_id', user_id)
-        .single();
-      setProfile(data);
     };
     fetchProfile();
   }, [user_id]);
@@ -71,7 +78,7 @@ export default function RecipeCard({
   };
 
   const cardContent = (
-    <div className="h-[400px] flex flex-col" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+    <div className="h-[400px] flex flex-col rounded-xl overflow-hidden" style={{ background: "var(--background)", color: "var(--foreground)" }}>
       {image_url ? (
         <div className="relative w-full h-48 flex-shrink-0">
           <Image
@@ -87,7 +94,6 @@ export default function RecipeCard({
       <div className="flex-1 flex flex-col p-4">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg line-clamp-1" style={{ color: "var(--foreground)" }}>{title}</h2>
-          {recipeType === 'ai' && <StarButton recipeId={id} recipeType="ai" />}
         </div>
         {funDescription && (
           <p className="text-sm-600 dark:text-blue-400 mb-2 line-clamp-1">
@@ -129,7 +135,7 @@ export default function RecipeCard({
   );
 
   const cardClass =
-    "block border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity" +
+    "block border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-xl overflow-hidden" +
     (loading ? " opacity-60 pointer-events-none select-none" : "");
 
   if (loading) {

@@ -13,7 +13,7 @@ interface UserCardProps {
 
 export default function UserCard({ user }: UserCardProps) {
   return (
-    <Link href={`/user/${user.user_id}`} className="block border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow bg-white dark:bg-gray-900 p-4 w-full h-full" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+    <Link href={`/user/${user.user_id}`} className="block border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow bg-white dark:bg-gray-900 p-4 w-full h-full rounded-xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
       <div className="flex items-center gap-4">
         {user.avatar_url ? (
           <Image

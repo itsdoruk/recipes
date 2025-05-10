@@ -129,9 +129,9 @@ export default function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-lg"
             >
-              {isLoading ? '...' : isOtpLogin ? (otpSent ? 'verify' : 'send magic link') : isSignUp ? 'create' : 'sign in'}
+              {isLoading ? 'Loading...' : isOtpLogin ? (otpSent ? 'verify' : 'send magic link') : isSignUp ? 'create' : 'sign in'}
             </button>
           </div>
         </form>

@@ -204,10 +204,10 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
 
   if (isLoading) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="block p-4 border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900 transition-opacity">
+      <div className="max-w-2xl mx-auto px-4 py-8 rounded-xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+        <div className="block p-4 border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900 transition-opacity rounded-xl">
           <div className="relative w-full h-48 mb-4">
-            <Image src={RANDOM_CARD_IMG} alt="random recipe" fill className="object-cover rounded" />
+            <Image src={RANDOM_CARD_IMG} alt="random recipe" fill className="object-cover rounded-xl" />
           </div>
           <h3 className="text-lg mb-2">discovering a random internet recipe...</h3>
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -221,15 +221,15 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
   if (error || !recipe) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900">
+        <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl mb-4">
           <p className="text-red-500">{error || 'Recipe not found'}</p>
-          <button
-            onClick={() => router.push('/')}
-            className="mt-4 px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-          >
-            Return to Home
-          </button>
         </div>
+        <button
+          onClick={() => router.push('/')}
+          className="px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-xl"
+        >
+          Return to Home
+        </button>
       </div>
     );
   }
@@ -239,15 +239,15 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
       <Head>
         <title>{recipe.title} | [recipes]</title>
       </Head>
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main className="max-w-2xl mx-auto px-4 py-8 rounded-xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="space-y-8">
           {recipe.image_url && (
-            <div className="relative w-full h-96">
+            <div className="relative w-full h-96 rounded-xl overflow-hidden">
               <Image
                 src={recipe.image_url}
                 alt={recipe.title}
                 fill
-                className="object-cover"
+                className="object-cover rounded-xl"
               />
             </div>
           )}

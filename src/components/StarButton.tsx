@@ -62,7 +62,7 @@ export default function StarButton({ recipeId, recipeType, initialStarred = fals
     <button
       onClick={handleStar}
       disabled={isLoading}
-      className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
+      className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-lg"
     >
       {isStarred ? '★' : '☆'}
     </button>

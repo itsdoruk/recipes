@@ -46,6 +46,10 @@ export default function AdminPanel() {
   const [filter, setFilter] = useState<'all' | 'banned' | 'warned'>('all');
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [reports, setReports] = useState<any[]>([]);
+  const [reportStatus, setReportStatus] = useState<'pending' | 'reviewed' | 'resolved' | 'all'>('pending');
+  const [deletedReports, setDeletedReports] = useState<any[]>([]);
+  const [showDeletedReports, setShowDeletedReports] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -103,9 +107,58 @@ export default function AdminPanel() {
 
       if (recipesError) throw recipesError;
       setRecipes(recipesData || []);
+
+      // Fetch reports with proper join
+      const { data: reportsData, error: reportsError } = await supabase
+        .from('reports')
+        .select(`
+          id,
+          created_at,
+          status,
+          reason,
+          recipe_type,
+          user_id,
+          profiles!reports_user_id_fkey (
+            username,
+            avatar_url
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (reportsError) {
+        console.error('Reports fetch error:', reportsError);
+        throw reportsError;
+      }
+      setReports(reportsData || []);
+
+      // Fetch deleted reports with proper join
+      const { data: deletedReportsData, error: deletedReportsError } = await supabase
+        .from('deleted_reports')
+        .select(`
+          id,
+          report_id,
+          recipe_id,
+          recipe_type,
+          reason,
+          status,
+          deleted_at,
+          original_created_at,
+          deleted_by,
+          profiles!deleted_reports_deleted_by_fkey (
+            username,
+            avatar_url
+          )
+        `)
+        .order('deleted_at', { ascending: false });
+
+      if (deletedReportsError) {
+        console.error('Deleted reports fetch error:', deletedReportsError);
+        throw deletedReportsError;
+      }
+      setDeletedReports(deletedReportsData || []);
     } catch (err) {
       console.error('Error fetching data:', err);
-      setError('Failed to fetch data. Please try again.');
+      setError('failed to fetch data. please try again.');
     }
   }, []);
 
@@ -120,15 +173,22 @@ export default function AdminPanel() {
 
   const logAdminAction = async (action: string, targetUserId: string, details: any = {}) => {
     try {
-      // First check if the admin_audit_log table exists
-      const { error: tableCheckError } = await supabase
-        .from('admin_audit_log')
-        .select('id')
-        .limit(1);
+      // For report-related actions, use a system user ID
+      if (action.startsWith('report_') || action === 'delete_report') {
+        targetUserId = '00000000-0000-0000-0000-000000000000';
+      } else {
+        // For user-related actions, verify the user exists
+        const { data: targetUser, error: userError } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('user_id', targetUserId)
+          .single();
 
-      if (tableCheckError) {
-        console.error('Error checking admin_audit_log table:', tableCheckError);
-        throw new Error('Admin audit log table not available');
+        if (userError) {
+          console.error('Error checking target user:', userError);
+          // If the user doesn't exist, use system user ID
+          targetUserId = '00000000-0000-0000-0000-000000000000';
+        }
       }
 
       // Insert the log entry
@@ -160,7 +220,7 @@ export default function AdminPanel() {
       setAuditLog(prev => [newLog, ...prev]);
     } catch (err) {
       console.error('Error in logAdminAction:', err);
-      setError(err instanceof Error ? err.message : 'Failed to log admin action');
+      setError(err instanceof Error ? err.message : 'failed to log admin action');
       // Don't throw the error, just log it and continue
       // This way, even if logging fails, the main action (ban/warning) can still succeed
     }
@@ -342,7 +402,7 @@ export default function AdminPanel() {
       });
     } catch (err) {
       console.error('Error in handleBanExpiryChange:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update ban expiry');
+      setError(err instanceof Error ? err.message : 'failed to update ban expiry');
     }
   };
 
@@ -428,7 +488,7 @@ export default function AdminPanel() {
       await logAdminAction('add_warning', warningTargetUser.user_id, { reason: warningReason.trim() });
     } catch (err) {
       console.error('Error adding warning:', err);
-      setError('Failed to add warning');
+      setError('failed to add warning');
     }
   };
 
@@ -520,7 +580,7 @@ export default function AdminPanel() {
       clearSelectedUsers();
     } catch (err) {
       console.error('Error in handleBulkBan:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update ban status');
+      setError(err instanceof Error ? err.message : 'failed to update ban status');
     }
   };
 
@@ -567,7 +627,109 @@ export default function AdminPanel() {
       closeBulkWarningModal();
     } catch (err) {
       console.error('Error in bulk warning:', err);
-      setError('Failed to add warnings');
+      setError('failed to add warnings');
+    }
+  };
+
+  const handleReportStatusChange = async (reportId: string, newStatus: 'reviewed' | 'resolved') => {
+    try {
+      // First verify admin status
+      const { data: adminData, error: adminError } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (adminError) {
+        console.error('Error checking admin status:', adminError);
+        throw new Error('Failed to verify admin status');
+      }
+
+      if (!adminData?.is_admin) {
+        throw new Error('Unauthorized: Admin access required');
+      }
+
+      // Update the report status
+      const { error } = await supabase
+        .from('reports')
+        .update({ 
+          status: newStatus
+        })
+        .eq('id', reportId);
+
+      if (error) {
+        console.error('Error updating report status:', error);
+        throw new Error(`Failed to update report status: ${error.message}`);
+      }
+
+      // Refresh the data to get the latest state
+      await fetchData();
+
+      // Log the action
+      await logAdminAction('update_report_status', reportId, { 
+        newStatus,
+        reportId,
+        previousStatus: reports.find(r => r.id === reportId)?.status
+      });
+
+      // Show success message
+      setSaveMessage(`Report marked as ${newStatus}`);
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (err) {
+      console.error('Error updating report status:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update report status');
+      // Clear error after 3 seconds
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  const handleDeleteReport = async (reportId: string) => {
+    if (!confirm('Are you sure you want to delete this report?')) return;
+
+    try {
+      // First verify admin status
+      const { data: adminData, error: adminError } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (adminError) {
+        console.error('Error checking admin status:', adminError);
+        throw new Error('Failed to verify admin status');
+      }
+
+      if (!adminData?.is_admin) {
+        throw new Error('Unauthorized: Admin access required');
+      }
+
+      // Delete the report using the API endpoint
+      const response = await fetch(`/api/reports?reportId=${reportId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete report');
+      }
+
+      // Refresh the data to get the latest state
+      await fetchData();
+
+      // Log the action
+      await logAdminAction('delete_report', reportId, { 
+        reportId,
+        status: reports.find(r => r.id === reportId)?.status
+      });
+
+      // Show success message
+      setSaveMessage('Report deleted successfully');
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (err) {
+      console.error('Error deleting report:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete report');
+      // Clear error after 3 seconds
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -679,17 +841,25 @@ export default function AdminPanel() {
     }
   };
 
+  // Filter reports based on status
+  const filteredReports = useMemo(() => {
+    if (!reports) return [];
+    return reports.filter(report => 
+      reportStatus === 'all' || report.status === reportStatus
+    );
+  }, [reports, reportStatus]);
+
   if (!isAdmin) {
     return null;
   }
 
   return (
-    <>
+    <div>
       <Head>
         <title>{toLower('admin panel')}</title>
       </Head>
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-4xl mx-auto px-4 py-8 rounded-2xl">
         <div className="space-y-8">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl">{toLower('admin panel')}</h1>
@@ -702,7 +872,7 @@ export default function AdminPanel() {
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="px-4 py-2 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50"
+                className="px-4 py-2 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50 rounded-lg"
                 style={{ background: 'var(--background)', color: 'var(--foreground)' }}
               >
                 {isSaving ? toLower('saving...') : toLower('save changes')}
@@ -719,18 +889,204 @@ export default function AdminPanel() {
           )}
 
           <div>
+            <h2 className="text-xl mb-4">{toLower('reports')}</h2>
+            <div className="flex gap-4 mb-4">
+              <select 
+                value={reportStatus}
+                onChange={(e) => setReportStatus(e.target.value as 'pending' | 'reviewed' | 'resolved' | 'all')}
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg"
+              >
+                <option value="all">{toLower('all reports')}</option>
+                <option value="pending">{toLower('pending')}</option>
+                <option value="reviewed">{toLower('reviewed')}</option>
+                <option value="resolved">{toLower('resolved')}</option>
+              </select>
+            </div>
+            <div className="space-y-4">
+              {filteredReports.length === 0 ? (
+                <div className="flex flex-col items-center gap-4 p-8 border border border-gray-200 dark:border-gray-800 shadow-md rounded-xl">
+                  <span className="text-6xl">📝</span>
+                  <h2 className="text-2xl font-bold">{toLower('no reports found')}</h2>
+                  <p className="text-lg text-center">{toLower('there are no reports matching the current filter')}</p>
+                </div>
+              ) : (
+                filteredReports.map((report) => (
+                  <div
+                    key={report.id}
+                    className="p-4 border flex flex-col gap-4 shadow-sm rounded-xl hover:shadow-md transition-shadow"
+                    style={{ 
+                      background: 'var(--background)', 
+                      borderColor: 'var(--outline)',
+                      color: 'var(--foreground)' 
+                    }}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 overflow-hidden rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                          <Avatar 
+                            avatar_url={report.profiles?.avatar_url} 
+                            username={report.profiles?.username} 
+                            size={48} 
+                          />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-lg">
+                            {toLower(report.profiles?.username || 'anonymous')}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {new Date(report.created_at).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {report.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleReportStatusChange(report.id, 'reviewed')}
+                              className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
+                              style={{ color: 'var(--accent)', background: 'var(--background)' }}
+                            >
+                              {toLower('mark as reviewed')}
+                            </button>
+                            <button
+                              onClick={() => handleReportStatusChange(report.id, 'resolved')}
+                              className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
+                              style={{ color: 'var(--success)', background: 'var(--background)' }}
+                            >
+                              {toLower('mark as resolved')}
+                            </button>
+                          </>
+                        )}
+                        {report.status === 'reviewed' && (
+                          <button
+                            onClick={() => handleReportStatusChange(report.id, 'resolved')}
+                            className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
+                            style={{ color: 'var(--success)', background: 'var(--background)' }}
+                          >
+                            {toLower('mark as resolved')}
+                          </button>
+                        )}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          report.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400' :
+                          report.status === 'reviewed' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-400' :
+                          'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400'
+                        }`}>
+                          {toLower(report.status)}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteReport(report.id)}
+                          className="px-3 py-1 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity rounded-lg"
+                        >
+                          {toLower('delete')}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{toLower('recipe type:')}</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">{toLower(report.recipe_type)}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium">{toLower('reason:')}</span>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 whitespace-pre-wrap">{toLower(report.reason)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl">{toLower('deleted reports')}</h2>
+              <button
+                onClick={() => setShowDeletedReports(!showDeletedReports)}
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
+              >
+                {showDeletedReports ? toLower('hide') : toLower('show')}
+              </button>
+            </div>
+            {showDeletedReports && (
+              <div className="space-y-4">
+                {deletedReports.length === 0 ? (
+                  <div className="flex flex-col items-center gap-4 p-8 border border-gray-200 dark:border-gray-800 shadow-md rounded-xl">
+                    <span className="text-6xl">🗑️</span>
+                    <h2 className="text-2xl font-bold">{toLower('no deleted reports')}</h2>
+                    <p className="text-lg text-center">{toLower('there are no deleted reports yet')}</p>
+                  </div>
+                ) : (
+                  deletedReports.map((report) => (
+                    <div
+                      key={report.id}
+                      className="p-4 border flex flex-col gap-4 shadow-sm rounded-xl hover:shadow-md transition-shadow"
+                      style={{ 
+                        background: 'var(--background)', 
+                        borderColor: 'var(--outline)',
+                        color: 'var(--foreground)' 
+                      }}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 overflow-hidden rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                            <Avatar 
+                              avatar_url={report.profiles?.avatar_url} 
+                              username={report.profiles?.username} 
+                              size={48} 
+                            />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-lg">
+                              {toLower(report.profiles?.username || 'anonymous')}
+                            </div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {toLower('deleted at:')} {new Date(report.deleted_at).toLocaleString()}
+                            </div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {toLower('original created at:')} {new Date(report.original_created_at).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded-full text-sm ${
+                            report.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400' :
+                            report.status === 'reviewed' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-400' :
+                            'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400'
+                          }`}>
+                            {toLower(report.status)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{toLower('recipe type:')}</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{toLower(report.recipe_type)}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium">{toLower('reason:')}</span>
+                          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 whitespace-pre-wrap">{toLower(report.reason)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
             <h2 className="text-xl mb-4">{toLower('users')}</h2>
             <div className="flex gap-4 mb-4">
               <input
                 type="text"
                 placeholder={toLower('search by username or email...')}
                 onChange={e => debouncedSearch(e.target.value)}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 w-full"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 w-full rounded-lg"
               />
               <select 
                 value={filter}
                 onChange={(e) => setFilter(e.target.value as 'all' | 'banned' | 'warned')}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg"
               >
                 <option value="all">{toLower('all users')}</option>
                 <option value="banned">{toLower('banned users')}</option>
@@ -746,17 +1102,17 @@ export default function AdminPanel() {
                 />
                 <span className="text-sm">{toLower('select all')}</span>
                 {selectedUserIds.length > 0 && (
-                  <div className="ml-4 flex gap-2 items-center" style={{ background: 'var(--background)', border: '1px solid var(--outline)', color: 'var(--foreground)' }}>
+                  <div className="ml-4 flex gap-3 items-center rounded-lg" style={{ background: 'var(--background)', border: '1px solid var(--outline)', color: 'var(--foreground)' }}>
                     <span className="font-semibold">{toLower('bulk actions:')}</span>
-                    <button onClick={() => handleBulkBan(true)} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity" style={{ color: 'var(--danger)', background: 'var(--background)' }}>{toLower('ban')}</button>
-                    <button onClick={() => handleBulkBan(false)} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity" style={{ color: 'var(--accent)', background: 'var(--background)' }}>{toLower('unban')}</button>
-                    <button onClick={openBulkWarningModal} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity" style={{ color: 'var(--warning)', background: 'var(--background)' }}>{toLower('+ warning')}</button>
-                    <button onClick={clearSelectedUsers} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity" style={{ color: 'var(--foreground)', background: 'var(--background)' }}>{toLower('clear')}</button>
+                    <button onClick={() => handleBulkBan(true)} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg" style={{ color: 'var(--danger)', background: 'var(--background)' }}>{toLower('ban')}</button>
+                    <button onClick={() => handleBulkBan(false)} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg" style={{ color: 'var(--accent)', background: 'var(--background)' }}>{toLower('unban')}</button>
+                    <button onClick={openBulkWarningModal} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg" style={{ color: 'var(--warning)', background: 'var(--background)' }}>{toLower('+ warning')}</button>
+                    <button onClick={clearSelectedUsers} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg" style={{ color: 'var(--foreground)', background: 'var(--background)' }}>{toLower('clear')}</button>
                   </div>
                 )}
               </div>
               {filteredUsers.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 p-8 border border-gray-400 bg-gray-50 dark:bg-gray-900/20 shadow-md">
+                <div className="flex flex-col items-center gap-4 p-8 border border-gray-400 bg-gray-50 dark:bg-gray-900/20 shadow-md rounded-xl">
                   <span className="text-6xl">🔍</span>
                   <h2 className="text-2xl font-bold">{toLower('no users found')}</h2>
                   <p className="text-lg text-center">{toLower('try adjusting your search or filter criteria')}</p>
@@ -765,7 +1121,7 @@ export default function AdminPanel() {
                 filteredUsers.map((user) => (
                   <div
                     key={user.user_id}
-                    className={`p-4 border flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0 shadow-sm`}
+                    className={`p-4 border flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0 shadow-sm rounded-xl`}
                     style={{ background: 'var(--background)', borderColor: user.banned ? 'var(--danger)' : 'var(--outline)', color: 'var(--foreground)' }}
                   >
                     <div className="flex items-center gap-2">
@@ -792,7 +1148,7 @@ export default function AdminPanel() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleBanToggle(user.user_id, !!user.banned)}
-                        className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                        className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
                         style={{ color: user.banned ? 'var(--accent)' : 'var(--danger)', background: 'var(--background)' }}
                       >
                         {toLower(user.banned ? 'unban' : 'ban')}
@@ -810,7 +1166,7 @@ export default function AdminPanel() {
                       </div>
                       <button
                         onClick={() => openWarningModal(user)}
-                        className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                        className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
                         style={{ color: 'var(--warning)', background: 'var(--background)' }}
                       >
                         {toLower('+ Warning')}
@@ -827,7 +1183,7 @@ export default function AdminPanel() {
             <h2 className="text-xl mb-4">{toLower('recipes')}</h2>
             <div className="space-y-4">
               {recipes.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 p-8 border border-gray-400 bg-gray-50 dark:bg-gray-900/20 shadow-md">
+                <div className="flex flex-col items-center gap-4 p-8 border border-gray-400 bg-gray-50 dark:bg-gray-900/20 shadow-md rounded-xl">
                   <span className="text-6xl">📝</span>
                   <h2 className="text-2xl font-bold">{toLower('no recipes found')}</h2>
                   <p className="text-lg text-center">{toLower('there are no recipes in the system yet')}</p>
@@ -836,7 +1192,7 @@ export default function AdminPanel() {
                 recipes.map((recipe) => (
                   <div
                     key={recipe.id}
-                    className="p-4 border border-gray-200 dark:border-gray-800 flex justify-between items-center"
+                    className="p-4 border border-gray-200 dark:border-gray-800 flex justify-between items-center rounded-xl"
                   >
                     <div>
                       <p className="font-medium">{toLower(recipe.title)}</p>
@@ -846,7 +1202,7 @@ export default function AdminPanel() {
                     </div>
                     <button
                       onClick={() => handleDeleteRecipe(recipe.id)}
-                      className="px-3 py-2 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity"
+                      className="px-3 py-2 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity rounded-lg"
                     >
                       {toLower('delete')}
                     </button>
@@ -862,11 +1218,11 @@ export default function AdminPanel() {
               type="text"
               placeholder={toLower('search audit log...')}
               onChange={e => setAuditSearch(e.target.value)}
-              className="mb-4 px-3 py-2 border border-gray-200 dark:border-gray-800 w-full"
+              className="mb-4 px-3 py-2 border border-gray-200 dark:border-gray-800 w-full rounded-lg"
             />
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {filteredAuditLog.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 p-8 border border-gray-400 bg-gray-50 dark:bg-gray-900/20 shadow-md">
+                <div className="flex flex-col items-center gap-4 p-8 border border-gray-400 bg-gray-50 dark:bg-gray-900/20 shadow-md rounded-xl">
                   <span className="text-6xl">📋</span>
                   <h2 className="text-2xl font-bold">{toLower('no audit logs')}</h2>
                   <p className="text-lg text-center">{toLower('no audit logs found for the current search')}</p>
@@ -875,7 +1231,7 @@ export default function AdminPanel() {
                 filteredAuditLog.map((log) => (
                   <div
                     key={log.id}
-                    className="p-4 border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/20 transition-colors"
+                    className="p-4 border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/20 transition-colors rounded-xl"
                   >
                     <div className="flex justify-between items-start">
                       <div className="space-y-1">
@@ -932,6 +1288,6 @@ export default function AdminPanel() {
           />
         )}
       </Suspense>
-    </>
+    </div>
   );
 }

@@ -68,6 +68,13 @@ export async function searchRecipes(query: string, options: SearchOptions = {}):
     }
 
     const response = await fetch(`${SPOONACULAR_API_URL}/complexSearch?${params}`);
+    
+    // Check for API quota exceeded
+    if (response.status === 402) {
+      console.warn('Spoonacular API quota exceeded');
+      return [];
+    }
+
     if (!response.ok) {
       console.error('Spoonacular API error:', {
         status: response.status,
@@ -144,6 +151,12 @@ export async function getRecipeById(id: number | string): Promise<Recipe | null>
       `${SPOONACULAR_API_URL}/${spoonacularId}/information?apiKey=${SPOONACULAR_API_KEY}`
     );
 
+    // Check for API quota exceeded
+    if (response.status === 402) {
+      console.warn('Spoonacular API quota exceeded');
+      return null;
+    }
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Spoonacular API error:', {
@@ -183,6 +196,12 @@ export async function getPopularRecipes(): Promise<Recipe[]> {
     console.log('Fetching popular recipes from Spoonacular');
 
     const response = await fetch(`${SPOONACULAR_API_URL}/complexSearch?${params}`);
+
+    // Check for API quota exceeded
+    if (response.status === 402) {
+      console.warn('Spoonacular API quota exceeded');
+      return [];
+    }
 
     if (!response.ok) {
       const errorText = await response.text();

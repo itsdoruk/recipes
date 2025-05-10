@@ -169,7 +169,7 @@ export default function AccountPage() {
       <Head>
         <title>account | [recipes]</title>
       </Head>
-      <main className="max-w-2xl mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <h1 className="text-2xl mb-8">account</h1>
         
         <div className="space-y-8">
@@ -197,7 +197,7 @@ export default function AccountPage() {
                 type="text"
                 value={form.username}
                 onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
-                className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity"
+                className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity rounded-lg"
               />
             </div>
             <div>
@@ -206,7 +206,7 @@ export default function AccountPage() {
                 value={form.bio}
                 onChange={(e) => setForm(prev => ({ ...prev, bio: e.target.value }))}
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity rounded-lg"
               />
             </div>
             <div className="space-y-4">
@@ -233,11 +233,15 @@ export default function AccountPage() {
             <button
               type="submit"
               disabled={saving}
-              className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
+              className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
             >
-              {saving ? 'saving...' : 'save changes'}
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
-            {error && <p className="text-red-500">{error}</p>}
+            {error && (
+              <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl mb-4">
+                <p className="text-red-500">{error}</p>
+              </div>
+            )}
             {success && <p className="text-green-600">{success}</p>}
           </form>
 

@@ -96,16 +96,16 @@ export default function TimerPage() {
   return (
     <>
       <Head>
-        <title>Timer | [recipes]</title>
+        <title>timer | [recipes]</title>
       </Head>
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl">
         <div className="space-y-8">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl">timer</h1>
           </div>
 
           <div className="flex flex-col items-center space-y-8">
-            <div className="relative w-48 h-48 sm:w-64 sm:h-64">
+            <div className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-full overflow-hidden">
               {/* Circular progress indicator */}
               <svg className="w-full h-full -rotate-90">
                 {/* Background circle */}
@@ -145,7 +145,7 @@ export default function TimerPage() {
                   value={inputHours}
                   onChange={(e) => setInputHours(e.target.value)}
                   placeholder="hours"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent rounded-lg"
                   disabled={isRunning}
                   min="0"
                 />
@@ -154,7 +154,7 @@ export default function TimerPage() {
                   value={inputMinutes}
                   onChange={(e) => setInputMinutes(e.target.value)}
                   placeholder="minutes"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent rounded-lg"
                   disabled={isRunning}
                   min="0"
                 />
@@ -163,20 +163,20 @@ export default function TimerPage() {
                 <button
                   onClick={handleStart}
                   disabled={isRunning || (!inputHours && !inputMinutes)}
-                  className="flex-1 min-w-[100px] px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
+                  className="flex-1 min-w-[100px] px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-lg"
                 >
                   start
                 </button>
                 <button
                   onClick={handleStop}
                   disabled={!isRunning}
-                  className="flex-1 min-w-[100px] px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
+                  className="flex-1 min-w-[100px] px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-lg"
                 >
                   stop
                 </button>
                 <button
                   onClick={handleReset}
-                  className="flex-1 min-w-[100px] px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+                  className="flex-1 min-w-[100px] px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
                 >
                   reset
                 </button>

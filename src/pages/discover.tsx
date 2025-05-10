@@ -128,7 +128,7 @@ export default function DiscoverPage() {
         <title>discover | [recipes]</title>
       </Head>
 
-      <main className="max-w-2xl mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="space-y-8">
           <div className="flex justify-between items-center">    
           </div>
@@ -144,7 +144,7 @@ export default function DiscoverPage() {
                       setPreferences(prev => ({ ...prev, cuisine: type }));
                       handleNext();
                     }}
-                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left"
+                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left rounded-xl"
                   >
                     {type}
                   </button>
@@ -164,7 +164,7 @@ export default function DiscoverPage() {
                       setPreferences(prev => ({ ...prev, diet: type }));
                       handleNext();
                     }}
-                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left"
+                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left rounded-xl"
                   >
                     {type}
                   </button>
@@ -174,7 +174,7 @@ export default function DiscoverPage() {
                     setPreferences(prev => ({ ...prev, diet: '' }));
                     handleNext();
                   }}
-                  className="w-full p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+                  className="w-full p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-xl"
                 >
                   any diet
                 </button>
@@ -193,7 +193,7 @@ export default function DiscoverPage() {
                       setPreferences(prev => ({ ...prev, cookingTime: value.toString() }));
                       handleSubmit(new Event('submit') as any);
                     }}
-                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left"
+                    className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left rounded-xl"
                   >
                     {label}
                   </button>
@@ -203,7 +203,7 @@ export default function DiscoverPage() {
                     setPreferences(prev => ({ ...prev, cookingTime: '' }));
                     handleSubmit(new Event('submit') as any);
                   }}
-                  className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+                  className="p-4 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-xl"
                 >
                   any time
                 </button>

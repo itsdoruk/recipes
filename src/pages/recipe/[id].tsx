@@ -10,6 +10,7 @@ import { Comments } from '@/components/Comments';
 import { GetStaticProps, GetStaticPaths } from 'next';
 import { marked } from 'marked';
 import StarButton from '@/components/StarButton';
+import ReportButton from '@/components/ReportButton';
 
 interface Profile {
   username: string | null;
@@ -80,6 +81,7 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     if (!recipe.id) return;
@@ -116,7 +118,7 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
       router.push('/');
     } catch (err) {
       console.error('Error deleting recipe:', err);
-      setError('Failed to delete recipe');
+      setError('failed to delete recipe');
       setIsDeleting(false);
     }
   };
@@ -132,7 +134,9 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
   if (error || !recipe) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="text-red-500">{error || 'Recipe not found'}</p>
+        <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
+          <p className="text-red-500">{error || 'recipe not found'}</p>
+        </div>
       </div>
     );
   }
@@ -150,18 +154,15 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
         <meta name="last-modified" content={lastUpdated} />
       </Head>
 
-      <div 
-        className="max-w-2xl mx-auto px-4 py-8"
-        style={{ background: "var(--background)", color: "var(--foreground)" }}
-      >
+      <main className="max-w-2xl mx-auto px-4 py-8 rounded-xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="space-y-8">
           {recipe.image_url || recipe.image ? (
-            <div className="relative w-full h-96">
+            <div className="relative w-full h-96 rounded-xl overflow-hidden">
               <Image
                 src={recipe.image_url || recipe.image || ''}
                 alt={recipe.title}
                 fill
-                className="object-cover"
+                className="object-cover rounded-xl"
               />
             </div>
           ) : null}
@@ -169,7 +170,17 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
           <div>
             <div className="flex items-center justify-between">
               <h1 className="text-3xl">{recipe.title}</h1>
-              <StarButton recipeId={recipe.id} recipeType="user" />
+              <div className="flex items-center gap-2">
+                <StarButton recipeId={recipe.id} recipeType="user" />
+                <ReportButton 
+                  recipeId={recipe.id} 
+                  recipeType="user" 
+                  onReportSubmitted={() => {
+                    // Refresh the page to show updated reports
+                    router.reload();
+                  }} 
+                />
+              </div>
             </div>
             {profile && (
               <div className="flex items-center gap-2 mt-4">
@@ -193,14 +204,13 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
                   <div className="flex gap-2 ml-auto">
                     <Link
                       href={`/edit-recipe/${recipe.id}`}
-                      className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+                      className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg flex items-center justify-center"
                     >
                       edit
                     </Link>
                     <button
-                      onClick={handleDelete}
-                      disabled={isDeleting}
-                      className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 text-red-500 dark:text-red-400"
+                      onClick={() => setShowDeleteModal(true)}
+                      className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 text-red-500 dark:text-red-400 rounded-lg"
                     >
                       {isDeleting ? 'deleting...' : 'delete'}
                     </button>
@@ -237,22 +247,25 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
           <div>
             <h2 className="text-xl mb-4 mt-8">nutrition</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {['Calories', 'Protein', 'Fat', 'Carbohydrates'].map((nutrient) => {
+              {[
+                { label: 'Calories', key: 'calories' },
+                { label: 'Protein', key: 'protein' },
+                { label: 'Fat', key: 'fat' },
+                { label: 'Carbohydrates', key: 'carbohydrates' }
+              ].map(({ label, key }) => {
                 let value = 'N/A';
-                if (recipe.nutrition?.nutrients) {
-                  const n = recipe.nutrition.nutrients.find((x) => x.name === nutrient);
-                  if (n) value = `${n.amount} ${n.unit}`;
-                } else {
-                  const nutrientKey = nutrient.toLowerCase() as keyof typeof recipe.nutrition;
-                  if (recipe.nutrition && nutrientKey in recipe.nutrition) {
-                    const nutritionValue = recipe.nutrition[nutrientKey];
-                    value = typeof nutritionValue === 'string' ? nutritionValue : 'N/A';
+                if (recipe[key as keyof typeof recipe]) {
+                  const nutritionValue = recipe[key as keyof typeof recipe];
+                  if (typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
+                    value = nutritionValue;
+                  } else if (typeof nutritionValue === 'number') {
+                    value = nutritionValue.toString();
                   }
                 }
                 return (
-                  <div key={nutrient} className="text-center">
+                  <div key={label} className="text-center">
                     <div className="text-lg font-bold">{value}</div>
-                    <div className="text-gray-500 dark:text-gray-400 text-sm">{nutrient.toLowerCase()}</div>
+                    <div className="text-gray-500 dark:text-gray-400 text-sm">{label.toLowerCase()}</div>
                   </div>
                 );
               })}
@@ -306,7 +319,7 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
             </div>
           )}
         </div>
-      </div>
+      </main>
     </>
   );
 }
