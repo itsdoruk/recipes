@@ -4,11 +4,12 @@ import Head from 'next/head';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 
+type AuthMode = 'signin' | 'signup' | 'magic';
+
 export default function Login() {
   const router = useRouter();
   const { signIn, signUp } = useAuth();
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [isOtpLogin, setIsOtpLogin] = useState(false);
+  const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -23,7 +24,7 @@ export default function Login() {
     setError(null);
 
     try {
-      if (isOtpLogin) {
+      if (mode === 'magic') {
         if (!otpSent) {
           // Send OTP
           const { error: otpError } = await supabase.auth.signInWithOtp({
@@ -44,7 +45,7 @@ export default function Login() {
           if (verifyError) throw verifyError;
           router.push('/');
         }
-      } else if (isSignUp) {
+      } else if (mode === 'signup') {
         // Sign up with email, password, and username
         await signUp(email, password, username);
         router.push('/');
@@ -54,7 +55,7 @@ export default function Login() {
         router.push('/');
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred');
+      setError(err.message || 'an error occurred');
     } finally {
       setIsLoading(false);
     }
@@ -63,100 +64,108 @@ export default function Login() {
   return (
     <>
       <Head>
-        <title>{isSignUp ? 'Sign Up' : 'Sign In'} | [recipes]</title>
+        <title>login | [recipes]</title>
       </Head>
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        <div className="rounded-2xl p-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+          <h1 className="text-2xl mb-8">login</h1>
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block mb-2">email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity rounded-lg"
+                required
+              />
+            </div>
 
-      <main className="max-w-sm mx-auto px-4 py-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-        <h1 className="text-2xl mb-8 text-center">
-          {isOtpLogin ? 'magic link login' : isSignUp ? 'create account' : 'sign in'}
-        </h1>
+            {mode === 'signup' && (
+              <div>
+                <label className="block mb-2">username</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity rounded-lg"
+                  required
+                />
+              </div>
+            )}
 
-        {error && (
-          <div className="mb-4 p-3 border border-red-200 dark:border-red-800 text-sm">
-            {error}
-          </div>
-        )}
+            {mode !== 'magic' && (
+              <div>
+                <label className="block mb-2">password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity rounded-lg"
+                  required
+                />
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="email"
-            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none"
-            required
-          />
+            {mode === 'magic' && otpSent && (
+              <div>
+                <label className="block mb-2">enter the code sent to your email</label>
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity rounded-lg"
+                  required
+                />
+              </div>
+            )}
 
-          {isSignUp && (
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="username"
-              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none"
-              required
-              minLength={3}
-              maxLength={20}
-              pattern="[a-zA-Z0-9_-]+"
-              title="Username can only contain letters, numbers, underscores, and hyphens"
-            />
-          )}
-
-          {!isOtpLogin && (
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="password"
-              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none"
-              required
-              minLength={6}
-            />
-          )}
-
-          {isOtpLogin && otpSent && (
-            <input
-              type="text"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              placeholder="enter the code sent to your email"
-              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none"
-              required
-            />
-          )}
-
-          <div className="flex gap-2 pt-2">
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-lg"
+              className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
             >
-              {isLoading ? 'Loading...' : isOtpLogin ? (otpSent ? 'verify' : 'send magic link') : isSignUp ? 'create' : 'sign in'}
+              {isLoading ? 'loading...' : mode === 'magic' ? (otpSent ? 'verify code' : 'send magic link') : mode === 'signup' ? 'create account' : 'sign in'}
             </button>
-          </div>
-        </form>
 
-        <div className="mt-4 space-y-2 text-center">
-          <button
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setIsOtpLogin(false);
-              setOtpSent(false);
-            }}
-            className="text-sm text-gray-600 dark:text-gray-400 hover:underline block w-full"
-          >
-            {isSignUp ? 'already have an account?' : 'need an account?'}
-          </button>
-          <button
-            onClick={() => {
-              setIsOtpLogin(!isOtpLogin);
-              setIsSignUp(false);
-              setOtpSent(false);
-            }}
-            className="text-sm text-gray-600 dark:text-gray-400 hover:underline block w-full"
-          >
-            {isOtpLogin ? 'use password instead' : 'use magic link instead'}
-          </button>
+            {error && (
+              <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
+                <p className="text-red-500">{error}</p>
+              </div>
+            )}
+
+            {mode === 'magic' && otpSent && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+                check your email for the magic link code
+              </p>
+            )}
+          </form>
+
+          <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-800">
+            <div className="flex flex-col gap-2 text-center text-gray-500 dark:text-gray-400">
+              <button
+                onClick={() => {
+                  setMode(mode === 'signin' ? 'signup' : 'signin');
+                  setError(null);
+                  setOtpSent(false);
+                }}
+                className="hover:opacity-80 transition-opacity"
+              >
+                {mode === 'signin' ? "don't have an account? sign up" : "already have an account? sign in"}
+              </button>
+              <button
+                onClick={() => {
+                  setMode('magic');
+                  setError(null);
+                  setOtpSent(false);
+                }}
+                className="hover:opacity-80 transition-opacity"
+              >
+                or sign in with a magic link
+              </button>
+            </div>
+          </div>
         </div>
       </main>
     </>

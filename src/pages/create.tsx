@@ -186,7 +186,7 @@ export default function CreateRecipePage() {
       const { data: recipe, error: insertError } = await supabase
         .from('recipes')
         .insert([recipeData])
-        .select()
+        .select('id')
         .single();
 
       if (insertError) {
@@ -220,7 +220,7 @@ export default function CreateRecipePage() {
       <Head>
         <title>create recipe | [recipes]</title>
       </Head>
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="space-y-8">
           <div className="flex justify-between items-center">
             <h1 className="text-3xl">create recipe</h1>
@@ -229,7 +229,7 @@ export default function CreateRecipePage() {
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="space-y-4">
               <div>
-                <label htmlFor="title" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                <label htmlFor="title" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
                   recipe name
                 </label>
                 <input
@@ -237,21 +237,21 @@ export default function CreateRecipePage() {
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                   required
                   placeholder="enter recipe name"
                 />
               </div>
 
               <div>
-                <label htmlFor="description" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                <label htmlFor="description" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
                   recipe description
                 </label>
                 <textarea
                   id="description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                   rows={4}
                   required
                   placeholder="describe your recipe"
@@ -259,7 +259,7 @@ export default function CreateRecipePage() {
               </div>
 
               <div>
-                <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
                   recipe image
                 </label>
                 <div className="space-y-4">
@@ -267,7 +267,7 @@ export default function CreateRecipePage() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
+                      className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-xl"
                     >
                       upload image
                     </button>
@@ -275,7 +275,7 @@ export default function CreateRecipePage() {
                       type="url"
                       value={imageUrl}
                       onChange={(e) => setImageUrl(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                      className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                       placeholder="or paste image url"
                     />
                   </div>
@@ -300,14 +300,19 @@ export default function CreateRecipePage() {
               </div>
 
               <div>
-                <label htmlFor="ingredients" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                <label htmlFor="ingredients" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
                   ingredients
                 </label>
                 <textarea
                   id="ingredients"
                   value={ingredients}
                   onChange={(e) => setIngredients(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Backspace' && e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0) {
+                      e.preventDefault();
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                   rows={4}
                   required
                   placeholder="list ingredients (one per line)"
@@ -315,14 +320,19 @@ export default function CreateRecipePage() {
               </div>
 
               <div>
-                <label htmlFor="instructions" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
+                <label htmlFor="instructions" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
                   instructions
                 </label>
                 <textarea
                   id="instructions"
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Backspace' && e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0) {
+                      e.preventDefault();
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                   rows={4}
                   required
                   placeholder="list steps (one per line)"
@@ -334,7 +344,7 @@ export default function CreateRecipePage() {
                   id="cuisine_type"
                   value={cuisineType}
                   onChange={(e) => setCuisineType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                 >
                   <option value="">select cuisine</option>
                   {CUISINE_TYPES.map((type) => (
@@ -353,7 +363,7 @@ export default function CreateRecipePage() {
                       const val = e.target.value.replace(/[^0-9]/g, '');
                       setCookingTimeValue(val);
                     }}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                     min="0"
                     placeholder="cooking time"
                     required
@@ -365,7 +375,7 @@ export default function CreateRecipePage() {
                     id="cooking_time_unit"
                     value={cookingTimeUnit}
                     onChange={(e) => setCookingTimeUnit(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                   >
                     <option value="seconds">seconds</option>
                     <option value="mins">minutes</option>
@@ -377,7 +387,7 @@ export default function CreateRecipePage() {
                   id="diet_type"
                   value={dietType}
                   onChange={(e) => setDietType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                 >
                   <option value="">select diet</option>
                   {DIET_TYPES.map((type) => (
@@ -400,7 +410,7 @@ export default function CreateRecipePage() {
                       id="calories"
                       value={calories}
                       onChange={(e) => setCalories(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                       placeholder="enter calories"
                     />
                   </div>
@@ -413,8 +423,8 @@ export default function CreateRecipePage() {
                       id="protein"
                       value={protein}
                       onChange={(e) => setProtein(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
-                      placeholder="enter protein"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                        placeholder="enter protein"
                     />
                   </div>
                   <div>
@@ -426,7 +436,7 @@ export default function CreateRecipePage() {
                       id="fat"
                       value={fat}
                       onChange={(e) => setFat(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                       placeholder="enter fat"
                     />
                   </div>
@@ -439,7 +449,7 @@ export default function CreateRecipePage() {
                       id="carbohydrates"
                       value={carbohydrates}
                       onChange={(e) => setCarbohydrates(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
                       placeholder="enter carbohydrates"
                     />
                   </div>
@@ -457,7 +467,7 @@ export default function CreateRecipePage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50"
+                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-xl"
               >
                 {isSubmitting ? 'saving...' : 'save recipe'}
               </button>

@@ -25,24 +25,45 @@ export default function FollowingPage() {
   useEffect(() => {
     const fetchFollowing = async () => {
       if (!user) {
+        console.log('No user found, redirecting to login');
         router.push('/login');
         return;
       }
       try {
+        console.log('Fetching following for user:', user.id);
         // Get users that the current user is following
-        const { data: followingData } = await supabase
+        const { data: followingData, error: followingError } = await supabase
           .from('follows')
           .select('following_id')
           .eq('follower_id', user.id);
+        
+        console.log('Following data:', followingData);
+        console.log('Following error:', followingError);
+
+        if (followingError) {
+          throw followingError;
+        }
+
         if (followingData?.length) {
           // Get profiles of followed users
           const followingIds = followingData.map(f => f.following_id);
-          const { data: profiles } = await supabase
+          console.log('Following IDs:', followingIds);
+          
+          const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('*')
             .in('user_id', followingIds);
+          
+          console.log('Profiles data:', profiles);
+          console.log('Profiles error:', profilesError);
+
+          if (profilesError) {
+            throw profilesError;
+          }
+
           setFollowing(profiles || []);
         } else {
+          console.log('No following data found');
           setFollowing([]);
         }
       } catch (error) {

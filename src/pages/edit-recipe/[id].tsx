@@ -110,6 +110,22 @@ export default function EditRecipePage() {
     setError(null);
 
     try {
+      // Validate cooking time format
+      if (recipe.cooking_time) {
+        const match = recipe.cooking_time.match(/^(\d+)\s+(seconds|mins|days)$/);
+        if (!match) {
+          setError('cooking time must be a number followed by a unit (seconds, mins, or days)');
+          setIsSaving(false);
+          return;
+        }
+        const value = parseInt(match[1]);
+        if (isNaN(value) || value <= 0) {
+          setError('cooking time must be a positive number');
+          setIsSaving(false);
+          return;
+        }
+      }
+
       // Handle cooking time
       let cookingTime = null;
       let cookingTimeValue = null;
@@ -121,10 +137,6 @@ export default function EditRecipePage() {
           cookingTime = recipe.cooking_time;
           cookingTimeValue = parseInt(match[1]);
           cookingTimeUnit = match[2];
-        } else {
-          setError('cooking time must be a number followed by a unit (seconds, mins, or days)');
-          setIsSaving(false);
-          return;
         }
       }
 
@@ -267,7 +279,10 @@ export default function EditRecipePage() {
               <textarea
                 id="ingredients"
                 value={recipe.ingredients.join('\n')}
-                onChange={(e) => setRecipe({ ...recipe, ingredients: e.target.value.split('\n').filter(i => i.trim()) })}
+                onChange={(e) => {
+                  const lines = e.target.value.split('\n');
+                  setRecipe({ ...recipe, ingredients: lines });
+                }}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent rounded-xl min-h-[100px]"
                 required
                 placeholder="e.g. 2 eggs
@@ -283,7 +298,10 @@ export default function EditRecipePage() {
               <textarea
                 id="instructions"
                 value={recipe.instructions.join('\n')}
-                onChange={(e) => setRecipe({ ...recipe, instructions: e.target.value.split('\n').filter(i => i.trim()) })}
+                onChange={(e) => {
+                  const lines = e.target.value.split('\n');
+                  setRecipe({ ...recipe, instructions: lines });
+                }}
                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent rounded-xl min-h-[100px]"
                 required
                 placeholder="e.g. preheat oven to 350f
@@ -312,15 +330,21 @@ bake for 30 minutes"
                 <input
                   type="text"
                   id="cooking_time"
-                  value={recipe.cooking_time || ''}
+                  value={recipe.cooking_time?.split(' ')[0] || ''}
                   onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9\s]/g, '');
-                    setRecipe({ ...recipe, cooking_time: val });
+                    const val = e.target.value.replace(/[^0-9]/g, '');
+                    const unit = recipe.cooking_time?.split(' ')[1] || 'mins';
+                    if (val) {
+                      setRecipe({ ...recipe, cooking_time: `${val} ${unit}` });
+                    } else {
+                      setRecipe({ ...recipe, cooking_time: '' });
+                    }
                   }}
                   className="px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent w-full rounded-xl"
                   min="0"
-                  placeholder="e.g. 30 mins"
+                  placeholder="e.g. 30"
                   inputMode="numeric"
+                  pattern="[0-9]*"
                 />
                 <select
                   id="cooking_time_unit"

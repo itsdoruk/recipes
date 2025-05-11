@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { getPopularRecipes } from '@/lib/spoonacular';
 import RecipeCard from '@/components/RecipeCard';
 import { marked } from 'marked';
@@ -181,7 +181,7 @@ function extractRecipePropertiesFromMarkdown(markdown: string) {
   return result;
 }
 
-export default function Home({ initialRecipes }: HomeProps) {
+export default function Home({ initialRecipes = [] }: HomeProps) {
   const router = useRouter();
   const { user } = useAuth();
   // Controlled search input
@@ -220,26 +220,60 @@ export default function Home({ initialRecipes }: HomeProps) {
   const [aiRecipes, setAiRecipes] = useState<any[]>([]);
   const [aiLoading, setAiLoading] = useState(true);
 
-  const [userResults, setUserResults] = useState<{ user_id: string; username: string | null; avatar_url: string | null }[]>([]);
+  const [userResults, setUserResults] = useState<{ user_id: string; username: string | null; avatar_url: string | null; bio?: string | null }[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
+
   useEffect(() => {
-    const fetchPopularRecipes = async () => {
+    const fetchRecipes = async () => {
       try {
-        const popular = await getPopularRecipes();
-        if (popular.length === 0) {
-          // If Spoonacular API fails or returns no results, generate more AI recipes
-          setAiLoading(true);
-          const aiRecipePromises = Array.from({ length: 6 }).map(async () => {
-            try {
-              const recipeRes = await fetch('https://www.themealdb.com/api/json/v1/1/random.php');
-              const recipeData = await recipeRes.json();
-              const meal = recipeData.meals?.[0];
-              if (!meal) throw new Error('No random recipe found');
-              
-              // Generate AI recipe using the same logic as before
-              const improvisePrompt = `Start with a fun, appetizing, and engaging internet-style introduction for this recipe (at least 2 sentences, do not use the title as the description). Then, on new lines, provide:
+        // First, get blocked users
+        if (user) {
+          const { data: blockedData } = await getSupabaseClient()
+            .from('blocked_users')
+            .select('blocked_user_id')
+            .eq('user_id', user.id);
+          setBlockedUsers(blockedData?.map((b: { blocked_user_id: string }) => b.blocked_user_id) || []);
+        }
+
+        // Then fetch recipes
+        const { data: recipesData, error: recipesError } = await getSupabaseClient()
+          .from('recipes')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (recipesError) throw recipesError;
+
+        // Filter out blocked users' recipes
+        const filteredRecipes = recipesData?.filter(recipe => !blockedUsers.includes(recipe.user_id)) || [];
+        setRecipes(filteredRecipes);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching recipes:', error);
+        setError('Failed to load recipes');
+        setIsLoading(false);
+      }
+    };
+
+    fetchRecipes();
+  }, [user, blockedUsers]);
+
+  const fetchPopularRecipes = async () => {
+    try {
+      const popular = await getPopularRecipes();
+      if (popular.length === 0) {
+        setAiLoading(true);
+        const aiRecipePromises = Array.from({ length: 6 }).map(async () => {
+          try {
+            const recipeRes = await fetch('https://www.themealdb.com/api/json/v1/1/random.php');
+            const recipeData = await recipeRes.json();
+            const meal = recipeData.meals?.[0];
+            if (!meal) throw new Error('No random recipe found');
+            
+            // Generate AI recipe using the same logic as before
+            const improvisePrompt = `Start with a fun, appetizing, and engaging internet-style introduction for this recipe (at least 2 sentences, do not use the title as the description). Then, on new lines, provide:
 CUISINE: [guess the cuisine, e.g. british, italian, etc.]
 DIET: [guess the diet, e.g. vegetarian, gluten-free, etc.]
 COOKING TIME: [guess the total time in minutes, e.g. 30]
@@ -252,172 +286,163 @@ Area: ${meal.strArea}
 Instructions: ${meal.strInstructions}
 Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && meal[k]).map(k => meal[k]).join(', ')}`;
 
-              const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  messages: [
-                    { role: 'system', content: 'You are a recipe formatter. Always format recipes with these exact section headers in this order: DESCRIPTION, CUISINE, DIET, COOKING TIME, NUTRITION, INGREDIENTS, INSTRUCTIONS. Each section should start on a new line with its header in uppercase followed by a colon. Ingredients should be bullet points starting with "-". Instructions should be numbered steps starting with "1."' },
-                    { role: 'user', content: improvisePrompt }
-                  ]
-                })
-              });
+            const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                messages: [
+                  { role: 'system', content: 'You are a recipe formatter. Always format recipes with these exact section headers in this order: DESCRIPTION, CUISINE, DIET, COOKING TIME, NUTRITION, INGREDIENTS, INSTRUCTIONS. Each section should start on a new line with its header in uppercase followed by a colon. Ingredients should be bullet points starting with "-". Instructions should be numbered steps starting with "1."' },
+                  { role: 'user', content: improvisePrompt }
+                ]
+              })
+            });
 
-              const aiData = await aiRes.json();
-              let aiContent = aiData.choices[0].message.content;
-              if (aiContent instanceof Promise) {
-                aiContent = await aiContent;
-              }
+            const aiData = await aiRes.json();
+            let aiContent = aiData.choices[0].message.content;
+            if (aiContent instanceof Promise) {
+              aiContent = await aiContent;
+            }
 
-              const extracted = extractRecipePropertiesFromMarkdown(aiContent);
-              const description = extracted.description && extracted.description !== 'unknown' && !isDescriptionJustTitle(extracted.description, meal.strMeal)
-                ? extracted.description
-                : "A delicious dish you'll love!";
+            const extracted = extractRecipePropertiesFromMarkdown(aiContent);
+            const description = extracted.description && extracted.description !== 'unknown' && !isDescriptionJustTitle(extracted.description, meal.strMeal)
+              ? extracted.description
+              : "A delicious dish you'll love!";
 
-              const ingredients = extracted.ingredients && extracted.ingredients.length > 0
-                ? extracted.ingredients
-                : Object.keys(meal)
-                    .filter(k => k.startsWith('strIngredient') && meal[k] && meal[k].trim() && meal[k].toLowerCase() !== 'null')
-                    .map(k => meal[k].trim());
+            const ingredients = extracted.ingredients && extracted.ingredients.length > 0
+              ? extracted.ingredients
+              : Object.keys(meal)
+                  .filter(k => k.startsWith('strIngredient') && meal[k] && meal[k].trim() && meal[k].toLowerCase() !== 'null')
+                  .map(k => meal[k].trim());
 
-              const instructions = extracted.instructions && extracted.instructions.length > 0
-                ? extracted.instructions
-                : (meal.strInstructions
-                    ? meal.strInstructions.split(/\r?\n|\.\s+/).map((s: string) => s.trim()).filter(Boolean)
-                    : []);
+            const instructions = extracted.instructions && extracted.instructions.length > 0
+              ? extracted.instructions
+              : (meal.strInstructions
+                  ? meal.strInstructions.split(/\r?\n|\.\s+/).map((s: string) => s.trim()).filter(Boolean)
+                  : []);
 
-              const nutrition = (extracted.nutrition && extracted.nutrition.calories !== 'unknown')
-                ? extracted.nutrition
-                : { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' };
+            const nutrition = (extracted.nutrition && extracted.nutrition.calories !== 'unknown')
+              ? extracted.nutrition
+              : { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' };
 
-              const cuisine_type = mapToAllowedCuisine(
-                extracted.cuisine_type && extracted.cuisine_type !== 'unknown'
-                  ? extracted.cuisine_type
-                  : meal.strArea || meal.strCategory || ''
-              );
+            const cuisine_type = mapToAllowedCuisine(
+              extracted.cuisine_type && extracted.cuisine_type !== 'unknown'
+                ? extracted.cuisine_type
+                : meal.strArea || meal.strCategory || ''
+            );
 
-              const diet_type = mapToAllowedDiet(
-                extracted.diet_type && extracted.diet_type !== 'unknown'
-                  ? extracted.diet_type
-                  : meal.strCategory || ''
-              );
+            const diet_type = mapToAllowedDiet(
+              extracted.diet_type && extracted.diet_type !== 'unknown'
+                ? extracted.diet_type
+                : meal.strCategory || ''
+            );
 
-              const mappedTime = extracted.cooking_time_value || 0;
-              const cooking_time = extracted.cooking_time && extracted.cooking_time !== 'unknown'
-                ? extracted.cooking_time
-                : (mappedTime ? `${mappedTime} mins` : 'unknown');
+            const mappedTime = extracted.cooking_time_value || 0;
+            const cooking_time = extracted.cooking_time && extracted.cooking_time !== 'unknown'
+              ? extracted.cooking_time
+              : (mappedTime ? `${mappedTime} mins` : 'unknown');
 
-              const cleanedInstructions = instructions.map((step: string) => step.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
+            const cleanedInstructions = instructions.map((step: string) => step.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
 
-              const randomRecipeObj = {
-                id: `random-internet-${meal.idMeal}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-                title: meal.strMeal,
-                description,
-                image_url: meal.strMealThumb || RANDOM_CARD_IMG,
-                user_id: 'internet',
-                created_at: new Date().toISOString(),
-                ingredients,
-                instructions: cleanedInstructions,
-                nutrition,
-                cuisine_type,
-                diet_type,
-                cooking_time,
-                cooking_time_value: mappedTime
-              };
+            const randomRecipeObj = {
+              id: `random-internet-${meal.idMeal}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              title: meal.strMeal,
+              description,
+              image_url: meal.strMealThumb || RANDOM_CARD_IMG,
+              user_id: 'internet',
+              created_at: new Date().toISOString(),
+              ingredients,
+              instructions: cleanedInstructions,
+              nutrition,
+              cuisine_type,
+              diet_type,
+              cooking_time,
+              cooking_time_value: mappedTime
+            };
 
-              if (typeof window !== 'undefined') {
+            if (typeof window !== 'undefined') {
+              try {
+                // Get existing recipes
+                const existingRecipes = JSON.parse(localStorage.getItem('randomRecipes') || '[]');
+                
+                // Keep only the last 20 recipes
+                const updatedRecipes = [...existingRecipes, randomRecipeObj].slice(-20);
+                
+                // Store updated recipes
+                localStorage.setItem('randomRecipes', JSON.stringify(updatedRecipes));
+              } catch (error) {
+                console.warn('Failed to store recipe in localStorage:', error);
+                // Clear localStorage if it's full
                 try {
-                  // Get existing recipes
-                  const existingRecipes = JSON.parse(localStorage.getItem('randomRecipes') || '[]');
-                  
-                  // Keep only the last 20 recipes
-                  const updatedRecipes = [...existingRecipes, randomRecipeObj].slice(-20);
-                  
-                  // Store updated recipes
-                  localStorage.setItem('randomRecipes', JSON.stringify(updatedRecipes));
-                } catch (error) {
-                  console.warn('Failed to store recipe in localStorage:', error);
-                  // Clear localStorage if it's full
-                  try {
-                    localStorage.clear();
-                    localStorage.setItem('randomRecipes', JSON.stringify([randomRecipeObj]));
-                  } catch (clearError) {
-                    console.error('Failed to clear localStorage:', clearError);
-                  }
+                  localStorage.clear();
+                  localStorage.setItem('randomRecipes', JSON.stringify([randomRecipeObj]));
+                } catch (clearError) {
+                  console.error('Failed to clear localStorage:', clearError);
                 }
               }
-
-              return randomRecipeObj;
-            } catch (err) {
-              console.error('Error generating AI recipe:', err);
-              return null;
             }
-          });
 
-          const aiResults = await Promise.all(aiRecipePromises);
-          setAiRecipes(prev => [...prev, ...aiResults.filter(Boolean)]);
-          setAiLoading(false);
-        } else {
-          setPopularRecipes(popular);
-        }
-      } catch (err) {
-        console.error('Error fetching popular recipes:', err);
-        // If there's an error, generate more AI recipes as fallback
-        setAiLoading(true);
-        // ... (same AI recipe generation code as above)
+            return randomRecipeObj;
+          } catch (err) {
+            console.error('Error generating AI recipe:', err);
+            return null;
+          }
+        });
+        const aiResults = await Promise.all(aiRecipePromises);
+        setAiRecipes(prev => [...prev, ...aiResults.filter(Boolean)]);
+        setAiLoading(false);
+      } else {
+        setPopularRecipes(popular);
+        setAiLoading(false);
       }
-    };
+    } catch (err) {
+      console.error('Error fetching popular recipes:', err);
+      setError('Failed to fetch popular recipes. Please try again later.');
+      setAiLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchPopularRecipes();
+    const interval = setInterval(() => {
+      fetchPopularRecipes();
+    }, 3600000); // 1 hour
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
+    if (!recipes) return;
     const loadMoreRecipes = async () => {
-      if (!hasMore || isLoading) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      let supabaseQuery = supabase
-        .from('recipes')
-        .select('*')
+      if (isLoading || !hasMore) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        let supabaseQuery = getSupabaseClient()
+          .from('recipes')
+          .select('*')
           .order('created_at', { ascending: false })
-          .range((page - 1) * 10, page * 10 - 1);
-      if (query) {
-        supabaseQuery = supabaseQuery.or(`title.ilike.%${query}%,description.ilike.%${query}%`);
-      }
-      if (filters.cuisine) {
-        supabaseQuery = supabaseQuery.eq('cuisine_type', filters.cuisine);
-      }
-      if (filters.diet) {
-        supabaseQuery = supabaseQuery.eq('diet_type', filters.diet);
-      }
-      if (filters.maxReadyTime) {
-        supabaseQuery = supabaseQuery.eq('cooking_time_value', filters.maxReadyTime);
-      }
-      const { data: localRecipes, error: localError } = await supabaseQuery;
-      if (localError) throw localError;
-      const transformedLocalRecipes = localRecipes?.map(recipe => ({
-        id: recipe.id,
-        title: recipe.title,
-        description: recipe.description,
-        image_url: recipe.image_url,
-        user_id: recipe.user_id,
-        created_at: recipe.created_at,
-        cuisine_type: recipe.cuisine_type,
-        cooking_time: recipe.cooking_time_value ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit}` : null,
-        diet_type: recipe.diet_type,
-      })) || [];
-        setRecipes(prev => page === 1 ? transformedLocalRecipes : [...prev, ...transformedLocalRecipes]);
-        setHasMore(transformedLocalRecipes.length === 10);
-        } catch (err) {
+          .range(recipes.length, recipes.length + 9);
+
+        if (query) {
+          supabaseQuery = supabaseQuery.ilike('title', `%${query}%`);
+        }
+
+        const { data, error } = await supabaseQuery;
+
+        if (error) throw error;
+
+        if (data) {
+          setRecipes(prev => [...prev, ...data]);
+          setHasMore(data.length === 10);
+        }
+      } catch (err) {
         console.error('Error loading more recipes:', err);
-        setError('failed to load more recipes');
-    } finally {
-      setIsLoading(false);
-    }
+        setError('Failed to load more recipes');
+      } finally {
+        setIsLoading(false);
+      }
     };
     loadMoreRecipes();
-  }, [page, query, filters, hasMore]);
+  }, [recipes?.length, query, hasMore]);
 
   // Controlled search input logic
   const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -430,7 +455,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
     // Fetch users matching the query
     if (searchInput.trim().length > 0) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await getSupabaseClient()
           .from('profiles')
           .select('user_id, username, avatar_url, bio')
           .ilike('username', `%${searchInput}%`)
@@ -485,34 +510,67 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
   }, [konamiCode]);
 
   useEffect(() => {
-    if (!easterEggActive) return;
-    // Replace all images
-    const replaceImages = () => {
-      document.querySelectorAll('img').forEach(img => {
+    if (!easterEggActive) {
+      // Restore original images and text if previously replaced
+      const main = document.querySelector('main');
+      if (main) {
+        // Restore images
+        main.querySelectorAll('img[data-original-src]').forEach(img => {
+          img.src = img.getAttribute('data-original-src') || '';
+          img.removeAttribute('data-original-src');
+        });
+        // Restore text
+        main.querySelectorAll('[data-original-text]').forEach(el => {
+          el.textContent = el.getAttribute('data-original-text') || '';
+          el.removeAttribute('data-original-text');
+        });
+      }
+      // Clean up audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.remove();
+        audioRef.current = null;
+      }
+      return;
+    }
+    // Replace images and text only inside <main>
+    const main = document.querySelector('main');
+    if (!main) return;
+    // Replace images
+    main.querySelectorAll('img').forEach(img => {
+      if (!img.hasAttribute('data-original-src')) {
+        img.setAttribute('data-original-src', img.src);
+      }
+      img.src = PIZZA_IMG;
+      img.srcset = '';
+    });
+    // Replace text nodes (only direct children of elements)
+    const replaceTextNodes = (el) => {
+      for (const node of el.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+          const parent = node.parentElement || el;
+          if (!parent.hasAttribute('data-original-text')) {
+            parent.setAttribute('data-original-text', node.textContent);
+          }
+          node.textContent = 'mamma mia';
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          replaceTextNodes(node);
+        }
+      }
+    };
+    replaceTextNodes(main);
+    // Observe DOM changes in <main>
+    const observer = new MutationObserver(() => {
+      main.querySelectorAll('img').forEach(img => {
+        if (!img.hasAttribute('data-original-src')) {
+          img.setAttribute('data-original-src', img.src);
+        }
         img.src = PIZZA_IMG;
         img.srcset = '';
       });
-      // Next.js <Image> uses <img> under the hood, so this works for both
-      document.querySelectorAll('[style*="background-image"]').forEach(el => {
-        (el as HTMLElement).style.backgroundImage = `url('${PIZZA_IMG}')`;
-      });
-    };
-    // Replace all text nodes
-    const replaceText = (node: Node) => {
-      if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
-        node.textContent = 'mamma mia';
-      } else {
-        node.childNodes.forEach(replaceText);
-      }
-    };
-    replaceImages();
-    replaceText(document.body);
-    // Also observe DOM changes to keep replacing new content
-    const observer = new MutationObserver(() => {
-      replaceImages();
-      replaceText(document.body);
+      replaceTextNodes(main);
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(main, { childList: true, subtree: true });
     // Play audio in loop
     if (!audioRef.current) {
       const audio = document.createElement('audio');
@@ -526,6 +584,16 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
     }
     return () => {
       observer.disconnect();
+      // Restore images and text
+      main.querySelectorAll('img[data-original-src]').forEach(img => {
+        img.src = img.getAttribute('data-original-src') || '';
+        img.removeAttribute('data-original-src');
+      });
+      main.querySelectorAll('[data-original-text]').forEach(el => {
+        el.textContent = el.getAttribute('data-original-text') || '';
+        el.removeAttribute('data-original-text');
+      });
+      // Clean up audio
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.remove();
@@ -610,7 +678,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
               <h2 className="text-xl mt-8 mb-2">users</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {userResults.map((user) => (
-                  <UserCard key={user.user_id} user={user} />
+                  <UserCard key={user.user_id} user={{ ...user, bio: user.bio ?? null }} />
                 ))}
               </div>
             </div>
@@ -628,7 +696,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                     <RecipeCard
                       key={`ai-loading-${idx}`}
                       id={`ai-loading-${idx}`}
-                      title="Loading..."
+                      title="loading..."
                       description="Generating a new recipe..."
                       image_url={RANDOM_CARD_IMG}
                       user_id="recipes-ai"
@@ -636,8 +704,6 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                       cuisine_type={''}
                       cooking_time={''}
                       diet_type={''}
-                      readyInMinutes={undefined}
-                      link={undefined}
                       loading={true}
                       recipeType="ai"
                     />
@@ -647,24 +713,23 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                     : aiRecipes.length > 0
                       ? [aiRecipes[0]]
                       : []
-                  ).map((recipe) => (
-                    <RecipeCard
-                      key={recipe.id}
-                      id={recipe.id}
-                      title={recipe.title}
-                      description={recipe.description}
-                      funDescription={recipe.funDescription}
-                      image_url={recipe.image_url}
-                      user_id={recipe.user_id}
-                      created_at={recipe.created_at}
-                      cuisine_type={recipe.cuisine_type}
-                      cooking_time={recipe.cooking_time}
-                      diet_type={recipe.diet_type}
-                      readyInMinutes={undefined}
-                      link={`/internet-recipe/${recipe.id}`}
-                      recipeType="ai"
-                    />
-                  ))}
+                ).map((recipe) => (
+                  <RecipeCard
+                    key={recipe.id}
+                    id={recipe.id}
+                    title={recipe.title}
+                    description={recipe.description}
+                    funDescription={recipe.funDescription}
+                    image_url={recipe.image_url}
+                    user_id={recipe.user_id}
+                    created_at={recipe.created_at}
+                    cuisine_type={recipe.cuisine_type}
+                    cooking_time={recipe.cooking_time}
+                    diet_type={recipe.diet_type}
+                    recipeType="ai"
+                    link={`/internet-recipe/${recipe.id}`}
+                  />
+                ))}
               {popularRecipes.map((recipe) => (
                 <RecipeCard
                   key={recipe.id}
@@ -695,71 +760,9 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
                 />
               ))}
             </div>
-            <div ref={loadingRef} className="h-10 flex items-center justify-center">
-              {isLoading && <p>Loading more recipes...</p>}
-            </div>
           </div>
         </div>
       </main>
     </>
   );
 }
-
-export const getServerSideProps: GetServerSideProps = async () => {
-  try {
-    // Fetch recipes from Supabase
-    const { data: supabaseRecipes, error: supabaseError } = await supabase
-      .from('recipes')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (supabaseError) {
-      console.error('Supabase error:', supabaseError);
-      throw new Error(`Database error: ${supabaseError.message}`);
-    }
-
-    if (!supabaseRecipes) {
-      console.error('No recipes found in database');
-      return {
-        props: {
-          initialRecipes: [],
-        },
-      };
-    }
-
-    // Transform Supabase recipes to match LocalRecipe interface
-    const transformedRecipes = supabaseRecipes.map(recipe => {
-      try {
-        return {
-          id: recipe.id,
-          title: recipe.title,
-          description: recipe.description,
-          image_url: recipe.image_url,
-          user_id: recipe.user_id,
-          created_at: recipe.created_at,
-          cuisine_type: recipe.cuisine_type,
-          cooking_time: recipe.cooking_time_value ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit || 'mins'}` : null,
-          diet_type: recipe.diet_type,
-        };
-      } catch (transformError) {
-        console.error('Error transforming recipe:', recipe, transformError);
-        return null;
-      }
-    }).filter(Boolean);
-
-    return {
-      props: {
-        initialRecipes: transformedRecipes,
-      },
-    };
-  } catch (error) {
-    console.error('Error in getServerSideProps:', error);
-    // Return a more specific error message
-    return {
-      props: {
-        initialRecipes: [],
-        error: error instanceof Error ? error.message : 'An unknown error occurred',
-      },
-    };
-  }
-};

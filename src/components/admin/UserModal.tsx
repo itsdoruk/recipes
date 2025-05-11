@@ -31,7 +31,7 @@ export default function UserModal({ isOpen, onClose, user, warnings, activity }:
           </div>
           <div>
             <div className="font-semibold text-xl flex items-center gap-2">
-              {user.username || 'anonymous'}
+              {user.username || '[recipes] user'}
               {user.is_admin && <span className="text-blue-400 text-xs font-bold border border-blue-400 px-1">admin</span>}
               {user.banned && <span className="text-red-400 text-xl ml-1">🔒</span>}
             </div>

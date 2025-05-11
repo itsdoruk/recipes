@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface StarButtonProps {
   recipeId: string;
@@ -16,7 +16,7 @@ export default function StarButton({ recipeId, recipeType, initialStarred = fals
   useEffect(() => {
     const checkStarred = async () => {
       if (!user) return;
-      const { data } = await supabase
+      const { data } = await getSupabaseClient()
         .from('starred_recipes')
         .select('id')
         .eq('user_id', user.id)
@@ -33,14 +33,14 @@ export default function StarButton({ recipeId, recipeType, initialStarred = fals
     setIsLoading(true);
     try {
       if (isStarred) {
-        await supabase
+        await getSupabaseClient()
           .from('starred_recipes')
           .delete()
           .eq('user_id', user.id)
           .eq('recipe_id', recipeId)
           .eq('recipe_type', recipeType);
       } else {
-        await supabase
+        await getSupabaseClient()
           .from('starred_recipes')
           .insert({
             user_id: user.id,

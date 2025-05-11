@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
 import { useTheme } from 'next-themes';
 import NotificationsDropdown from './NotificationsDropdown';
 import Image from 'next/image';
@@ -29,11 +28,25 @@ export default function Navbar() {
   const [search, setSearch] = useState('');
   const [userResults, setUserResults] = useState<{ user_id: string; username: string | null; avatar_url: string | null }[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [supabase, setSupabase] = useState<any>(null);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize Supabase client on the client side
+  useEffect(() => {
+    const initSupabase = async () => {
+      try {
+        const { getBrowserClient } = await import('@/lib/supabase/browserClient');
+        setSupabase(getBrowserClient());
+      } catch (error) {
+        console.error('Error initializing Supabase:', error);
+      }
+    };
+    initSupabase();
+  }, []);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user) {
+      if (!user || !supabase) {
         setProfile(null);
         setIsLoading(false);
         return;
@@ -56,7 +69,7 @@ export default function Navbar() {
     };
 
     fetchProfile();
-  }, [user]);
+  }, [user, supabase]);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -73,7 +86,9 @@ export default function Navbar() {
 
   const isActive = (path: string) => router.pathname === path;
 
-  const handleUserSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUserSearch = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!supabase) return;
+    
     const value = e.target.value;
     setSearch(value);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -181,7 +196,7 @@ export default function Navbar() {
                       >
                         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
                           <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
-                            {profile?.username ? `@${profile.username.toLowerCase()}` : 'anonymous'}
+                            {profile?.username ? `@${profile.username.toLowerCase()}` : '[recipes] user'}
                           </p>
                           {profile?.show_email && (
                             <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>

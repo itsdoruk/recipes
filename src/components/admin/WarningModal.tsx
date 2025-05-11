@@ -15,7 +15,7 @@ export default function WarningModal({ isOpen, onClose, user, onAddWarning, warn
     <Modal
       isOpen={isOpen}
       onRequestClose={onClose}
-      contentLabel="Add Warning"
+      contentLabel="Add Warning"as
       className="fixed inset-0 flex items-center justify-center z-50"
       overlayClassName="fixed inset-0 bg-black/50"
       ariaHideApp={false}

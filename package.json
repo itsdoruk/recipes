@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@heroicons/react": "^1.0.6",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
     "@types/marked": "^5.0.2",
@@ -38,7 +39,7 @@
     "@types/react-modal": "^3.16.3",
     "eslint": "^9",
     "eslint-config-next": "15.3.1",
-    "tailwindcss": "^4",
+    "tailwindcss": "^4.1.6",
     "typescript": "^5"
   }
 }

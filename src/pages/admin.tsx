@@ -25,8 +25,9 @@ interface Recipe {
 
 export default function AdminPanel() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<Profile[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -48,10 +49,10 @@ export default function AdminPanel() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [reports, setReports] = useState<any[]>([]);
   const [reportStatus, setReportStatus] = useState<'pending' | 'reviewed' | 'resolved' | 'all'>('pending');
-  const [deletedReports, setDeletedReports] = useState<any[]>([]);
-  const [showDeletedReports, setShowDeletedReports] = useState(false);
 
   useEffect(() => {
+    if (loading) return;
+
     if (!user) {
       router.push('/login');
       return;
@@ -59,10 +60,11 @@ export default function AdminPanel() {
 
     checkAdminStatus();
     fetchAuditLog();
-  }, [user, router]);
+  }, [user, loading, router]);
 
   const checkAdminStatus = async () => {
     try {
+      setIsLoading(true);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -81,6 +83,8 @@ export default function AdminPanel() {
     } catch (err) {
       console.error('Error checking admin status:', err);
       router.push('/');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -118,7 +122,7 @@ export default function AdminPanel() {
           reason,
           recipe_type,
           user_id,
-          profiles!reports_user_id_fkey (
+          profiles (
             username,
             avatar_url
           )
@@ -130,32 +134,6 @@ export default function AdminPanel() {
         throw reportsError;
       }
       setReports(reportsData || []);
-
-      // Fetch deleted reports with proper join
-      const { data: deletedReportsData, error: deletedReportsError } = await supabase
-        .from('deleted_reports')
-        .select(`
-          id,
-          report_id,
-          recipe_id,
-          recipe_type,
-          reason,
-          status,
-          deleted_at,
-          original_created_at,
-          deleted_by,
-          profiles!deleted_reports_deleted_by_fkey (
-            username,
-            avatar_url
-          )
-        `)
-        .order('deleted_at', { ascending: false });
-
-      if (deletedReportsError) {
-        console.error('Deleted reports fetch error:', deletedReportsError);
-        throw deletedReportsError;
-      }
-      setDeletedReports(deletedReportsData || []);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('failed to fetch data. please try again.');
@@ -178,16 +156,16 @@ export default function AdminPanel() {
         targetUserId = '00000000-0000-0000-0000-000000000000';
       } else {
         // For user-related actions, verify the user exists
-        const { data: targetUser, error: userError } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .eq('user_id', targetUserId)
-          .single();
+      const { data: targetUser, error: userError } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('user_id', targetUserId)
+        .single();
 
-        if (userError) {
-          console.error('Error checking target user:', userError);
+      if (userError) {
+        console.error('Error checking target user:', userError);
           // If the user doesn't exist, use system user ID
-          targetUserId = '00000000-0000-0000-0000-000000000000';
+        targetUserId = '00000000-0000-0000-0000-000000000000';
         }
       }
 
@@ -687,7 +665,7 @@ export default function AdminPanel() {
     if (!confirm('Are you sure you want to delete this report?')) return;
 
     try {
-      // First verify admin status
+      // Verify admin status
       const { data: adminData, error: adminError } = await supabase
         .from('profiles')
         .select('is_admin')
@@ -703,18 +681,19 @@ export default function AdminPanel() {
         throw new Error('Unauthorized: Admin access required');
       }
 
-      // Delete the report using the API endpoint
-      const response = await fetch(`/api/reports?reportId=${reportId}`, {
-        method: 'DELETE',
-      });
+      // Delete the report directly via Supabase client
+      const { error: deleteError } = await supabase
+        .from('reports')
+        .delete()
+        .eq('id', reportId);
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to delete report');
+      if (deleteError) {
+        console.error('Error deleting report:', deleteError);
+        throw new Error(deleteError.message || 'Failed to delete report');
       }
 
-      // Refresh the data to get the latest state
-      await fetchData();
+      // Remove the deleted report from local state
+      setReports(prev => prev.filter(r => r.id !== reportId));
 
       // Log the action
       await logAdminAction('delete_report', reportId, { 
@@ -849,6 +828,16 @@ export default function AdminPanel() {
     );
   }, [reports, reportStatus]);
 
+  if (loading || isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-2xl mb-4">loading...</div>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAdmin) {
     return null;
   }
@@ -931,7 +920,14 @@ export default function AdminPanel() {
                         </div>
                         <div>
                           <div className="font-semibold text-lg">
-                            {toLower(report.profiles?.username || 'anonymous')}
+                            {report.reported_user_id ? (
+                              <span>Reported User: {toLower(report.reported_profiles?.username || 'unknown')}</span>
+                            ) : (
+                              <span>report: {report.recipe_type}</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            reported by: {toLower(report.profiles?.username || 'anonymous')}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">
                             {new Date(report.created_at).toLocaleString()}
@@ -939,139 +935,51 @@ export default function AdminPanel() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {report.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => handleReportStatusChange(report.id, 'reviewed')}
-                              className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
-                              style={{ color: 'var(--accent)', background: 'var(--background)' }}
-                            >
-                              {toLower('mark as reviewed')}
-                            </button>
-                            <button
-                              onClick={() => handleReportStatusChange(report.id, 'resolved')}
-                              className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
-                              style={{ color: 'var(--success)', background: 'var(--background)' }}
-                            >
-                              {toLower('mark as resolved')}
-                            </button>
-                          </>
-                        )}
-                        {report.status === 'reviewed' && (
-                          <button
-                            onClick={() => handleReportStatusChange(report.id, 'resolved')}
-                            className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
-                            style={{ color: 'var(--success)', background: 'var(--background)' }}
-                          >
-                            {toLower('mark as resolved')}
-                          </button>
-                        )}
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        <span className={`px-2 py-1 rounded-full text-sm ${
                           report.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400' :
                           report.status === 'reviewed' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-400' :
                           'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400'
                         }`}>
                           {toLower(report.status)}
                         </span>
-                        <button
-                          onClick={() => handleDeleteReport(report.id)}
-                          className="px-3 py-1 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity rounded-lg"
-                        >
-                          {toLower('delete')}
-                        </button>
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{toLower('recipe type:')}</span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">{toLower(report.recipe_type)}</span>
-                      </div>
-                      <div>
-                        <span className="font-medium">{toLower('reason:')}</span>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 whitespace-pre-wrap">{toLower(report.reason)}</p>
-                      </div>
+                      <div className="font-medium">Reason:</div>
+                      <div className="text-sm">{report.reason}</div>
+                      {report.details && (
+                        <>
+                          <div className="font-medium">Details:</div>
+                          <div className="text-sm">{report.details}</div>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => handleReportStatusChange(report.id, 'reviewed')}
+                        disabled={report.status !== 'pending'}
+                        className="px-3 py-1 text-sm border border-gray-200 dark:border-gray-800 rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
+                      >
+                        mark as reviewed
+                      </button>
+                      <button
+                        onClick={() => handleReportStatusChange(report.id, 'resolved')}
+                        disabled={report.status === 'resolved'}
+                        className="px-3 py-1 text-sm border border-gray-200 dark:border-gray-800 rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
+                      >
+                        mark as resolved
+                      </button>
+                      <button
+                        onClick={() => handleDeleteReport(report.id)}
+                        className="px-3 py-1 text-sm border border-red-200 dark:border-red-800 text-red-500 rounded-lg hover:opacity-80 transition-opacity"
+                      >
+                        delete
+                      </button>
                     </div>
                   </div>
                 ))
               )}
             </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl">{toLower('deleted reports')}</h2>
-              <button
-                onClick={() => setShowDeletedReports(!showDeletedReports)}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
-              >
-                {showDeletedReports ? toLower('hide') : toLower('show')}
-              </button>
-            </div>
-            {showDeletedReports && (
-              <div className="space-y-4">
-                {deletedReports.length === 0 ? (
-                  <div className="flex flex-col items-center gap-4 p-8 border border-gray-200 dark:border-gray-800 shadow-md rounded-xl">
-                    <span className="text-6xl">🗑️</span>
-                    <h2 className="text-2xl font-bold">{toLower('no deleted reports')}</h2>
-                    <p className="text-lg text-center">{toLower('there are no deleted reports yet')}</p>
-                  </div>
-                ) : (
-                  deletedReports.map((report) => (
-                    <div
-                      key={report.id}
-                      className="p-4 border flex flex-col gap-4 shadow-sm rounded-xl hover:shadow-md transition-shadow"
-                      style={{ 
-                        background: 'var(--background)', 
-                        borderColor: 'var(--outline)',
-                        color: 'var(--foreground)' 
-                      }}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 overflow-hidden rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                            <Avatar 
-                              avatar_url={report.profiles?.avatar_url} 
-                              username={report.profiles?.username} 
-                              size={48} 
-                            />
-                          </div>
-                          <div>
-                            <div className="font-semibold text-lg">
-                              {toLower(report.profiles?.username || 'anonymous')}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {toLower('deleted at:')} {new Date(report.deleted_at).toLocaleString()}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {toLower('original created at:')} {new Date(report.original_created_at).toLocaleString()}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-1 rounded-full text-sm ${
-                            report.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400' :
-                            report.status === 'reviewed' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-400' :
-                            'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400'
-                          }`}>
-                            {toLower(report.status)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{toLower('recipe type:')}</span>
-                          <span className="text-sm text-gray-500 dark:text-gray-400">{toLower(report.recipe_type)}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium">{toLower('reason:')}</span>
-                          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 whitespace-pre-wrap">{toLower(report.reason)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
           </div>
 
           <div>
@@ -1136,7 +1044,7 @@ export default function AdminPanel() {
                         </div>
                         <div>
                           <div className="font-semibold text-lg flex items-center gap-2">
-                            {toLower(user.username || 'anonymous')}
+                            {toLower(user.username || '[recipes] user')}
                             {user.is_admin && <span className="text-blue-400 text-xs font-bold border border-blue-400 px-1">{toLower('admin')}</span>}
                             {user.banned && <span className="text-red-400 text-xl ml-1">🔒</span>}
                             {user.warnings && user.warnings > 0 && <span className="text-yellow-400 text-xl ml-1">⚠️</span>}

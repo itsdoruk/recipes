@@ -205,7 +205,7 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8 rounded-xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-        <div className="block p-4 border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900 transition-opacity rounded-xl">
+        <div className="block p-4 border border-gray-200 dark:border-gray-800 transition-opacity rounded-xl">
           <div className="relative w-full h-48 mb-4">
             <Image src={RANDOM_CARD_IMG} alt="random recipe" fill className="object-cover rounded-xl" />
           </div>

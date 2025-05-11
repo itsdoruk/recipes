@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { searchRecipes } from '@/lib/spoonacular';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -7,7 +7,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { q: query, cuisine, diet, time } = req.query;
+  const { query, cuisine, diet, time } = req.query;
 
   if (!query) {
     return res.status(400).json({ message: 'Query parameter is required' });
@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Search local recipes
-    const supabaseQuery = supabase
+    const supabaseQuery = getSupabaseClient()
       .from('recipes')
       .select('*')
       .or(
@@ -77,4 +77,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error('Error in search API:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
-} 
+}

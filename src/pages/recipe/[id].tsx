@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { getRecipeById } from '@/lib/spoonacular';
 import { supabase } from '@/lib/supabase';
 import { Comments } from '@/components/Comments';
-import { GetStaticProps, GetStaticPaths } from 'next';
+import { GetServerSideProps } from 'next';
 import { marked } from 'marked';
 import StarButton from '@/components/StarButton';
 import ReportButton from '@/components/ReportButton';
@@ -81,7 +81,6 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     if (!recipe.id) return;
@@ -110,10 +109,15 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
     if (!confirm('are you sure you want to delete this recipe?')) return;
     setIsDeleting(true);
     try {
-      const { error: deleteError } = await supabase
-        .from('recipes')
-        .delete()
-        .eq('id', recipe.id);
+      let deleteQuery = supabase.from('recipes').delete();
+      if (recipe.id == null) {
+        // Delete rows where id IS NULL
+        deleteQuery = deleteQuery.is('id', null);
+      } else {
+        // Delete by specific id
+        deleteQuery = deleteQuery.eq('id', recipe.id);
+      }
+      const { error: deleteError } = await deleteQuery;
       if (deleteError) throw deleteError;
       router.push('/');
     } catch (err) {
@@ -187,7 +191,7 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
                 {profile.avatar_url && (
                   <img
                     src={profile.avatar_url}
-                    alt={profile.username || 'anonymous'}
+                    alt={profile.username || '[recipes] user'}
                     className="w-8 h-8 rounded-full object-cover"
                   />
                 )}
@@ -195,7 +199,7 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
                   href={`/user/${recipe.user_id}`}
                   className="text-gray-500 dark:text-gray-400 hover:underline"
                 >
-                  {profile.username || 'anonymous'}
+                  {profile.username || '[recipes] user'}
                 </Link>
                 <span className="text-gray-500 dark:text-gray-400">
                   • {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString() : ''}
@@ -209,7 +213,8 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
                       edit
                     </Link>
                     <button
-                      onClick={() => setShowDeleteModal(true)}
+                      onClick={handleDelete}
+                      disabled={isDeleting}
                       className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 text-red-500 dark:text-red-400 rounded-lg"
                     >
                       {isDeleting ? 'deleting...' : 'delete'}
@@ -324,25 +329,7 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
   );
 }
 
-export const getStaticPaths: GetStaticPaths = async () => {
-  // Get the most recent 100 recipes for initial static generation
-  const { data: recipes } = await supabase
-    .from('recipes')
-    .select('id')
-    .order('created_at', { ascending: false })
-    .limit(100);
-
-  const paths = recipes?.map((recipe) => ({
-    params: { id: recipe.id },
-  })) || [];
-
-  return {
-    paths,
-    fallback: 'blocking', // Show a loading state while generating new pages
-  };
-};
-
-export const getStaticProps: GetStaticProps = async ({ params }) => {
+export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   const { id } = params as { id: string };
 
   try {
@@ -364,7 +351,6 @@ export const getStaticProps: GetStaticProps = async ({ params }) => {
         recipe,
         lastUpdated: new Date().toISOString(),
       },
-      revalidate: 60, // Revalidate every 60 seconds
     };
   } catch (error) {
     console.error('Error fetching recipe:', error);

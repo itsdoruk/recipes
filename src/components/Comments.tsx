@@ -187,7 +187,7 @@ export function Comments({ recipeId }: CommentsProps) {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">
-                    {comment.profiles?.username || 'anonymous'}
+                    {comment.profiles?.username || '[recipes] user'}
                   </span>
                   <span className="text-sm text-gray-500 dark:text-gray-400">
                     {new Date(comment.created_at).toLocaleDateString()}

@@ -1,5 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/lib/supabase';
 import { createServerClient } from '@supabase/ssr';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -33,19 +32,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'POST') {
     try {
-      const { recipe_id, recipe_type, reason } = req.body;
+      const { recipe_id, recipe_type, reported_user_id, reason, details } = req.body;
 
-      if (!recipe_id || !recipe_type || !reason) {
+      // Validate that either recipe_id and recipe_type are provided, or reported_user_id is provided
+      if (!((recipe_id && recipe_type) || reported_user_id) || !reason) {
         return res.status(400).json({ message: 'Missing required fields' });
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseServer
         .from('reports')
         .insert({
           recipe_id,
           recipe_type,
+          reported_user_id,
           user_id: user.id,
           reason,
+          details,
           status: 'pending'
         })
         .select()
@@ -63,9 +65,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'GET') {
     try {
       const { status } = req.query;
-      let query = supabase
+      let query = supabaseServer
         .from('reports')
-        .select('*')
+        .select(`
+          *,
+          profiles:user_id (username, avatar_url),
+          reported_profiles:reported_user_id (username, avatar_url)
+        `)
         .order('created_at', { ascending: false });
 
       if (status) {
@@ -92,7 +98,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Verify admin status
-      const { data: adminData, error: adminError } = await supabase
+      const { data: adminData, error: adminError } = await supabaseServer
         .from('profiles')
         .select('is_admin')
         .eq('user_id', user.id)
@@ -107,8 +113,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(403).json({ message: 'Unauthorized: Admin access required' });
       }
 
+      // First, get the report details before deletion
+      const { data: reportData, error: reportError } = await supabaseServer
+        .from('reports')
+        .select('*')
+        .eq('id', reportId)
+        .single();
+
+      if (reportError) {
+        console.error('Error fetching report:', reportError);
+        return res.status(500).json({ message: 'Failed to fetch report details' });
+      }
+
+      // Insert into deleted_reports table
+      const { error: insertError } = await supabaseServer
+        .from('deleted_reports')
+        .insert({
+          report_id: reportId,
+          recipe_id: reportData.recipe_id,
+          recipe_type: reportData.recipe_type,
+          reason: reportData.reason,
+          status: reportData.status,
+          deleted_at: new Date().toISOString(),
+          original_created_at: reportData.created_at,
+          deleted_by: user.id,
+          user_id: reportData.user_id
+        });
+
+      if (insertError) {
+        console.error('Error inserting into deleted_reports:', insertError);
+        return res.status(500).json({ message: insertError.message || 'Failed to log deleted report', details: insertError.details });
+      }
+
       // Delete the report
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await supabaseServer
         .from('reports')
         .delete()
         .eq('id', reportId);

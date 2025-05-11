@@ -1,6 +1,8 @@
+'use client'
+
 import { createContext, useContext, useEffect, useState } from 'react';
-import { User } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
+import { getBrowserClient } from './supabase/browserClient';
 import { useRouter } from 'next/router';
 
 interface BanInfo {
@@ -43,12 +45,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Helper function to check ban status
   const checkBanStatus = async (userId: string) => {
+    const supabase = getBrowserClient();
     try {
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('banned, ban_type, ban_reason, ban_expiry, ban_count, last_ban_date')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error checking ban status:', error);
@@ -99,6 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Helper function to create profile
   const createProfile = async (userId: string, username: string) => {
+    const supabase = getBrowserClient();
     try {
       const { error } = await supabase
         .from('profiles')
@@ -123,18 +127,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // Get initial user and check ban status
+    const supabase = getBrowserClient();
+
+    // Get initial user and session
     const initializeAuth = async () => {
       try {
-        const { data: { user: currentUser }, error } = await supabase.auth.getUser();
-        if (error) throw error;
+        // First try to get the session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
-        setUser(currentUser);
-        
-        if (currentUser) {
-          const isBanned = await checkBanStatus(currentUser.id);
+        if (sessionError) {
+          console.error('Error getting session:', sessionError);
+          setLoading(false);
+          return;
+        }
+
+        // If we have a session, get the user
+        if (session) {
+          setUser(session.user);
+          
+          // Check ban status if we have a user
+          const isBanned = await checkBanStatus(session.user.id);
           if (isBanned) {
             router.replace('/banned');
+          }
+        } else {
+          // If no session, check if we have a stored session in localStorage
+          const storedSession = localStorage.getItem('supabase.auth.token');
+          if (storedSession) {
+            try {
+              // Try to recover the session
+              const { data: { session: recoveredSession }, error: recoverError } = await supabase.auth.setSession({
+                access_token: JSON.parse(storedSession).access_token,
+                refresh_token: JSON.parse(storedSession).refresh_token
+              });
+
+              if (recoverError) {
+                console.error('Error recovering session:', recoverError);
+                // Clear invalid stored session
+                localStorage.removeItem('supabase.auth.token');
+              } else if (recoveredSession) {
+                setUser(recoveredSession.user);
+                const isBanned = await checkBanStatus(recoveredSession.user.id);
+                if (isBanned) {
+                  router.replace('/banned');
+                }
+              }
+            } catch (error) {
+              console.error('Error parsing stored session:', error);
+              localStorage.removeItem('supabase.auth.token');
+            }
           }
         }
       } catch (error) {
@@ -147,50 +188,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initializeAuth();
 
     // Listen for auth changes with error handling
-    let subscription: { unsubscribe: () => void } | null = null;
-    
-    const setupAuthListener = async () => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       try {
-        const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(async (event) => {
-          // Get fresh user data on auth state change
-          const { data: { user: currentUser }, error } = await supabase.auth.getUser();
-          if (error) {
-            console.error('Error getting user:', error);
-            return;
-          }
-          
-          setUser(currentUser);
-          
-          if (currentUser) {
-            const isBanned = await checkBanStatus(currentUser.id);
-            if (isBanned) {
-              router.replace('/banned');
-            }
-          }
-
-          setLoading(false);
-
-          // Only redirect if the user is on login or logout pages
-          if (event === 'SIGNED_IN' && router.pathname === '/login') {
+        setUser(session?.user ?? null);
+        
+        // Only handle redirects for specific auth events
+        if (event === 'SIGNED_IN' && session) {
+          // Store session in localStorage when signing in
+          localStorage.setItem('supabase.auth.token', JSON.stringify({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token
+          }));
+          // Only redirect if we're on the login page
+          if (router.pathname === '/login') {
             router.push('/');
-          } else if (event === 'SIGNED_OUT' && router.pathname !== '/login') {
-            router.push('/login');
           }
-        });
-        subscription = sub;
+        } else if (event === 'SIGNED_OUT') {
+          // Clear stored session on sign out, but avoid auto-redirect on focus
+          localStorage.removeItem('supabase.auth.token');
+        } else if (event === 'TOKEN_REFRESHED' && session) {
+          // Update stored session on token refresh
+          localStorage.setItem('supabase.auth.token', JSON.stringify({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token
+          }));
+          // Check ban status on token refresh
+          const isBanned = await checkBanStatus(session.user.id);
+          if (isBanned) {
+            router.replace('/banned');
+          }
+        }
       } catch (error) {
-        console.error('Error setting up auth listener:', error);
-        // Retry after 5 seconds if WebSocket connection fails
-        setTimeout(setupAuthListener, 5000);
+        console.error('Error handling auth state change:', error);
+      } finally {
+        setLoading(false);
       }
-    };
-
-    setupAuthListener();
+    });
 
     return () => {
-      if (subscription) {
-        subscription.unsubscribe();
-      }
+      subscription.unsubscribe();
     };
   }, [router]);
 
@@ -276,11 +312,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!user) return;
       setProfileLoading(true);
       try {
+        const supabase = getBrowserClient();
         const { data: existingProfile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (profileError) {
           console.error('Error fetching profile:', profileError);
@@ -322,12 +359,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ensureProfile();
   }, [user, router]);
 
-  // Only render children after loading and profile creation are complete
-  if (loading || profileLoading) {
-    return <div className="p-8 text-center">Loading...</div>;
-  }
-
   const signIn = async (email: string, password: string) => {
+    const supabase = getBrowserClient();
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -346,6 +379,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUp = async (email: string, password: string, username: string) => {
+    const supabase = getBrowserClient();
     try {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
@@ -363,6 +397,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithOtp = async (email: string) => {
+    const supabase = getBrowserClient();
     try {
       const { error } = await supabase.auth.signInWithOtp({ email });
       if (error) throw error;
@@ -373,6 +408,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const verifyOtp = async (email: string, token: string) => {
+    const supabase = getBrowserClient();
     try {
       const { data: { user }, error } = await supabase.auth.verifyOtp({
         email,
@@ -415,6 +451,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    const supabase = getBrowserClient();
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;

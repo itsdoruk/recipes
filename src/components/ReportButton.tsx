@@ -88,12 +88,14 @@ export default function ReportButton({ recipeId, recipeType, onReportSubmitted }
       {isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-background border border-gray-200 dark:border-gray-800 p-6 rounded-xl max-w-md w-full mx-4">
-            <h2 className="text-xl mb-4">report recipe</h2>
+            <h2 className="text-xl mb-4">
+              {recipeType === 'user' ? 'report user' : 'report recipe'}
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="why are you reporting this recipe?"
+                placeholder={recipeType === 'user' ? 'why are you reporting this user?' : 'why are you reporting this recipe?'}
                 className="w-full min-h-[100px] px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none rounded-xl"
                 required
               />

@@ -8,7 +8,7 @@ export default function SettingsPage() {
         <title>settings | [recipes]</title>
       </Head>
 
-      <main className="max-w-2xl mx-auto px-4 py-8" style={{ background: String('var(--background)'), color: String('var(--foreground)') }}>
+      <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: String('var(--background)'), color: String('var(--foreground)') }}>
         <Settings />
       </main>
     </>

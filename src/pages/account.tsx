@@ -6,6 +6,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Avatar from '@/components/Avatar';
+import Modal from '@/components/Modal';
 
 interface Recipe {
   id: string;
@@ -13,6 +14,12 @@ interface Recipe {
   description: string;
   image_url: string | null;
   created_at: string;
+}
+
+interface BlockedUser {
+  user_id: string;
+  username: string | null;
+  avatar_url: string | null;
 }
 
 export default function AccountPage() {
@@ -33,7 +40,9 @@ export default function AccountPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [starredRecipes, setStarredRecipes] = useState<Recipe[]>([]);
-  const [following, setFollowing] = useState<any[]>([]);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+  const [showUnblockModal, setShowUnblockModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<BlockedUser | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -65,30 +74,30 @@ export default function AccountPage() {
         const { data: recipes } = await supabase
           .from('recipes')
           .select('id, title, description, image_url, created_at')
-          .in('id', starredData.map(s => s.recipe_id));
+          .in('id', starredData.map((s: { recipe_id: string }) => s.recipe_id));
         setStarredRecipes(recipes || []);
       }
     };
 
-    const fetchFollowing = async () => {
+    const fetchBlockedUsers = async () => {
       if (!user) return;
-      const { data: followingData } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', user.id);
+      const { data: blockedData } = await supabase
+        .from('blocked_users')
+        .select('blocked_user_id')
+        .eq('user_id', user.id);
 
-      if (followingData?.length) {
+      if (blockedData?.length) {
         const { data: profiles } = await supabase
           .from('profiles')
           .select('user_id, username, avatar_url')
-          .in('user_id', followingData.map(f => f.following_id));
-        setFollowing(profiles || []);
+          .in('user_id', blockedData.map((b: { blocked_user_id: string }) => b.blocked_user_id));
+        setBlockedUsers(profiles || []);
       }
     };
 
     fetchProfile();
     fetchStarredRecipes();
-    fetchFollowing();
+    fetchBlockedUsers();
   }, [user]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -156,6 +165,22 @@ export default function AccountPage() {
     setSuccess('avatar uploaded!');
   };
 
+  const handleUnblock = async (userId: string) => {
+    if (!user) return;
+    try {
+      await supabase
+        .from('blocked_users')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('blocked_user_id', userId);
+      setBlockedUsers(prev => prev.filter(u => u.user_id !== userId));
+      setShowUnblockModal(false);
+      setSelectedUser(null);
+    } catch (error) {
+      console.error('Error unblocking user:', error);
+    }
+  };
+
   if (!user) {
     return <div className="max-w-2xl mx-auto px-4 py-8">please sign in to view your account settings</div>;
   }
@@ -169,159 +194,212 @@ export default function AccountPage() {
       <Head>
         <title>account | [recipes]</title>
       </Head>
-      <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-        <h1 className="text-2xl mb-8">account</h1>
-        
-        <div className="space-y-8">
-          <form onSubmit={handleSave} className="space-y-6">
-            <div className="flex flex-col items-center gap-4">
-              <div className="relative w-24 h-24 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                <Avatar avatar_url={avatarUrl} username={form.username} size={96} />
-                {isUploading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
-                    <div className="text-white text-sm">{uploadProgress}%</div>
-                  </div>
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        <div className="rounded-2xl p-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+          <h1 className="text-2xl mb-8">account</h1>
+          
+          <div className="space-y-8">
+            <form onSubmit={handleSave} className="space-y-6">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative w-24 h-24 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+                  <Avatar avatar_url={avatarUrl} username={form.username} size={96} />
+                  {isUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
+                      <div className="text-white text-sm">{uploadProgress}%</div>
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  className=""
+                  disabled={isUploading}
+                />
+              </div>
+              <div>
+                <label className="block mb-2">username {form.is_private && '🔒'}</label>
+                <input
+                  type="text"
+                  value={form.username}
+                  onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
+                  className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block mb-2">bio</label>
+                <textarea
+                  value={form.bio}
+                  onChange={(e) => setForm(prev => ({ ...prev, bio: e.target.value }))}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity rounded-lg"
+                />
+              </div>
+              <div className="space-y-4">
+                <h2 className="text-xl">privacy</h2>
+                <div className="flex items-center justify-between">
+                  <label>private profile</label>
+                  <input
+                    type="checkbox"
+                    checked={form.is_private}
+                    onChange={(e) => setForm(prev => ({ ...prev, is_private: e.target.checked }))}
+                    className="w-4 h-4-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <label>show email</label>
+                  <input
+                    type="checkbox"
+                    checked={form.show_email}
+                    onChange={(e) => setForm(prev => ({ ...prev, show_email: e.target.checked }))}
+                    className="w-4 h-4-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={saving}
+                className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+              {error && (
+                <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl mb-4">
+                  <p className="text-red-500">{error}</p>
+                </div>
+              )}
+              {success && <p className="text-green-600">{success}</p>}
+            </form>
+
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+              <h2 className="text-xl mb-4">blocked users</h2>
+              {blockedUsers.length > 0 ? (
+                <div className="space-y-4">
+                  {blockedUsers.map((blockedUser) => (
+                    <div key={blockedUser.user_id} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-800 rounded-xl">
+                      <div className="flex items-center gap-4">
+                        <div className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center">
+                          <Avatar avatar_url={blockedUser.avatar_url} username={blockedUser.username} size={40} />
+                        </div>
+                        <div>
+                          <div className="font-medium">{blockedUser.username || '[recipes] user'}</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedUser(blockedUser);
+                          setShowUnblockModal(true);
+                        }}
+                        className="px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
+                        style={{ color: 'var(--accent)' }}
+                      >
+                        unblock
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400">no blocked users</p>
+              )}
+            </div>
+
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+              <h2 className="text-xl mb-4">starred recipes</h2>
+              <div className="space-y-4">
+                {starredRecipes.length > 0 ? (
+                  starredRecipes.map((recipe) => (
+                    <Link
+                      key={recipe.id}
+                      href={`/recipe/${recipe.id}`}
+                      className="flex items-center gap-3 h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
+                    >
+                      {recipe.image_url ? (
+                        <Image
+                          src={recipe.image_url}
+                          alt={recipe.title}
+                          width={24}
+                          height={24}
+                          className="object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+                      )}
+                      <span>{recipe.title}</span>
+                    </Link>
+                  ))
+                ) : (
+                  <p className="text-gray-500 dark:text-gray-400">no starred recipes yet</p>
                 )}
               </div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarUpload}
-                className=""
-                disabled={isUploading}
-              />
             </div>
-            <div>
-              <label className="block mb-2">username {form.is_private && '🔒'}</label>
-              <input
-                type="text"
-                value={form.username}
-                onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
-                className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block mb-2">bio</label>
-              <textarea
-                value={form.bio}
-                onChange={(e) => setForm(prev => ({ ...prev, bio: e.target.value }))}
-                rows={4}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity rounded-lg"
-              />
-            </div>
-            <div className="space-y-4">
-              <h2 className="text-xl">privacy</h2>
-              <div className="flex items-center justify-between">
-                <label>private profile</label>
-                <input
-                  type="checkbox"
-                  checked={form.is_private}
-                  onChange={(e) => setForm(prev => ({ ...prev, is_private: e.target.checked }))}
-                  className="w-4 h-4-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
+
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+              <h2 className="text-xl mb-4">account management</h2>
+              <div className="space-y-4">
+                <button
+                  onClick={() => router.push('/account/change-password')}
+                  className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left rounded-lg"
+                >
+                  change password
+                </button>
+                
+                <button
+                  onClick={() => router.push('/account/change-email')}
+                  className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left rounded-lg"
+                >
+                  change email
+                </button>
+
+                <button
+                  onClick={() => router.push('/account/delete')}
+                  className="w-full h-10 px-3 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity text-left rounded-lg"
+                >
+                  delete account
+                </button>
               </div>
-              <div className="flex items-center justify-between">
-                <label>show email</label>
-                <input
-                  type="checkbox"
-                  checked={form.show_email}
-                  onChange={(e) => setForm(prev => ({ ...prev, show_email: e.target.checked }))}
-                  className="w-4 h-4-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={saving}
-              className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-            {error && (
-              <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl mb-4">
-                <p className="text-red-500">{error}</p>
-              </div>
-            )}
-            {success && <p className="text-green-600">{success}</p>}
-          </form>
-
-          <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-            <h2 className="text-xl mb-4">following</h2>
-            <div className="space-y-4">
-              {following.length > 0 ? (
-                following.map((profile) => (
-                  <Link
-                    key={profile.user_id}
-                    href={`/user/${profile.user_id}`}
-                    className="flex items-center gap-3 h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-                  >
-                    <Avatar avatar_url={profile.avatar_url} username={profile.username} size={24} />
-                    <span>@{profile.username}</span>
-                  </Link>
-                ))
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400">not following anyone yet</p>
-              )}
-            </div>
-          </div>
-
-          <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-            <h2 className="text-xl mb-4">starred recipes</h2>
-            <div className="space-y-4">
-              {starredRecipes.length > 0 ? (
-                starredRecipes.map((recipe) => (
-                  <Link
-                    key={recipe.id}
-                    href={`/recipe/${recipe.id}`}
-                    className="flex items-center gap-3 h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity"
-                  >
-                    {recipe.image_url ? (
-                      <Image
-                        src={recipe.image_url}
-                        alt={recipe.title}
-                        width={24}
-                        height={24}
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-6 h-6 bg-gray-200 dark:bg-gray-700" />
-                    )}
-                    <span>{recipe.title}</span>
-                  </Link>
-                ))
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400">no starred recipes yet</p>
-              )}
-            </div>
-          </div>
-
-          <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-            <h2 className="text-xl mb-4">account management</h2>
-            <div className="space-y-4">
-              <button
-                onClick={() => router.push('/account/change-password')}
-                className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left"
-              >
-                change password
-              </button>
-              
-              <button
-                onClick={() => router.push('/account/change-email')}
-                className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity text-left"
-              >
-                change email
-              </button>
-
-              <button
-                onClick={() => router.push('/account/delete')}
-                className="w-full h-10 px-3 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity text-left"
-              >
-                delete account
-              </button>
             </div>
           </div>
         </div>
       </main>
+
+      {/* Unblock Modal */}
+      <Modal
+        isOpen={showUnblockModal}
+        onRequestClose={() => {
+          setShowUnblockModal(false);
+          setSelectedUser(null);
+        }}
+        contentLabel="Unblock User"
+        className="fixed inset-0 flex items-center justify-center z-50"
+        overlayClassName="fixed inset-0 bg-black/50"
+        ariaHideApp={false}
+      >
+        <div className="p-8 shadow-2xl max-w-lg w-full border rounded-xl" style={{ background: 'var(--background)', borderColor: 'var(--outline)', color: 'var(--foreground)' }}>
+          <h2 className="text-2xl font-bold mb-4">unblock user</h2>
+          <p className="mb-6">
+            are you sure you want to unblock {selectedUser?.username || 'this user'}? you will be able to see their content and interact with them again.
+          </p>
+          <div className="flex justify-end gap-4">
+            <button
+              onClick={() => {
+                setShowUnblockModal(false);
+                setSelectedUser(null);
+              }}
+              className="px-4 py-2 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
+              style={{ color: 'var(--foreground)', background: 'var(--background)' }}
+            >
+              cancel
+            </button>
+            <button
+              onClick={() => selectedUser && handleUnblock(selectedUser.user_id)}
+              className="px-4 py-2 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
+              style={{ color: 'var(--accent)', background: 'var(--background)' }}
+            >
+              unblock
+            </button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 } 

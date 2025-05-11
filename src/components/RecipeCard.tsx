@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import Avatar from './Avatar';
+import dynamic from 'next/dynamic';
+import ReportModal from './ReportModal';
 
 interface Profile {
   username: string | null;
@@ -22,11 +26,11 @@ interface RecipeCardProps {
   readyInMinutes?: number;
   link?: string;
   loading?: boolean;
-  recipeType?: 'ai' | 'spoonacular' | 'user';
+  recipeType?: 'user' | 'spoonacular' | 'ai';
   funDescription?: string;
 }
 
-export default function RecipeCard({
+function RecipeCardContent({
   id,
   title,
   description,
@@ -42,8 +46,12 @@ export default function RecipeCard({
   recipeType = 'user',
   funDescription,
 }: RecipeCardProps) {
+  const router = useRouter();
+  const { user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -67,6 +75,40 @@ export default function RecipeCard({
     };
     fetchProfile();
   }, [user_id]);
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(`/recipe/${id}/edit`);
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this recipe?')) return;
+
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('recipes')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      router.push('/');
+    } catch (err) {
+      console.error('Error deleting recipe:', err);
+      setError('Failed to delete recipe');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleReport = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsReportModalOpen(true);
+  };
 
   // Format description text
   const formatDescription = (text: string | null | undefined) => {
@@ -94,6 +136,13 @@ export default function RecipeCard({
       <div className="flex-1 flex flex-col p-4">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg line-clamp-1" style={{ color: "var(--foreground)" }}>{title}</h2>
+          {user && user.id !== user_id && recipeType === 'user' && (
+            <button
+              onClick={handleReport}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+            </button>
+          )}
         </div>
         {funDescription && (
           <p className="text-sm-600 dark:text-blue-400 mb-2 line-clamp-1">
@@ -116,7 +165,7 @@ export default function RecipeCard({
               className="text-sm font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate"
               style={{ color: "var(--foreground)" }}
             >
-              {profile?.username || 'anonymous'}
+              {profile?.username || '[recipes] user'}
             </Link>
             <div className="flex items-center gap-2">
               {cooking_time && (
@@ -142,13 +191,29 @@ export default function RecipeCard({
     return <div className={cardClass}>{cardContent}</div>;
   }
 
-  return link ? (
-    <Link href={link} className={cardClass}>
-      {cardContent}
-    </Link>
-  ) : (
-    <Link href={`/recipe/${id}`} className={cardClass}>
-      {cardContent}
-    </Link>
+  return (
+    <>
+      {link ? (
+        <Link href={link} className={cardClass}>
+          {cardContent}
+        </Link>
+      ) : (
+        <Link href={`/recipe/${id}`} className={cardClass}>
+          {cardContent}
+        </Link>
+      )}
+
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onRequestClose={() => setIsReportModalOpen(false)}
+        reportedRecipeId={id}
+        recipeType={recipeType}
+      />
+    </>
   );
 }
+
+// Export a dynamically imported version of the component
+export default dynamic(() => Promise.resolve(RecipeCardContent), {
+  ssr: false
+});
