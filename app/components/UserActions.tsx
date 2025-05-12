@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client'
+import React, { useState, useEffect } from 'react
+import { createClient } from '../../lib/supabase/client'
 
 const UserActions = ({ user, onBlock }) => {
   const supabase = createClient()
