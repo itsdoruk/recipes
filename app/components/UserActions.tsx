@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react
+import React, { useState, useEffect } from 'react';
 import { createClient } from '../../lib/supabase/client'
 
-const UserActions = ({ user, onBlock }) => {
+const UserActions = ({ user, onBlock }: { user: any; onBlock?: (isBlocked: boolean) => void }) => {
   const supabase = createClient()
   const [isBlocked, setIsBlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
