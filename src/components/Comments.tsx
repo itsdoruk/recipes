@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth';
+import { useUser } from '@supabase/auth-helpers-react';
 import { supabase } from '@/lib/supabase';
 import Avatar from './Avatar';
+import { useProfile } from '@/hooks/useProfile';
+import ReportButton from './ReportButton';
 
 interface Comment {
   id: string;
@@ -10,18 +12,17 @@ interface Comment {
   user_id: string;
   recipe_id: string;
   recipe_type: 'local' | 'spoonacular';
-  profiles: {
-    username: string;
-    avatar_url: string | null;
-  } | null;
+  username: string | null;
+  avatar_url: string | null;
 }
 
 interface CommentsProps {
   recipeId: string;
 }
 
-export function Comments({ recipeId }: CommentsProps) {
-  const { user } = useAuth();
+export default function Comments({ recipeId }: CommentsProps) {
+  const user = useUser();
+  const { profile: currentUserProfile } = useProfile();
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -31,36 +32,15 @@ export function Comments({ recipeId }: CommentsProps) {
 
   const fetchComments = async () => {
     try {
-      // First, get the comments
+      // First, get the comments with profile information
       const { data: commentsData, error: commentsError } = await supabase
-        .from('comments')
+        .from('comments_with_profile')
         .select('*')
         .eq('recipe_id', recipeId)
         .order('created_at', { ascending: false });
 
       if (commentsError) throw commentsError;
-
-      // Then, get the profiles for all comments
-      const userIds = commentsData?.map(comment => comment.user_id) || [];
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, username, avatar_url')
-        .in('user_id', userIds);
-
-      if (profilesError) throw profilesError;
-
-      // Create a map of user_id to profile
-      const profilesMap = new Map(
-        profilesData?.map(profile => [profile.user_id, profile]) || []
-      );
-
-      // Combine comments with profiles
-      const transformedComments = (commentsData || []).map(comment => ({
-        ...comment,
-        profiles: profilesMap.get(comment.user_id) || null
-      }));
-
-      setComments(transformedComments);
+      setComments(commentsData || []);
     } catch (error) {
       console.error('Error fetching comments:', error);
       setError('failed to load comments');
@@ -154,19 +134,29 @@ export function Comments({ recipeId }: CommentsProps) {
       
       {user ? (
         <form onSubmit={handleSubmit} className="space-y-4">
-          <textarea
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="write a comment..."
-            className="w-full min-h-[100px] px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none rounded-xl"
-          />
-          <button
-            type="submit"
-            disabled={isLoading || !newComment.trim()}
-            className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-xl"
-          >
-            {isLoading ? 'posting...' : 'post comment'}
-          </button>
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+              <Avatar avatar_url={currentUserProfile?.avatar_url} username={currentUserProfile?.username} size={40} />
+            </div>
+            <div className="flex-1">
+              <div className="mb-2">
+                <span className="font-medium">{currentUserProfile?.username}</span>
+              </div>
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="write a comment..."
+                className="w-full min-h-[100px] px-3 py-2 border border-outline bg-transparent focus:outline-none rounded-xl"
+              />
+              <button
+                type="submit"
+                disabled={isLoading || !newComment.trim()}
+                className="mt-2 px-3 py-2 border border-outline hover:opacity-80 transition-opacity disabled:opacity-50 rounded-xl"
+              >
+                {isLoading ? 'posting...' : 'post comment'}
+              </button>
+            </div>
+          </div>
           {error && (
             <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl mb-4">
               <p className="text-red-500 text-sm">{error}</p>
@@ -179,49 +169,54 @@ export function Comments({ recipeId }: CommentsProps) {
 
       <div className="space-y-4">
         {comments.map((comment) => (
-          <div key={comment.id} className="p-4 border border-gray-200 dark:border-gray-800 rounded-xl">
+          <div key={comment.id} className="p-4 border border-outline rounded-xl">
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
-                <Avatar avatar_url={comment.profiles?.avatar_url} username={comment.profiles?.username} size={40} />
+                <Avatar avatar_url={comment.avatar_url} username={comment.username} size={40} />
               </div>
               <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">
-                    {comment.profiles?.username || '[recipes] user'}
-                  </span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                <div className="mb-2">
+                  <span className="font-medium">{comment.username}</span>
+                </div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
                     {new Date(comment.created_at).toLocaleDateString()}
                   </span>
-                  {(user?.id === comment.user_id || user?.user_metadata?.is_admin) && (
-                    <div className="ml-auto flex gap-2">
-                      {user?.id === comment.user_id && (
-                        <button
-                          onClick={() => startEditing(comment)}
-                          className="text-sm px-2 py-1 border border-gray-200 dark:border-gray-800 hover:opacity-80 rounded-lg"
-                        >
-                          edit
-                        </button>
-                      )}
+                  <div className="ml-auto flex gap-2">
+                    {user?.id === comment.user_id && (
+                      <button
+                        onClick={() => startEditing(comment)}
+                        className="text-sm px-2 py-1 border border-outline hover:opacity-80 rounded-lg"
+                      >
+                        edit
+                      </button>
+                    )}
+                    {(user?.id === comment.user_id || user?.user_metadata?.is_admin) && (
                       <button
                         onClick={() => handleDelete(comment.id)}
                         className="text-sm px-2 py-1 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 rounded-lg"
                       >
                         delete
                       </button>
-                    </div>
-                  )}
+                    )}
+                    <ReportButton
+                      recipeId={comment.id}
+                      recipeType="message"
+                      className="text-sm px-2 py-1"
+                    />
+                  </div>
                 </div>
                 {editingComment === comment.id ? (
                   <div className="mt-2 space-y-2">
                     <textarea
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent focus:outline-none rounded-xl"
+                      className="w-full px-3 py-2 border border-outline bg-transparent focus:outline-none rounded-xl"
                     />
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEdit(comment.id)}
-                        className="px-3 py-1 text-sm border border-gray-200 dark:border-gray-800 hover:opacity-80 rounded-xl"
+                        className="px-3 py-1 text-sm border border-outline hover:opacity-80 rounded-xl"
                       >
                         save
                       </button>
@@ -230,7 +225,7 @@ export function Comments({ recipeId }: CommentsProps) {
                           setEditingComment(null);
                           setEditContent('');
                         }}
-                        className="px-3 py-1 text-sm border border-gray-200 dark:border-gray-800 hover:opacity-80 rounded-xl"
+                        className="px-3 py-1 text-sm border border-outline hover:opacity-80 rounded-xl"
                       >
                         cancel
                       </button>

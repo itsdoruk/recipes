@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { searchRecipes } from '@/lib/spoonacular';
 import RecipeCard from '@/components/RecipeCard';
 import useSWR from 'swr';
@@ -32,7 +32,7 @@ type Recipe = SpoonacularRecipe | LocalRecipe;
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) throw new Error('failed to fetch data');
-  return res.json();asd
+  return res.json();
 };
 
 export default function SearchPage() {
@@ -209,15 +209,15 @@ export default function SearchPage() {
             ) : (
               <RecipeCard
                 key={recipe.id}
-                id={recipe.id.toString()}
+                id={`spoonacular-${recipe.id}`}
                 title={recipe.title}
-                description={recipe.description || ''}
+                description={'summary' in recipe && typeof recipe.summary === 'string' ? recipe.summary : ''}
                 image_url={recipe.image}
                 user_id="spoonacular"
                 created_at={new Date().toISOString()}
-                cuisine_type={null}
+                cuisine_type={'cuisines' in recipe && Array.isArray(recipe.cuisines) && recipe.cuisines.length > 0 ? recipe.cuisines[0] : null}
                 cooking_time={recipe.readyInMinutes ? `${recipe.readyInMinutes} mins` : null}
-                diet_type={null}
+                diet_type={'diets' in recipe && Array.isArray(recipe.diets) && recipe.diets.length > 0 ? recipe.diets[0] : null}
               />
             )
           ))}

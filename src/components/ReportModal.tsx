@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useAuth } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { fetchWithAuth, postWithAuth } from '@/lib/api-helpers';
 import Modal from './Modal';
 
 interface ReportModalProps {
@@ -8,7 +8,7 @@ interface ReportModalProps {
   onRequestClose: () => void;
   reportedUserId?: string;
   reportedRecipeId?: string;
-  recipeType?: 'user' | 'spoonacular' | 'ai';
+  recipeType?: 'user' | 'spoonacular' | 'ai' | 'message';
   onReportSubmitted?: () => void;
 }
 
@@ -20,26 +20,94 @@ export default function ReportModal({
   recipeType,
   onReportSubmitted 
 }: ReportModalProps) {
-  const { user } = useAuth();
-  const [reason, setReason] = useState('');
+  const { user, session, refreshSession } = useAuth();
   const [details, setDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [authStatus, setAuthStatus] = useState<string>('checking');
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
+
+  // Check authentication status when modal opens
+  useEffect(() => {
+    let isMounted = true;
+    
+    if (isOpen && user && !authCheckComplete) {
+      const checkAuth = async () => {
+        try {
+          // Check auth status using the API endpoint
+          const response = await fetchWithAuth('/api/auth-status');
+          const data = await response.json();
+          
+          if (!isMounted) return;
+          
+          if (data.authenticated) {
+            console.log('API confirms authentication:', data.user.id);
+            setAuthStatus('authenticated');
+          } else {
+            console.log('API reports not authenticated:', data.message);
+            setAuthStatus('unauthenticated');
+            setError('Please log in to submit a report');
+          }
+        } catch (err) {
+          console.error('Error checking auth:', err);
+          if (!isMounted) return;
+          setAuthStatus('error');
+          setError('Authentication error. Please try logging in again.');
+        } finally {
+          if (isMounted) {
+            setAuthCheckComplete(true);
+          }
+        }
+      };
+      
+      checkAuth();
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, user, authCheckComplete]);
+
+  // Reset auth check when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setAuthCheckComplete(false);
+      setError(null);
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) {
+      setError('Please log in to submit a report');
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
 
     try {
+      console.log('Submitting report from modal with auth status:', authStatus);
+      
+      // Check auth status before proceeding
+      const authResponse = await fetchWithAuth('/api/auth-status');
+      const authData = await authResponse.json();
+      
+      if (!authData.authenticated) {
+        console.error('Not authenticated according to API:', authData.message);
+        throw new Error('Authentication check failed. Please try logging in again.');
+      }
+      
+      console.log('Authentication confirmed by API');
+      
+      // Try to refresh the session first
+      console.log('Refreshing session before submitting report');
+      await refreshSession();
+      
       const reportData = {
-        user_id: user.id,
-        reason,
+        reason: details,
         details,
-        status: 'pending' as const,
         ...(reportedUserId && { reported_user_id: reportedUserId }),
         ...(reportedRecipeId && { 
           recipe_id: reportedRecipeId,
@@ -47,11 +115,8 @@ export default function ReportModal({
         })
       };
 
-      const { error: reportError } = await supabase
-        .from('reports')
-        .insert(reportData);
-
-      if (reportError) throw reportError;
+      // Use the helper function for authenticated API requests
+      await postWithAuth('/api/reports', reportData);
 
       setSuccess(true);
       if (onReportSubmitted) {
@@ -60,7 +125,6 @@ export default function ReportModal({
       setTimeout(() => {
         onRequestClose();
         // Reset form state
-        setReason('');
         setDetails('');
         setSuccess(false);
       }, 2000);
@@ -73,15 +137,13 @@ export default function ReportModal({
   };
 
   const getTitle = () => {
-    if (reportedUserId) return 'report user';
-    if (reportedRecipeId) return 'report recipe';
+    if (reportedUserId) return 'user report';
+    if (reportedRecipeId) return 'recipe report';
     return 'report';
   };
 
   const getPlaceholder = () => {
-    if (reportedUserId) return 'why are you reporting this user?';
-    if (reportedRecipeId) return 'why are you reporting this recipe?';
-    return 'why are you reporting this?';
+    return 'Please describe the issue in detail';
   };
 
   return (
@@ -90,39 +152,39 @@ export default function ReportModal({
       onRequestClose={onRequestClose}
       contentLabel={getTitle()}
       className="fixed inset-0 flex items-center justify-center z-50"
-      overlayClassName="fixed inset-0 bg-black"
+      overlayClassName="fixed inset-0 bg-black/50"
       ariaHideApp={false}
     >
-      <div className="w-full max-w-xl border border-[var(--outline)] rounded-2xl bg-[var(--background)] p-10" style={{ color: 'var(--foreground)', boxShadow: 'none' }}>
-        <h2 className="text-2xl font-bold mb-8 text-left lowercase">{getTitle()}</h2>
+      <div className="w-full max-w-xl p-8 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-800" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
+        <h2 className="text-2xl mb-6">
+          {getTitle()}
+        </h2>
+        
         {success ? (
           <div className="text-center py-4">
-            <p className="text-green-600 mb-4">Report submitted successfully!</p>
-            <p className="text-sm text-gray-500">Thank you for helping keep our community safe.</p>
+            <p className="text-green-600 mb-2">report submitted successfully!</p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div>
-              <textarea
-                value={details}
-                onChange={(e) => setDetails(e.target.value)}
-                rows={5}
-                className="w-full px-4 py-3 border border-[var(--outline)] rounded-lg text-base text-[var(--foreground)] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--outline)] resize-none bg-[var(--background)]"
-                placeholder={getPlaceholder()}
-                disabled={isSubmitting}
-                style={{ minHeight: 110, maxHeight: 140 }}
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder={getPlaceholder()}
+              className="w-full min-h-[160px] px-4 py-3 rounded-xl text-base focus:outline-none focus:ring-2 resize-none border border-gray-200 dark:border-gray-800 bg-transparent"
+              required
+            />
+            
             {error && (
-              <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
-                <p className="text-red-500">{error}</p>
+              <div className="p-4 border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl mb-4">
+                <p className="text-red-500 text-sm">{error}</p>
               </div>
             )}
-            <div className="flex justify-between gap-6 mt-2">
+            
+            <div className="flex justify-end gap-4">
               <button
                 type="button"
                 onClick={onRequestClose}
-                className="w-1/2 py-2 border border-[var(--outline)] font-bold cursor-pointer rounded-lg text-base text-[var(--foreground)] bg-[var(--background)]"
+                className="px-5 py-3 rounded-xl text-base border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity"
                 disabled={isSubmitting}
               >
                 cancel
@@ -130,7 +192,7 @@ export default function ReportModal({
               <button
                 type="submit"
                 disabled={isSubmitting || !details.trim()}
-                className="w-1/2 py-2 border border-[var(--outline)] font-bold cursor-pointer rounded-lg text-base text-[var(--foreground)] bg-[var(--background)]"
+                className="px-5 py-3 rounded-xl text-base border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? 'submitting...' : 'submit report'}
               </button>

@@ -1,9 +1,9 @@
 import { useRouter } from 'next/router';
-import { useAuth } from '@/lib/auth';
+import { useUser } from '@supabase/auth-helpers-react';
 
 export default function AccountSettings() {
   const router = useRouter();
-  const { user } = useAuth();
+  const user = useUser();
 
   if (!user) {
     return (

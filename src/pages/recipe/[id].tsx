@@ -1,27 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { useAuth } from '@/lib/auth';
+import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { getRecipeById } from '@/lib/spoonacular';
-import { supabase } from '@/lib/supabase';
-import { Comments } from '@/components/Comments';
+import { getRecipeById } from '../../lib/spoonacular';
+import { getSupabaseClient } from '../../lib/supabase';
+import Comments from '../../components/Comments';
 import { GetServerSideProps } from 'next';
 import { marked } from 'marked';
-import StarButton from '@/components/StarButton';
-import ReportButton from '@/components/ReportButton';
-
-interface Profile {
-  username: string | null;
-  avatar_url: string | null;
-}
+import StarButton from '../../components/StarButton';
+import ReportButton from '../../components/ReportButton';
+import { useProfile } from '../../hooks/useProfile';
+import ShareButton from '@/components/ShareButton';
+import { cleanStepPrefix, extractRecipePropertiesFromMarkdown } from '@/lib/recipeUtils';
+import { parseRecipeId } from '@/lib/recipeIdUtils';
+import { RANDOM_CARD_IMG } from '@/lib/constants';
+import { generateRecipeId } from '@/lib/recipeIdUtils';
 
 function hasUserId(recipe: any): recipe is { user_id: string } {
   return recipe && typeof recipe.user_id === 'string';
 }
 
-function hasId(recipe: any): recipe is { id: string | number } {
+export function hasId(recipe: any): recipe is { id: string | number } {
   return recipe && (typeof recipe.id === 'string' || typeof recipe.id === 'number');
 }
 
@@ -30,7 +31,8 @@ function splitInstructions(instructions: string): string[] {
   return instructions
     .split(/\.|;|\n/)
     .map(step => step.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(step => cleanStepPrefix(step)); // Apply step prefix cleaning
 }
 
 interface Recipe {
@@ -70,39 +72,45 @@ interface Recipe {
 }
 
 interface RecipePageProps {
-  recipe: Recipe;
+  recipe: Recipe | null;
   lastUpdated: string;
+  error?: string;
 }
 
-export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
-  const router = useRouter();
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+// Utility function to extract nutrition from text
+function extractNutritionFromText(text: string) {
+  const result = { calories: 'N/A', protein: 'N/A', fat: 'N/A', carbohydrates: 'N/A' };
+  if (!text) return result;
+  const calMatch = text.match(/(\d+)\s*(?:calories|kcal|cal)/i);
+  // Match '10g protein', '10 grams protein', 'protein: 10g', 'protein: 10 grams'
+  const proteinMatch = text.match(/(?:protein\s*[:\-]?\s*)(\d+)(?:\s*(?:g|grams))?/i) || text.match(/(\d+)\s*(?:g|grams)?\s*protein/i);
+  const fatMatch = text.match(/(?:fat\s*[:\-]?\s*)(\d+)(?:\s*(?:g|grams))?/i) || text.match(/(\d+)\s*(?:g|grams)?\s*fat/i);
+  // Match 'carbohydrates', 'carbs', 'carbohydrate'
+  const carbMatch = text.match(/(?:carbohydrates?|carbs?)\s*[:\-]?\s*(\d+)(?:\s*(?:g|grams))?/i) || text.match(/(\d+)\s*(?:g|grams)?\s*(?:carbohydrates?|carbs?)/i);
+  if (calMatch) result.calories = calMatch[1];
+  if (proteinMatch) result.protein = proteinMatch[1];
+  if (fatMatch) result.fat = fatMatch[1];
+  if (carbMatch) result.carbohydrates = carbMatch[1];
+  return result;
+}
 
-  useEffect(() => {
-    if (!recipe.id) return;
-    const fetchProfile = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Fetch profile for user recipe
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('username, avatar_url')
-          .eq('user_id', recipe.user_id)
-          .single();
-        setProfile(profileData);
-      } catch (err) {
-        console.error('Error fetching profile:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchProfile();
-  }, [recipe.id]);
+// Utility to strip HTML tags
+function stripHtmlTags(str: string) {
+  if (!str) return '';
+  return str.replace(/<[^>]*>/g, '');
+}
+
+export default function RecipePage({ recipe, lastUpdated, error: serverError }: RecipePageProps) {
+  const router = useRouter();
+  const session = useSession();
+  const supabase = useSupabaseClient();
+  const user = session?.user || null;
+  const { profile, isLoading: isProfileLoading } = useProfile();
+  const [error, setError] = useState<string | null>(serverError || null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [recipeType, setRecipeType] = useState<'user' | 'ai' | 'spoonacular'>(
+    recipe?.id.toString().startsWith('spoonacular-') ? 'spoonacular' : 'user'
+  );
 
   const handleDelete = async () => {
     if (!recipe || !user || recipe.user_id !== user.id) return;
@@ -127,7 +135,7 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
     }
   };
 
-  if (isLoading) {
+  if (isProfileLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
         <p className="">loading...</p>
@@ -145,7 +153,7 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
     );
   }
 
-  const isOwner = user?.id && hasUserId(recipe) && user.id === (hasUserId(recipe) ? recipe.user_id : undefined);
+  const isOwner = user?.id && hasUserId(recipe) && user.id === recipe.user_id;
 
   return (
     <>
@@ -158,7 +166,7 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
         <meta name="last-modified" content={lastUpdated} />
       </Head>
 
-      <main className="max-w-2xl mx-auto px-4 py-8 rounded-xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      <main className="max-w-2xl mx-auto px-4 py-8">
         <div className="space-y-8">
           {recipe.image_url || recipe.image ? (
             <div className="relative w-full h-96 rounded-xl overflow-hidden">
@@ -172,80 +180,89 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
           ) : null}
 
           <div>
-            <div className="flex items-center justify-between">
-              <h1 className="text-3xl">{recipe.title}</h1>
-              <div className="flex items-center gap-2">
-                <StarButton recipeId={recipe.id} recipeType="user" />
-                <ReportButton 
-                  recipeId={recipe.id} 
-                  recipeType="user" 
-                  onReportSubmitted={() => {
-                    // Refresh the page to show updated reports
-                    router.reload();
-                  }} 
-                />
-              </div>
+            <h1 className="text-3xl mb-6">{recipe.title}</h1>
+            <div className="flex items-center gap-2 mb-2">
+              {recipeType === 'spoonacular' ? (
+                <>
+                  <span className="w-8 h-8 rounded-full bg-gray-800 text-gray-200 dark:bg-gray-700 dark:text-gray-200 flex items-center justify-center font-bold text-lg select-none">S</span>
+                  <span className="font-medium prose prose-invert">spoonacular</span>
+                </>
+              ) : recipeType === 'ai' || recipe.user_id === '00000000-0000-0000-0000-000000000000' ? (
+                <span className="font-medium prose prose-invert">AI Recipe</span>
+              ) : (
+                <>
+                  {profile?.avatar_url && (
+                    <img
+                      src={profile.avatar_url}
+                      alt={profile.username || '[recipes] user'}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  )}
+                  <Link
+                    href={`/user/${recipe.user_id}`}
+                    className="text-gray-500 dark:text-gray-400 hover:underline"
+                  >
+                    {profile?.username || '[recipes] user'}
+                  </Link>
+                </>
+              )}
+              <span className="text-gray-500 dark:text-gray-400">
+                • {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString() : ''}
+              </span>
+              {isOwner && hasId(recipe) && (
+                <div className="flex gap-2 ml-auto">
+                  <Link
+                    href={`/edit-recipe/${recipe.id}`}
+                    className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg flex items-center justify-center"
+                  >
+                    edit
+                  </Link>
+                  <button
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 text-red-500 dark:text-red-400 rounded-lg"
+                  >
+                    {isDeleting ? 'deleting...' : 'delete'}
+                  </button>
+                </div>
+              )}
             </div>
-            {profile && (
-              <div className="flex items-center gap-2 mt-4">
-                {profile.avatar_url && (
-                  <img
-                    src={profile.avatar_url}
-                    alt={profile.username || '[recipes] user'}
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                )}
-                <Link
-                  href={`/user/${recipe.user_id}`}
-                  className="text-gray-500 dark:text-gray-400 hover:underline"
-                >
-                  {profile.username || '[recipes] user'}
-                </Link>
-                <span className="text-gray-500 dark:text-gray-400">
-                  • {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString() : ''}
-                </span>
-                {isOwner && hasId(recipe) && (
-                  <div className="flex gap-2 ml-auto">
-                    <Link
-                      href={`/edit-recipe/${recipe.id}`}
-                      className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg flex items-center justify-center"
-                    >
-                      edit
-                    </Link>
-                    <button
-                      onClick={handleDelete}
-                      disabled={isDeleting}
-                      className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 text-red-500 dark:text-red-400 rounded-lg"
-                    >
-                      {isDeleting ? 'deleting...' : 'delete'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           <div>
             <h2 className="text-xl mb-4">description</h2>
-            <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: recipe.description || recipe.summary || '' }} />
+            <div className="prose prose-invert max-w-none">
+              {recipeType === 'ai'
+                ? (recipe.description && recipe.description !== 'A delicious dish you\'ll love!'
+                    ? recipe.description
+                    : <span className="italic text-gray-400">No description available.</span>)
+                : (recipeType === 'spoonacular'
+                    ? stripHtmlTags(recipe.description || recipe.summary || '')
+                    : (recipe.description || recipe.summary || <span className="italic text-gray-400">No description available.</span>))}
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-wrap gap-3 my-4">
             {/* Cuisine */}
-            <div>
-              <h3 className="text-sm text-gray-500 dark:text-gray-400">cuisine</h3>
-              <p className="">{recipe.cuisine_type || (recipe.cuisines && recipe.cuisines.length > 0 && recipe.cuisines.join(', ')) || 'N/A'}</p>
-            </div>
-            {/* Cooking Time */}
-            <div>
-              <h3 className="text-sm text-gray-500 dark:text-gray-400">cooking time</h3>
-              <p className="">{(recipe.cooking_time_value && recipe.cooking_time_unit) ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit}` : recipe.cooking_time || (recipe.readyInMinutes && recipe.readyInMinutes + ' mins') || 'N/A'}</p>
-            </div>
+            {(recipe.cuisine_type || (recipe.cuisines && recipe.cuisines.length > 0)) && (
+              <span className="px-4 py-1 rounded-full font-semibold text-sm pill-white">
+                {recipe.cuisine_type || (recipe.cuisines && recipe.cuisines.join(', '))}
+              </span>
+            )}
             {/* Diet */}
-            <div>
-              <h3 className="text-sm text-gray-500 dark:text-gray-400">diet</h3>
-              <p className="">{recipe.diet_type || (recipe.diets && recipe.diets.length > 0 && recipe.diets.join(', ')) || 'N/A'}</p>
-            </div>
+            {(recipe.diet_type || (recipe.diets && recipe.diets.length > 0)) && (
+              <span className="px-4 py-1 rounded-full font-semibold text-sm pill-white">
+                {recipe.diet_type || (recipe.diets && recipe.diets.join(', '))}
+              </span>
+            )}
+            {/* Cooking Time */}
+            {(recipe.cooking_time_value && recipe.cooking_time_unit) || recipe.cooking_time || recipe.readyInMinutes ? (
+              <span className="px-4 py-1 rounded-full font-semibold text-sm pill-white">
+                {(recipe.cooking_time_value && recipe.cooking_time_unit)
+                  ? `${recipe.cooking_time_value} ${recipe.cooking_time_unit}`
+                  : recipe.cooking_time || (recipe.readyInMinutes && recipe.readyInMinutes + ' mins')}
+              </span>
+            ) : null}
           </div>
 
           {/* Nutrition Section */}
@@ -253,18 +270,35 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
             <h2 className="text-xl mb-4 mt-8">nutrition</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: 'Calories', key: 'calories' },
-                { label: 'Protein', key: 'protein' },
-                { label: 'Fat', key: 'fat' },
-                { label: 'Carbohydrates', key: 'carbohydrates' }
-              ].map(({ label, key }) => {
+                { label: 'Calories', key: 'calories', spoonacularName: 'Calories' },
+                { label: 'Protein', key: 'protein', spoonacularName: 'Protein' },
+                { label: 'Fat', key: 'fat', spoonacularName: 'Fat' },
+                { label: 'Carbohydrates', key: 'carbohydrates', spoonacularName: 'Carbohydrates' }
+              ].map(({ label, key, spoonacularName }) => {
                 let value = 'N/A';
-                if (recipe[key as keyof typeof recipe]) {
+                // 1. Try Spoonacular nutrition
+                if (recipe.nutrition?.nutrients) {
+                  const nutrient = recipe.nutrition.nutrients.find(
+                    (n: any) => n.name === spoonacularName
+                  );
+                  if (nutrient) {
+                    value = `${Math.round(nutrient.amount)} ${nutrient.unit}`;
+                  }
+                }
+                // 2. Try local recipe nutrition
+                else if (recipe[key as keyof typeof recipe]) {
                   const nutritionValue = recipe[key as keyof typeof recipe];
                   if (typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
                     value = nutritionValue;
                   } else if (typeof nutritionValue === 'number') {
                     value = nutritionValue.toString();
+                  }
+                }
+                // 3. Fallback: extract from summary or description
+                else {
+                  const fallback = extractNutritionFromText(recipe.summary || recipe.description || '');
+                  if (fallback[key as keyof typeof fallback] && fallback[key as keyof typeof fallback] !== 'N/A') {
+                    value = fallback[key as keyof typeof fallback];
                   }
                 }
                 return (
@@ -304,7 +338,7 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
                 <ol className="list-decimal list-inside space-y-4">
                   {recipe.instructions.map((instruction: string, index: number) => (
                     <li key={index} className="">
-                      {instruction}
+                      {cleanStepPrefix(instruction)}
                     </li>
                   ))}
                 </ol>
@@ -317,6 +351,27 @@ export default function RecipePage({ recipe, lastUpdated }: RecipePageProps) {
               )}
             </div>
           )}
+
+          <div className="flex items-center gap-4">
+            <StarButton
+              recipeId={recipe.id.toString()}
+              recipeType={recipeType}
+            />
+            {recipeType === 'user' && (
+              <ReportButton
+                recipeId={recipe.id.toString()}
+                recipeType="user"
+              />
+            )}
+            <ShareButton
+              recipeId={recipe.id.toString()}
+              recipeTitle={recipe.title}
+              recipeType={recipeType}
+              url={typeof window !== 'undefined' ? window.location.href : ''}
+              title={recipe.title}
+              text={recipe.description}
+            />
+          </div>
 
           {hasId(recipe) && (
             <div className="mt-8">
@@ -333,14 +388,59 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   const { id } = params as { id: string };
 
   try {
+    const { source, id: originalId } = parseRecipeId(id);
+
+    // If it's a Spoonacular ID, fetch from the API
+    if (source === 'spoonacular') {
+      const recipe = await getRecipeById(id); // Pass the full ID with prefix
+      if (!recipe) {
+        return {
+          notFound: true,
+        };
+      }
+      return {
+        props: {
+          recipe: {
+            ...recipe,
+            id: id, // Keep the original ID with prefix
+            user_id: 'spoonacular'
+          },
+          lastUpdated: new Date().toISOString(),
+        },
+      };
+    }
+
+    // If it's an AI recipe ID (random-internet-), fetch from the API
+    if (id.startsWith('random-internet-')) {
+      try {
+        const response = await fetch(`/api/recipes/${id}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch AI recipe');
+        }
+        const recipe = await response.json();
+        return {
+          props: {
+            recipe,
+            lastUpdated: new Date().toISOString(),
+          },
+        };
+      } catch (error) {
+        console.error('Error fetching AI recipe:', error);
+        return {
+          notFound: true,
+        };
+      }
+    }
+
+    // If it's a local recipe, fetch from Supabase
+    const supabase = getSupabaseClient();
     const { data: recipe, error } = await supabase
       .from('recipes')
       .select('*')
       .eq('id', id)
       .single();
 
-    if (error) throw error;
-    if (!recipe) {
+    if (error || !recipe) {
       return {
         notFound: true,
       };
@@ -355,7 +455,33 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   } catch (error) {
     console.error('Error fetching recipe:', error);
     return {
-      notFound: true,
+      props: {
+        recipe: null,
+        lastUpdated: new Date().toISOString(),
+        error: 'Failed to fetch recipe',
+      },
     };
   }
 };
+
+// Add these utility functions
+function mapToAllowedCuisine(cuisine: string) {
+  if (!cuisine) return 'unknown';
+  cuisine = cuisine.toLowerCase();
+  const CUISINE_TYPES = [
+    'italian', 'mexican', 'asian', 'american', 'mediterranean',
+    'french', 'chinese', 'japanese', 'indian', 'thai', 'greek',
+    'spanish', 'british', 'turkish', 'korean', 'vietnamese', 'german', 'caribbean', 'african', 'middle eastern', 'russian', 'brazilian'
+  ];
+  return CUISINE_TYPES.find(type => cuisine.includes(type)) || 'unknown';
+}
+
+function mapToAllowedDiet(diet: string) {
+  if (!diet) return 'unknown';
+  diet = diet.toLowerCase();
+  const DIET_TYPES = [
+    'vegetarian', 'vegan', 'gluten-free', 'ketogenic', 'paleo',
+    'pescatarian', 'lacto-vegetarian', 'ovo-vegetarian', 'whole30', 'low-fodmap', 'dairy-free', 'nut-free', 'halal', 'kosher'
+  ];
+  return DIET_TYPES.find(type => diet.includes(type)) || 'unknown';
+}

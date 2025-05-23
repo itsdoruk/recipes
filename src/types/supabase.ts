@@ -9,77 +9,154 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          id: string
+          user_id: string
+          username: string | null
+          full_name: string | null
+          avatar_url: string | null
+          bio: string | null
+          is_private: boolean
+          show_email: boolean
+          is_admin: boolean
+          warnings: number
+          banned: boolean
+          ban_type: string | null
+          ban_reason: string | null
+          ban_expiry: string | null
+          last_ban_date: string | null
+          ban_count: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          username?: string | null
+          full_name?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          is_private?: boolean
+          show_email?: boolean
+          is_admin?: boolean
+          warnings?: number
+          banned?: boolean
+          ban_type?: string | null
+          ban_reason?: string | null
+          ban_expiry?: string | null
+          last_ban_date?: string | null
+          ban_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          username?: string | null
+          full_name?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          is_private?: boolean
+          show_email?: boolean
+          is_admin?: boolean
+          warnings?: number
+          banned?: boolean
+          ban_type?: string | null
+          ban_reason?: string | null
+          ban_expiry?: string | null
+          last_ban_date?: string | null
+          ban_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
       recipes: {
         Row: {
           id: string
           created_at: string
           title: string
           description: string
-          image_url: string | null
-          user_id: string
-          cuisine_type: string | null
-          cooking_time: number | null
-          diet_type: string | null
           ingredients: string[]
           instructions: string[]
-          calories: number | null
-          protein: number | null
-          fat: number | null
-          carbohydrates: number | null
+          nutrition: {
+            calories: string
+            protein: string
+            fat: string
+            carbohydrates: string
+          }
+          cuisine_type: string
+          diet_type: string
+          cooking_time: string
+          cooking_time_value?: number
+          recipe_type: 'user' | 'spoonacular' | 'ai'
+          user_id: string
+          is_starred: boolean
         }
         Insert: {
-          id?: string
+          id: string
           created_at?: string
           title: string
           description: string
-          image_url?: string | null
-          user_id: string
-          cuisine_type?: string | null
-          cooking_time?: number | null
-          diet_type?: string | null
           ingredients: string[]
           instructions: string[]
-          calories?: number | null
-          protein?: number | null
-          fat?: number | null
-          carbohydrates?: number | null
+          nutrition: {
+            calories: string
+            protein: string
+            fat: string
+            carbohydrates: string
+          }
+          cuisine_type: string
+          diet_type: string
+          cooking_time: string
+          cooking_time_value?: number
+          recipe_type: 'user' | 'spoonacular' | 'ai'
+          user_id: string
+          is_starred?: boolean
         }
         Update: {
           id?: string
           created_at?: string
           title?: string
           description?: string
-          image_url?: string | null
-          user_id?: string
-          cuisine_type?: string | null
-          cooking_time?: number | null
-          diet_type?: string | null
           ingredients?: string[]
           instructions?: string[]
-          calories?: number | null
-          protein?: number | null
-          fat?: number | null
-          carbohydrates?: number | null
+          nutrition?: {
+            calories: string
+            protein: string
+            fat: string
+            carbohydrates: string
+          }
+          cuisine_type?: string
+          diet_type?: string
+          cooking_time?: string
+          cooking_time_value?: number
+          recipe_type?: 'user' | 'spoonacular' | 'ai'
+          user_id?: string
+          is_starred?: boolean
         }
       }
-      blocked_users: {
+      starred_recipes: {
         Row: {
           id: string
-          user_id: string
-          blocked_user_id: string
           created_at: string
+          user_id: string
+          recipe_id: string
+          recipe_type: 'user' | 'spoonacular' | 'ai'
         }
         Insert: {
           id?: string
-          user_id: string
-          blocked_user_id: string
           created_at?: string
+          user_id: string
+          recipe_id: string
+          recipe_type: 'user' | 'spoonacular' | 'ai'
         }
         Update: {
           id?: string
-          user_id?: string
-          blocked_user_id?: string
           created_at?: string
+          user_id?: string
+          recipe_id?: string
+          recipe_type?: 'user' | 'spoonacular' | 'ai'
         }
       }
     }
@@ -93,4 +170,6 @@ export interface Database {
       [_ in never]: never
     }
   }
-} 
+}
+
+export type Profile = Database['public']['Tables']['profiles']['Row'];

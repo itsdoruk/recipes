@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  distDir: '.next',
   images: {
     remotePatterns: [
       {
@@ -9,12 +10,9 @@ const nextConfig = {
       },
     ],
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-   },
-  typescript: {
-    ignoreBuildErrors: true,
+  experimental: {
+    appDir: false,
   },
-}
-  
-module.exports = nextConfig; 
+};
+
+module.exports = nextConfig;

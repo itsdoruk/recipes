@@ -126,7 +126,7 @@ export default function TimerPage() {
                   stroke="currentColor"
                   strokeWidth="8"
                   fill="none"
-                  className="text-blue-500 dark:text-blue-400"
+                  className="text-gray-500 dark:text-gray-400"
                   strokeDasharray={circumference}
                   strokeDashoffset={strokeDashoffset}
                   strokeLinecap="round"
@@ -145,7 +145,7 @@ export default function TimerPage() {
                   value={inputHours}
                   onChange={(e) => setInputHours(e.target.value)}
                   placeholder="hours"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent rounded-lg"
+                  className="w-full px-3 py-2 border border-outline bg-[var(--background)] text-[var(--foreground)] rounded-lg"
                   disabled={isRunning}
                   min="0"
                 />
@@ -154,7 +154,7 @@ export default function TimerPage() {
                   value={inputMinutes}
                   onChange={(e) => setInputMinutes(e.target.value)}
                   placeholder="minutes"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent rounded-lg"
+                  className="w-full px-3 py-2 border border-outline bg-[var(--background)] text-[var(--foreground)] rounded-lg"
                   disabled={isRunning}
                   min="0"
                 />
@@ -163,20 +163,20 @@ export default function TimerPage() {
                 <button
                   onClick={handleStart}
                   disabled={isRunning || (!inputHours && !inputMinutes)}
-                  className="flex-1 min-w-[100px] px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-lg"
+                  className="flex-1 min-w-[100px] px-4 py-2 border border-outline bg-[var(--background)] text-[var(--foreground)] hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
                 >
                   start
                 </button>
                 <button
                   onClick={handleStop}
                   disabled={!isRunning}
-                  className="flex-1 min-w-[100px] px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-lg"
+                  className="flex-1 min-w-[100px] px-4 py-2 border border-outline bg-[var(--background)] text-[var(--foreground)] hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
                 >
                   stop
                 </button>
                 <button
                   onClick={handleReset}
-                  className="flex-1 min-w-[100px] px-4 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
+                  className="flex-1 min-w-[100px] px-4 py-2 border border-outline bg-[var(--background)] text-[var(--foreground)] hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
                 >
                   reset
                 </button>

@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
-import Navbar from './Navbar';
+import Navbar, { NAVBAR_HEIGHT } from './Navbar';
 import Footer from './Footer';
+import RefreshWarnings from './RefreshWarnings';
 
 interface LayoutProps {
   children: ReactNode;
@@ -8,9 +9,15 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+    <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main style={{ paddingTop: 80 }} className="flex-1">
+      <RefreshWarnings />
+      <main 
+        style={{ 
+          paddingTop: `calc(${NAVBAR_HEIGHT}px + var(--warning-banner-height, 0px))` 
+        }} 
+        className="flex-1"
+      >
         {children}
       </main>
       <Footer />

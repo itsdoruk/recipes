@@ -1,38 +1,22 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { createServerClient } from '@supabase/ssr';
+import { getServerClient } from '@/lib/supabase/serverClient';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  // Create authenticated Supabase client
-  const supabaseServer = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (name) => req.cookies[name],
-        set: (name, value, options) => {
-          res.setHeader('Set-Cookie', `${name}=${value}`);
-        },
-        remove: (name, options) => {
-          res.setHeader('Set-Cookie', `${name}=`);
-        },
-      },
-    }
-  );
-  
-  // Get the user session
-  const {
-    data: { session },
-  } = await supabaseServer.auth.getSession();
-
-  if (!session) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-
   try {
+    const supabase = getServerClient();
+    
+    // Get the session to check authentication
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('Session error:', sessionError);
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { message, preferences } = req.body;
 
     if (!message) {

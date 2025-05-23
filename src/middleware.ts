@@ -1,6 +1,7 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import type { Database } from '@/types/supabase'
 
 // Configure which routes the middleware should run on
 export const config = {
@@ -10,19 +11,18 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public folder
-     * - auth routes (login, signup, etc.)
+     * Feel free to modify this pattern to include more paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico|public|login|signup|banned).*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
-};
+}
 
-export async function middleware(req: NextRequest) {
+export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
-      headers: req.headers,
+      headers: request.headers,
     },
-  });
+  })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,66 +30,40 @@ export async function middleware(req: NextRequest) {
     {
       cookies: {
         get(name: string) {
-          return req.cookies.get(name)?.value;
+          return request.cookies.get(name)?.value
         },
-        set(name: string, value: string, options: CookieOptions) {
+        set(name: string, value: string, options: any) {
           response.cookies.set({
             name,
             value,
             ...options,
-          });
+          })
         },
-        remove(name: string, options: CookieOptions) {
+        remove(name: string, options: any) {
           response.cookies.set({
             name,
             value: '',
             ...options,
-          });
+          })
         },
       },
     }
-  );
+  )
 
-  // Check if user is authenticated
-  const { data: { user }, error } = await supabase.auth.getUser();
+  // Skip token validation in middleware
+  return response
+}
 
-  if (error) {
-    console.error('Error getting user:', error);
-    return response;
+function redirectToLogin(request: NextRequest) {
+  const baseUrl = request.nextUrl.origin
+  const redirectUrl = new URL('/login', baseUrl)
+  if (request.nextUrl.pathname !== '/login') {
+    redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
   }
+  return NextResponse.redirect(redirectUrl)
+}
 
-  if (user) {
-    // Check if user is banned
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('banned, ban_expiry, ban_type')
-      .eq('user_id', user.id)
-      .single();
-
-    if (profile?.banned) {
-      // Check if ban has expired
-      const isBanExpired = profile.ban_expiry && new Date(profile.ban_expiry) < new Date();
-      
-      if (!isBanExpired) {
-        // If user is banned and ban hasn't expired, redirect to banned page
-        // unless they're already on the banned page
-        if (req.nextUrl.pathname !== '/banned') {
-          return NextResponse.redirect(new URL('/banned', req.url));
-        }
-      } else {
-        // If ban has expired, update the profile to remove the ban
-        await supabase
-          .from('profiles')
-          .update({
-            banned: false,
-            ban_type: null,
-            ban_reason: null,
-            ban_expiry: null
-          })
-          .eq('user_id', user.id);
-      }
-    }
-  }
-
-  return response;
+function redirectToHome(request: NextRequest) {
+  const baseUrl = request.nextUrl.origin
+  return NextResponse.redirect(new URL('/', baseUrl))
 } 

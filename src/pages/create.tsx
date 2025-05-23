@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { useUser } from '@supabase/auth-helpers-react';
+import { getSupabaseClient } from '@/lib/supabase';
 import Image from "next/image";
 
 const CUISINE_TYPES = [
@@ -18,7 +18,7 @@ const DIET_TYPES = [
 
 export default function CreateRecipePage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const user = useUser();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -67,7 +67,7 @@ export default function CreateRecipePage() {
       const filePath = `${user?.id}/${fileName}`;
 
       // Upload the file
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await getSupabaseClient().storage
         .from('recipe-images')
         .upload(filePath, file);
 
@@ -80,7 +80,7 @@ export default function CreateRecipePage() {
       }
 
       // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = getSupabaseClient().storage
         .from('recipe-images')
         .getPublicUrl(filePath);
 
@@ -170,6 +170,7 @@ export default function CreateRecipePage() {
         description: description.trim(),
         image_url: finalImageUrl,
         user_id: user.id,
+        recipe_type: 'user',
         cuisine_type: cuisineType || null,
         cooking_time: cookingTimeValue ? `${cookingTimeValue} ${cookingTimeUnit}` : null,
         cooking_time_value: cookingTimeValue ? parseInt(cookingTimeValue) : null,
@@ -183,7 +184,7 @@ export default function CreateRecipePage() {
         carbohydrates: carbohydrates || 'unknown'
       };
 
-      const { data: recipe, error: insertError } = await supabase
+      const { data: recipe, error: insertError } = await getSupabaseClient()
         .from('recipes')
         .insert([recipeData])
         .select('id')
@@ -237,7 +238,7 @@ export default function CreateRecipePage() {
                   id="title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                   required
                   placeholder="enter recipe name"
                 />
@@ -251,7 +252,7 @@ export default function CreateRecipePage() {
                   id="description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                   rows={4}
                   required
                   placeholder="describe your recipe"
@@ -267,7 +268,7 @@ export default function CreateRecipePage() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-xl"
+                      className="px-3 py-2 border border-outline hover:opacity-80 transition-opacity rounded-xl"
                     >
                       upload image
                     </button>
@@ -275,7 +276,7 @@ export default function CreateRecipePage() {
                       type="url"
                       value={imageUrl}
                       onChange={(e) => setImageUrl(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                      className="flex-1 px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                       placeholder="or paste image url"
                     />
                   </div>
@@ -312,7 +313,7 @@ export default function CreateRecipePage() {
                       e.preventDefault();
                     }
                   }}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                   rows={4}
                   required
                   placeholder="list ingredients (one per line)"
@@ -332,7 +333,7 @@ export default function CreateRecipePage() {
                       e.preventDefault();
                     }
                   }}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                   rows={4}
                   required
                   placeholder="list steps (one per line)"
@@ -344,7 +345,7 @@ export default function CreateRecipePage() {
                   id="cuisine_type"
                   value={cuisineType}
                   onChange={(e) => setCuisineType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                 >
                   <option value="">select cuisine</option>
                   {CUISINE_TYPES.map((type) => (
@@ -363,7 +364,7 @@ export default function CreateRecipePage() {
                       const val = e.target.value.replace(/[^0-9]/g, '');
                       setCookingTimeValue(val);
                     }}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                    className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                     min="0"
                     placeholder="cooking time"
                     required
@@ -375,7 +376,7 @@ export default function CreateRecipePage() {
                     id="cooking_time_unit"
                     value={cookingTimeUnit}
                     onChange={(e) => setCookingTimeUnit(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                    className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                   >
                     <option value="seconds">seconds</option>
                     <option value="mins">minutes</option>
@@ -387,7 +388,7 @@ export default function CreateRecipePage() {
                   id="diet_type"
                   value={dietType}
                   onChange={(e) => setDietType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                 >
                   <option value="">select diet</option>
                   {DIET_TYPES.map((type) => (
@@ -410,7 +411,7 @@ export default function CreateRecipePage() {
                       id="calories"
                       value={calories}
                       onChange={(e) => setCalories(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                      className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                       placeholder="enter calories"
                     />
                   </div>
@@ -423,7 +424,7 @@ export default function CreateRecipePage() {
                       id="protein"
                       value={protein}
                       onChange={(e) => setProtein(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                        className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                         placeholder="enter protein"
                     />
                   </div>
@@ -436,7 +437,7 @@ export default function CreateRecipePage() {
                       id="fat"
                       value={fat}
                       onChange={(e) => setFat(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                      className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                       placeholder="enter fat"
                     />
                   </div>
@@ -449,7 +450,7 @@ export default function CreateRecipePage() {
                       id="carbohydrates"
                       value={carbohydrates}
                       onChange={(e) => setCarbohydrates(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-800 bg-transparent font-normal text-base leading-normal rounded-xl"
+                      className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
                       placeholder="enter carbohydrates"
                     />
                   </div>
@@ -467,7 +468,7 @@ export default function CreateRecipePage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 rounded-xl"
+                className="px-3 py-2 border border-outline hover:opacity-80 transition-opacity disabled:opacity-50 rounded-xl"
               >
                 {isSubmitting ? 'saving...' : 'save recipe'}
               </button>

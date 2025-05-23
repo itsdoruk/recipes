@@ -9,5 +9,10 @@ export default function handler(
   req: NextApiRequest,
   res: NextApiResponse<Data>,
 ) {
-  res.status(200).json({ name: "John Doe" });
+  try {
+    res.status(200).json({ name: "John Doe" });
+  } catch (error) {
+    console.error('API error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+  }
 }

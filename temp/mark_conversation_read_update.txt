@@ -1,0 +1,58 @@
+const markConversationAsRead = async () => {
+  if (!user || !id || !supabase) return;
+  
+  try {
+    console.log('Marking conversation as read:', id);
+    
+    // First try using the RPC function
+    try {
+      const { error } = await supabase
+        .rpc('mark_conversation_read', {
+          p_conversation_id: id,
+          p_user_id: user.id
+        });
+      
+      if (error) {
+        // Check if the function doesn't exist
+        if (error.message && error.message.includes('does not exist')) {
+          console.warn('mark_conversation_read function not found, falling back to direct method');
+          throw error;
+        } else {
+          console.error('Error marking conversation as read:', error);
+        }
+      } else {
+        console.log('Conversation marked as read successfully');
+      }
+    } catch (rpcError) {
+      // Fallback: Do it directly
+      console.log('Using direct method to mark conversation as read');
+      
+      // 1. Update messages to mark them as read
+      const { error: updateError } = await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('conversation_id', id)
+        .neq('sender_id', user.id)
+        .eq('is_read', false);
+        
+      if (updateError) {
+        console.error('Error updating messages as read:', updateError);
+      }
+      
+      // 2. Delete notification records
+      const { error: deleteError } = await supabase
+        .from('message_notifications')
+        .delete()
+        .eq('conversation_id', id)
+        .eq('user_id', user.id);
+        
+      if (deleteError) {
+        console.error('Error clearing message notifications:', deleteError);
+      } else {
+        console.log('Notifications cleared directly');
+      }
+    }
+  } catch (error) {
+    console.error('Error marking conversation as read:', error);
+  }
+}; 

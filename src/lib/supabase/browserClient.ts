@@ -32,9 +32,30 @@ const customStorage = isBrowser
 
 let supabase: ReturnType<typeof createBrowserClient> | null = null
 
+// Create a mock client for server-side rendering
+const createMockClient = () => ({
+  auth: {
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    getSession: () => Promise.resolve({ data: { session: null } }),
+    signOut: () => Promise.resolve({ error: null })
+  },
+  from: () => ({
+    select: () => ({
+      order: () => ({
+        eq: () => Promise.resolve({ data: [], error: null })
+      })
+    }),
+    insert: () => ({
+      select: () => ({
+        single: () => Promise.resolve({ data: null, error: null })
+      })
+    })
+  })
+})
+
 export const getBrowserClient = () => {
   if (!isBrowser) {
-    throw new Error('Supabase browser client can only be used in the browser.')
+    return createMockClient() as any
   }
 
   if (!supabase) {
@@ -54,7 +75,7 @@ export const getBrowserClient = () => {
           'x-application-name': 'my-neighborhood-app'
         }
       }
-    } as any) // Cast to any to avoid linter error about cookies property
+    } as any)
   }
 
   return supabase

@@ -15,6 +15,6 @@ export default async function handler(
     res.status(200).json({ hash: shortHash });
   } catch (error) {
     console.error('Failed to get commit hash:', error);
-    res.status(500).json({ error: 'Failed to get commit hash' });
+    res.status(500).json({ error: 'Failed to get commit hash', details: error instanceof Error ? error.message : String(error) });
   }
 } 

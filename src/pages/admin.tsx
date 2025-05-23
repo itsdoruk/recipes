@@ -1,44 +1,76 @@
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { useUser } from '@/lib/hooks/useUser';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
+import { checkAdminStatus } from '@/lib/admin';
+import { getBrowserClient } from '@/lib/supabase/browserClient';
+import { SupabaseClient } from '@supabase/supabase-js';
 import Modal from 'react-modal';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { Profile } from '@/types';
+import { Profile } from '@/types/supabase';
 import { toLower } from '@/utils/text';
 import Avatar from '@/components/Avatar';
+import ModalWrapper from '@/components/admin/ModalWrapper';
+import Link from 'next/link';
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
+import RefreshWarnings from '@/components/RefreshWarnings';
 
 // Lazy load modals
 const UserModal = lazy(() => import('@/components/admin/UserModal'));
 const WarningModal = lazy(() => import('@/components/admin/WarningModal'));
 const BulkWarningModal = lazy(() => import('@/components/admin/BulkWarningModal'));
 
-interface Recipe {
-  id: string;
-  title: string;
-  image_url: string;
-  created_at: string;
+type ProfileData = {
+  id?: string;
   user_id: string;
-}
+  username?: string;
+  full_name?: string;
+  email?: string | null;
+  avatar_url?: string | null;
+  is_admin?: boolean;
+  warnings?: number;
+  banned?: boolean;
+  ban_type?: string | null;
+  ban_reason?: string | null;
+  ban_expiry?: string | null;
+  last_ban_date?: string | null;
+  ban_count?: number;
+  created_at?: string;
+  updated_at?: string;
+  bio?: string;
+  is_private?: boolean;
+  show_email?: boolean;
+};
+
+type ProfileUpdate = Partial<ProfileData>;
+
+type ProfileResponse = {
+  user_id: string;
+  warnings: number;
+};
 
 export default function AdminPanel() {
   const router = useRouter();
-  const { user, loading } = useAuth();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const user = useUser();
+  const { session, loading: sessionLoading } = useAuth();
+  const { profile, isLoading: profileLoading, refreshProfile } = useProfile();
+  const supabase = useSupabaseClient();
   const [isLoading, setIsLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [users, setUsers] = useState<Profile[]>([]);
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [users, setUsers] = useState<ProfileData[]>([]);
+  const [recipes, setRecipes] = useState<any[]>([]);
   const [search, setSearch] = useState('');
-  const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
+  const [selectedUser, setSelectedUser] = useState<ProfileData | null>(null);
   const [userWarnings, setUserWarnings] = useState<any[]>([]);
   const [userActivity, setUserActivity] = useState<any[]>([]);
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [warningReason, setWarningReason] = useState('');
   const [showWarningModal, setShowWarningModal] = useState(false);
-  const [warningTargetUser, setWarningTargetUser] = useState<Profile | null>(null);
+  const [warningTargetUser, setWarningTargetUser] = useState<ProfileData | null>(null);
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [auditSearch, setAuditSearch] = useState('');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -49,162 +81,262 @@ export default function AdminPanel() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [reports, setReports] = useState<any[]>([]);
   const [reportStatus, setReportStatus] = useState<'pending' | 'reviewed' | 'resolved' | 'all'>('pending');
+  const [tab, setTab] = useState('users');
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [adminNotes, setAdminNotes] = useState('');
+  const [isAdminNotesModalOpen, setIsAdminNotesModalOpen] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(false);
 
-  useEffect(() => {
-    if (loading) return;
+  // Add a function to refresh the session
+  const refreshSessionBeforeApiCall = useCallback(async () => {
+    if (!supabase) return false;
+    
+    try {
+      console.log('Refreshing session before API call');
+      const { data, error } = await supabase.auth.refreshSession();
+      
+      if (error) {
+        console.error('Error refreshing session:', error);
+        return false;
+      }
+      
+      if (data && data.session) {
+        console.log('Session refreshed successfully');
+        return true;
+      } else {
+        console.error('No session after refresh');
+        return false;
+      }
+    } catch (err) {
+      console.error('Exception during session refresh:', err);
+      return false;
+    }
+  }, [supabase]);
 
-    if (!user) {
-      router.push('/login');
+  // Add a function to handle session loss and recovery
+  const ensureAuthenticatedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+    if (!session) {
+      console.error('No session available for fetch');
+      throw new Error('Authentication required');
+    }
+    
+    // First attempt with current session
+    try {
+      const response = await fetch(url, {
+        ...options,
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          ...(options.headers || {})
+        }
+      });
+      
+      if (response.status === 401) {
+        console.log('Received 401, attempting session refresh');
+        
+        // Try to refresh the session
+        const refreshed = await refreshSessionBeforeApiCall();
+        if (!refreshed || !session) {
+          throw new Error('Session refresh failed');
+        }
+        
+        // Retry with new token
+        return fetch(url, {
+          ...options,
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            ...(options.headers || {})
+          }
+        });
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('Fetch error:', error);
+      throw error;
+    }
+  }, [session, refreshSessionBeforeApiCall]);
+
+  const fetchReports = useCallback(async () => {
+    if (!supabase) return;
+    
+    // Check if we have a session before making the request
+    if (!session) {
+      console.error('No session available when trying to fetch reports');
+      setError('Authentication error - Please try refreshing the page');
       return;
     }
-
-    checkAdminStatus();
-    fetchAuditLog();
-  }, [user, loading, router]);
-
-  const checkAdminStatus = async () => {
+    
     try {
-      setIsLoading(true);
+      console.log('Fetching reports with session:', session.user.id);
+      
+      // Use the ensureAuthenticatedFetch helper if available, or fall back to regular fetch
+      const fetchFunc = typeof ensureAuthenticatedFetch === 'function' 
+        ? ensureAuthenticatedFetch 
+        : (url: string) => fetch(url, {
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': session?.access_token ? `Bearer ${session.access_token}` : ''
+            }
+          });
+      
+      const response = await fetchFunc(
+        `/api/reports${reportStatus !== 'all' ? `?status=${reportStatus}` : ''}`
+      );
+      
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { message: await response.text() };
+        }
+        console.error('Error response from reports API:', errorData);
+        throw new Error(errorData.message || 'Failed to fetch reports');
+      }
+      
+      const data = await response.json();
+      setReports(data || []);
+    } catch (err) {
+      console.error('Error in fetchReports:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch reports');
+    }
+  }, [supabase, reportStatus, session, ensureAuthenticatedFetch]);
+
+  const fetchAuditLog = useCallback(async () => {
+    if (!supabase || !user) return;
+    try {
       const { data, error } = await supabase
-        .from('profiles')
+        .from('admin_audit_log')
         .select('*')
-        .eq('user_id', user?.id)
-        .single();
+        .order('created_at', { ascending: false });
 
-      if (error) throw error;
-
-      if (!data?.is_admin) {
-        router.push('/');
+      if (error) {
+        console.error('Error fetching audit log:', error);
         return;
       }
 
-      setIsAdmin(true);
-      fetchData();
+      setAuditLog(data || []);
     } catch (err) {
-      console.error('Error checking admin status:', err);
-      router.push('/');
-    } finally {
-      setIsLoading(false);
+      console.error('Error in fetchAuditLog:', err);
     }
-  };
+  }, [supabase, user]);
 
   const fetchData = useCallback(async () => {
+    if (!supabase || !user) return;
+
     try {
-      setError(null);
+      const [usersResponse, recipesResponse] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        supabase.from('recipes').select('*')
+      ]);
 
-      // Fetch users with pagination
-      const { data: usersData, error: usersError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
+      if (usersResponse.error) throw usersResponse.error;
+      if (recipesResponse.error) throw recipesResponse.error;
 
-      if (usersError) throw usersError;
-      setUsers(usersData || []);
-
-      // Fetch recipes with pagination
-      const { data: recipesData, error: recipesError } = await supabase
-        .from('recipes')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (recipesError) throw recipesError;
-      setRecipes(recipesData || []);
-
-      // Fetch reports with proper join
-      const { data: reportsData, error: reportsError } = await supabase
-        .from('reports')
-        .select(`
-          id,
-          created_at,
-          status,
-          reason,
-          recipe_type,
-          user_id,
-          profiles (
-            username,
-            avatar_url
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (reportsError) {
-        console.error('Reports fetch error:', reportsError);
-        throw reportsError;
-      }
-      setReports(reportsData || []);
+      setUsers(usersResponse.data || []);
+      setRecipes(recipesResponse.data || []);
     } catch (err) {
       console.error('Error fetching data:', err);
-      setError('failed to fetch data. please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to fetch data');
     }
-  }, []);
+  }, [supabase, user]);
 
-  const fetchAuditLog = useCallback(async () => {
-    const { data } = await supabase
-      .from('admin_audit_log')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50);
-    setAuditLog(data || []);
-  }, []);
+  // Handle authentication and admin check
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (sessionLoading || profileLoading) {
+        console.log('Still loading session or profile...');
+        return;
+      }
+      
+      if (!session) {
+        console.log('No session found, redirecting to login');
+        router.push('/login?redirectTo=/admin');
+        return;
+      }
 
-  const logAdminAction = async (action: string, targetUserId: string, details: any = {}) => {
-    try {
-      // For report-related actions, use a system user ID
-      if (action.startsWith('report_') || action === 'delete_report') {
-        targetUserId = '00000000-0000-0000-0000-000000000000';
-      } else {
-        // For user-related actions, verify the user exists
-      const { data: targetUser, error: userError } = await supabase
-        .from('profiles')
-        .select('user_id')
-        .eq('user_id', targetUserId)
-        .single();
+      try {
+        // First check if user has a profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('user_id', session.user.id)
+          .single();
 
-      if (userError) {
-        console.error('Error checking target user:', userError);
-          // If the user doesn't exist, use system user ID
-        targetUserId = '00000000-0000-0000-0000-000000000000';
+        if (profileError) {
+          console.error('Error fetching profile:', profileError);
+          router.push('/');
+          return;
         }
-      }
 
-      // Insert the log entry
+        if (!profileData?.is_admin) {
+          console.log('User is not an admin, redirecting to home');
+          router.push('/');
+          return;
+        }
+
+        // If we get here, user is authenticated and is an admin
+        console.log('User is authenticated and is an admin');
+        setIsAdmin(true);
+        setIsLoading(false);
+        
+        // Fetch initial data
+        await Promise.all([
+          fetchData(),
+          fetchAuditLog(),
+          fetchReports()
+        ]);
+      } catch (err) {
+        console.error('Error in admin check:', err);
+        setError('Failed to verify admin status');
+        router.push('/');
+      }
+    };
+
+    checkAdminStatus();
+  }, [session, sessionLoading, profileLoading, router, fetchData, fetchAuditLog, fetchReports, supabase]);
+
+  // Add a useEffect to fetch audit log when the tab changes to 'audit'
+  useEffect(() => {
+    if (tab === 'audit') {
+      fetchAuditLog();
+    }
+  }, [tab, fetchAuditLog]);
+
+  // Add a useEffect to fetch reports when the tab changes to 'reports'
+  useEffect(() => {
+    if (tab === 'reports') {
+      fetchReports();
+    }
+  }, [tab, fetchReports]);
+
+  const logAdminAction = useCallback(async (action: string, targetUserId?: string, details: any = {}) => {
+    if (!supabase || !user) return;
+    try {
       const { error: insertError } = await supabase
-        .from('admin_audit_log')
-        .insert({
-          admin_id: user?.id,
-          action,
-          target_user_id: targetUserId,
-          details,
-          created_at: new Date().toISOString()
+        .rpc('log_admin_action', {
+          p_admin_id: user.id,
+          p_action: action,
+          p_target_user_id: targetUserId,
+          p_details: details
         });
-      
-      if (insertError) {
-        console.error('Error inserting audit log:', insertError);
-        throw new Error(`Failed to log admin action: ${insertError.message}`);
-      }
 
-      // Update local audit log immediately
-      const newLog = {
-        id: Date.now().toString(), // Temporary ID for local state
-        admin_id: user?.id,
-        action,
-        target_user_id: targetUserId,
-        details,
-        created_at: new Date().toISOString()
-      };
-      
-      setAuditLog(prev => [newLog, ...prev]);
+      if (insertError) {
+        console.error('Error logging admin action:', insertError);
+      }
     } catch (err) {
       console.error('Error in logAdminAction:', err);
-      setError(err instanceof Error ? err.message : 'failed to log admin action');
-      // Don't throw the error, just log it and continue
-      // This way, even if logging fails, the main action (ban/warning) can still succeed
     }
-  };
+  }, [supabase, user]);
 
-  const handleDeleteUser = async (userId: string) => {
+  const handleDeleteUser = useCallback(async (userId: string) => {
+    if (!supabase) return;
+
     if (!confirm('Are you sure you want to delete this user?')) return;
 
     try {
@@ -220,9 +352,11 @@ export default function AdminPanel() {
     } catch (err) {
       console.error('Error deleting user:', err);
     }
-  };
+  }, [supabase, fetchData, logAdminAction]);
 
-  const handleDeleteRecipe = async (recipeId: string) => {
+  const handleDeleteRecipe = useCallback(async (recipeId: string) => {
+    if (!supabase) return;
+
     if (!confirm('Are you sure you want to delete this recipe?')) return;
 
     try {
@@ -237,9 +371,10 @@ export default function AdminPanel() {
     } catch (err) {
       console.error('Error deleting recipe:', err);
     }
-  };
+  }, [supabase, fetchData]);
 
   const handleBanToggle = async (userId: string, banned: boolean) => {
+    if (!supabase) return;
     try {
       // Get current user data
       const { data: userData, error: userError } = await supabase
@@ -251,7 +386,7 @@ export default function AdminPanel() {
       if (userError) throw userError;
 
       // Prepare update data
-      const updateData: Partial<Profile> = {
+      const updateData: Partial<ProfileData> = {
         banned: !banned,
         ban_type: !banned ? 'permanent' : null,
         ban_reason: !banned ? 'Admin action' : null,
@@ -270,19 +405,22 @@ export default function AdminPanel() {
 
       // Add to ban history
       if (!banned) {
-        const { error: historyError } = await supabase
-          .from('ban_history')
-          .insert({
-            user_id: userId,
-            admin_id: user?.id,
-            ban_type: 'permanent',
-            reason: 'Admin action',
-            ban_start: new Date().toISOString(),
-            is_active: true
-          });
+        try {
+          const { error: historyError } = await supabase
+            .rpc('add_to_ban_history', {
+              p_user_id: userId,
+              p_admin_id: user?.id,
+              p_ban_type: 'permanent',
+              p_reason: 'Admin action',
+              p_ban_start: new Date().toISOString(),
+              p_ban_end: null
+            });
 
-        if (historyError) {
-          console.error('Error adding to ban history:', historyError);
+          if (historyError) {
+            console.error('Error adding to ban history:', historyError);
+          }
+        } catch (addError) {
+          console.error('Error calling add_to_ban_history:', addError);
         }
       }
 
@@ -292,10 +430,7 @@ export default function AdminPanel() {
       ));
 
       // Log the action
-      await logAdminAction(banned ? 'unban' : 'ban', userId, {
-        ban_type: updateData.ban_type,
-        ban_reason: updateData.ban_reason
-      });
+      await logAdminAction(banned ? 'unban' : 'ban', userId, {});
 
       // Refresh data to ensure consistency
       await fetchData();
@@ -306,6 +441,7 @@ export default function AdminPanel() {
   };
 
   const handleWarningChange = async (userId: string, warnings: boolean, delta: number) => {
+    if (!supabase) return;
     try {
       const newWarnings = Math.max(0, (warnings ? 1 : 0) + delta);
       const { error } = await supabase
@@ -320,6 +456,7 @@ export default function AdminPanel() {
   };
 
   const handleBanExpiryChange = async (userId: string, date: Date | null) => {
+    if (!supabase) return;
     try {
       // Get current user data
       const { data: userData, error: userError } = await supabase
@@ -331,7 +468,7 @@ export default function AdminPanel() {
       if (userError) throw userError;
 
       // Prepare update data
-      const updateData: Partial<Profile> = {
+      const updateData: Partial<ProfileData> = {
         ban_expiry: date ? date.toISOString() : null,
         banned: !!date,
         ban_type: date ? 'temporary' : null,
@@ -350,20 +487,22 @@ export default function AdminPanel() {
 
       // Add to ban history if setting a ban
       if (date) {
-        const { error: historyError } = await supabase
-          .from('ban_history')
-          .insert({
-            user_id: userId,
-            admin_id: user?.id,
-            ban_type: 'temporary',
-            reason: 'Temporary ban',
-            ban_start: new Date().toISOString(),
-            ban_end: date.toISOString(),
-            is_active: true
-          });
+        try {
+          const { error: historyError } = await supabase
+            .rpc('add_to_ban_history', {
+              p_user_id: userId,
+              p_admin_id: user?.id,
+              p_ban_type: 'temporary',
+              p_reason: 'Temporary ban',
+              p_ban_start: new Date().toISOString(),
+              p_ban_end: date.toISOString()
+            });
 
-        if (historyError) {
-          console.error('Error adding to ban history:', historyError);
+          if (historyError) {
+            console.error('Error adding to ban history:', historyError);
+          }
+        } catch (addError) {
+          console.error('Error calling add_to_ban_history:', addError);
         }
       }
 
@@ -385,29 +524,41 @@ export default function AdminPanel() {
   };
 
   // Optimize user modal opening
-  const openUserModal = useCallback(async (user: Profile) => {
+  const openUserModal = useCallback(async (user: ProfileData) => {
+    if (!supabase) {
+      console.error("Supabase client is not initialized");
+      return;
+    }
+    
     setSelectedUser(user);
     setUserModalOpen(true);
+    
     // Fetch warnings and activity in parallel
-    const [warningsResponse, activityResponse] = await Promise.all([
-      supabase
-        .from('warnings')
-        .select('*')
-        .eq('user_id', user.user_id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('recipes')
-        .select('id, title, created_at')
-        .eq('user_id', user.user_id)
-        .order('created_at', { ascending: false })
-        .limit(5)
-    ]);
-    setUserWarnings(warningsResponse.data || []);
-    setUserActivity(activityResponse.data || []);
-  }, []);
+    try {
+      const [warningsResponse, activityResponse] = await Promise.all([
+        supabase
+          .from('warnings')
+          .select('*')
+          .eq('user_id', user.user_id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('recipes')
+          .select('id, title, created_at')
+          .eq('user_id', user.user_id)
+          .order('created_at', { ascending: false })
+          .limit(5)
+      ]);
+      setUserWarnings(warningsResponse.data || []);
+      setUserActivity(activityResponse.data || []);
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      setUserWarnings([]);
+      setUserActivity([]);
+    }
+  }, [supabase]);
 
   // Optimize warning modal
-  const openWarningModal = useCallback((user: Profile) => {
+  const openWarningModal = useCallback((user: ProfileData) => {
     setWarningTargetUser(user);
     setWarningReason('');
     setShowWarningModal(true);
@@ -430,27 +581,30 @@ export default function AdminPanel() {
     setBulkWarningReason('');
   }, []);
 
-  const handleAddWarning = async () => {
+  const handleAddWarning = useCallback(async () => {
     if (!warningTargetUser || !warningReason.trim()) return;
     try {
-      // First add the warning record
-      const { error: warningError } = await supabase
-        .from('warnings')
-        .insert({
+      // Use our new API endpoint instead of direct Supabase calls
+      const response = await ensureAuthenticatedFetch('/api/warnings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           user_id: warningTargetUser.user_id,
-          admin_id: user?.id,
           reason: warningReason.trim()
-        });
-      if (warningError) throw warningError;
+        }),
+      });
 
-      // Then update the user's warning count
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ 
-          warnings: (warningTargetUser.warnings || 0) + 1 
-        })
-        .eq('user_id', warningTargetUser.user_id);
-      if (profileError) throw profileError;
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { message: await response.text() };
+        }
+        throw new Error(errorData.error || 'Failed to add warning');
+      }
 
       // Update local state immediately
       setUsers(prev => prev.map(u => 
@@ -463,12 +617,66 @@ export default function AdminPanel() {
       if (selectedUser && selectedUser.user_id === warningTargetUser.user_id) {
         openUserModal({ ...selectedUser, warnings: (selectedUser.warnings || 0) + 1 });
       }
-      await logAdminAction('add_warning', warningTargetUser.user_id, { reason: warningReason.trim() });
     } catch (err) {
       console.error('Error adding warning:', err);
       setError('failed to add warning');
     }
-  };
+  }, [warningTargetUser, warningReason, selectedUser, openUserModal, ensureAuthenticatedFetch]);
+
+  const handleRemoveWarning = useCallback(async (userId: string) => {
+    if (!userId) return;
+    try {
+      setIsSaving(true);
+      
+      // Use our new API endpoint for removing warnings
+      const response = await ensureAuthenticatedFetch(`/api/warnings?user_id=${userId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { message: await response.text() };
+        }
+        throw new Error(errorData.error || 'Failed to remove warning');
+      }
+
+      const data = await response.json();
+
+      // Update local state immediately
+      setUsers(prev => prev.map(u => 
+        u.user_id === userId 
+          ? { ...u, warnings: data.warnings_remaining } 
+          : u
+      ));
+
+      // Update selected user if it's the same one
+      if (selectedUser && selectedUser.user_id === userId) {
+        setSelectedUser(prev => prev ? { ...prev, warnings: data.warnings_remaining } : null);
+      }
+
+      // Log the action
+      await logAdminAction('remove_warning', userId, { 
+        warnings_remaining: data.warnings_remaining 
+      });
+      
+      // Trigger a refresh of the profile data
+      setRefreshTrigger(prev => !prev);
+      
+      // Show success message
+      setSaveMessage('Warning removed successfully');
+      setTimeout(() => setSaveMessage(null), 3000);
+      
+      setIsSaving(false);
+    } catch (err) {
+      console.error('Error removing warning:', err);
+      setError('Failed to remove warning');
+      setTimeout(() => setError(null), 3000);
+      setIsSaving(false);
+    }
+  }, [ensureAuthenticatedFetch, selectedUser, logAdminAction]);
 
   const toggleUserSelection = (userId: string) => {
     setSelectedUserIds(prev => prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]);
@@ -482,214 +690,138 @@ export default function AdminPanel() {
     setSelectedUserIds([]);
   };
 
-  const handleBulkBan = async (ban: boolean) => {
+  const handleBulkBan = useCallback(async (selectedUserIds: string[], banned: boolean) => {
+    if (!supabase) return;
     try {
-      // First verify all users exist
       const { data: usersData, error: usersError } = await supabase
         .from('profiles')
         .select('user_id, banned')
         .in('user_id', selectedUserIds);
 
-      if (usersError) {
-        console.error('Error fetching users:', usersError);
-        throw new Error(`Failed to fetch users: ${usersError.message}`);
-      }
-      if (!usersData || usersData.length !== selectedUserIds.length) {
-        throw new Error('Some users not found');
-      }
+      if (usersError) throw usersError;
 
-      // Prepare update data
-      const updateData: Partial<Profile> = {
-        banned: ban,
-        ban_type: ban ? ('permanent' as const) : null,
-        ban_reason: ban ? 'Bulk admin action' : null,
-        ban_expiry: null,
-        last_ban_date: ban ? new Date().toISOString() : null
-      };
-
-      // Update all selected users in a single query
+      const updateData: ProfileUpdate = { banned };
       const { error: updateError } = await supabase
         .from('profiles')
         .update(updateData)
         .in('user_id', selectedUserIds);
 
-      if (updateError) {
-        console.error('Error in bulk ban/unban:', updateError);
-        throw new Error(`Failed to update ban status: ${updateError.message}`);
-      }
+      if (updateError) throw updateError;
 
-      // Add to ban history for each user
-      if (ban) {
-        const banHistoryEntries = selectedUserIds.map(userId => ({
-          user_id: userId,
-          admin_id: user?.id,
-          ban_type: 'permanent' as const,
-          reason: 'Bulk admin action',
-          ban_start: new Date().toISOString(),
-          is_active: true
-        }));
-
-        const { error: historyError } = await supabase
-          .from('ban_history')
-          .insert(banHistoryEntries);
-
-        if (historyError) {
-          console.error('Error adding to ban history:', historyError);
-        }
-      }
-
-      // Update local state immediately
-      setUsers(prev => prev.map(u => 
-        selectedUserIds.includes(u.user_id) 
-          ? { ...u, ...updateData } 
-          : u
-      ));
-
-      // Log each action
       for (const userId of selectedUserIds) {
-        await logAdminAction(ban ? 'ban' : 'unban', userId, { 
-          bulk: true,
-          ban_type: updateData.ban_type,
-          ban_reason: updateData.ban_reason,
-          previous_status: !ban,
-          new_status: ban
-        });
+        await logAdminAction(banned ? 'ban' : 'unban', userId);
       }
       clearSelectedUsers();
+      await fetchData();
     } catch (err) {
-      console.error('Error in handleBulkBan:', err);
+      console.error('Error in bulk ban:', err);
       setError(err instanceof Error ? err.message : 'failed to update ban status');
     }
-  };
+  }, [supabase, selectedUserIds, logAdminAction, fetchData]);
 
-  const handleBulkWarning = async () => {
-    if (!bulkWarningReason.trim()) return;
+  const handleBulkWarning = useCallback(async () => {
+    if (!bulkWarningReason.trim() || selectedUserIds.length === 0) return;
     try {
-      // Add warnings for all selected users
-      const warningPromises = selectedUserIds.map(userId =>
-        supabase
-          .from('warnings')
-          .insert({
+      // Process each user one by one using our API endpoint
+      for (const userId of selectedUserIds) {
+        await ensureAuthenticatedFetch('/api/warnings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
             user_id: userId,
-            admin_id: user?.id,
             reason: bulkWarningReason.trim()
-          })
-      );
-      await Promise.all(warningPromises);
-
-      // Update warning counts for all users
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('user_id, warnings')
-        .in('user_id', selectedUserIds);
-      
-      if (profileError) throw profileError;
-
-      // Update each user's warning count
-      const updatePromises = profiles.map(profile =>
-        supabase
-          .from('profiles')
-          .update({ warnings: (profile.warnings || 0) + 1 })
-          .eq('user_id', profile.user_id)
-      );
-      await Promise.all(updatePromises);
-
-      // Update local state immediately
-      setUsers(prev => prev.map(u => 
-        selectedUserIds.includes(u.user_id) 
-          ? { ...u, warnings: (u.warnings || 0) + 1 } 
-          : u
-      ));
+          }),
+        });
+      }
 
       clearSelectedUsers();
-      closeBulkWarningModal();
+      await fetchData();
     } catch (err) {
       console.error('Error in bulk warning:', err);
-      setError('failed to add warnings');
+      setError(err instanceof Error ? err.message : 'failed to add warnings');
     }
-  };
+  }, [selectedUserIds, bulkWarningReason, clearSelectedUsers, fetchData, ensureAuthenticatedFetch]);
 
-  const handleReportStatusChange = async (reportId: string, newStatus: 'reviewed' | 'resolved') => {
+  const handleReportStatusChange = useCallback(async (reportId: string, status: string, adminNotes?: string) => {
+    if (!supabase || !user) return;
+
     try {
-      // First verify admin status
-      const { data: adminData, error: adminError } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('user_id', user?.id)
-        .single();
-
-      if (adminError) {
-        console.error('Error checking admin status:', adminError);
-        throw new Error('Failed to verify admin status');
-      }
-
-      if (!adminData?.is_admin) {
-        throw new Error('Unauthorized: Admin access required');
-      }
+      setIsSaving(true);
+      setSaveMessage(null);
 
       // Update the report status
-      const { error } = await supabase
-        .from('reports')
-        .update({ 
-          status: newStatus
-        })
-        .eq('id', reportId);
+      const response = await ensureAuthenticatedFetch('/api/reports', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reportId,
+          status,
+          admin_notes: adminNotes,
+        }),
+      });
 
-      if (error) {
-        console.error('Error updating report status:', error);
-        throw new Error(`Failed to update report status: ${error.message}`);
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { message: await response.text() };
+        }
+        console.error('Error response:', errorData);
+        throw new Error(errorData.message || 'Failed to update report status');
       }
 
-      // Refresh the data to get the latest state
-      await fetchData();
+      const data = await response.json();
+
+      // Update the report in the local state
+      setReports(prev => prev.map(r => r.id === reportId ? { ...r, status, admin_notes: adminNotes || r.admin_notes } : r));
 
       // Log the action
       await logAdminAction('update_report_status', reportId, { 
-        newStatus,
         reportId,
-        previousStatus: reports.find(r => r.id === reportId)?.status
+        status,
+        adminNotes
       });
 
       // Show success message
-      setSaveMessage(`Report marked as ${newStatus}`);
+      setSaveMessage(`Report status updated to ${status}`);
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (err) {
       console.error('Error updating report status:', err);
       setError(err instanceof Error ? err.message : 'Failed to update report status');
       // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000);
+    } finally {
+      setIsSaving(false);
     }
-  };
+  }, [supabase, user, logAdminAction, ensureAuthenticatedFetch]);
 
-  const handleDeleteReport = async (reportId: string) => {
+  const handleDeleteReport = useCallback(async (reportId: string) => {
+    if (!supabase || !user) return;
+
     if (!confirm('Are you sure you want to delete this report?')) return;
 
     try {
-      // Verify admin status
-      const { data: adminData, error: adminError } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('user_id', user?.id)
-        .single();
+      // Save the report status before deleting for audit purposes
+      const reportToDelete = reports.find(r => r.id === reportId);
+      
+      // Delete the report using the API with the helper
+      const response = await ensureAuthenticatedFetch(`/api/reports?reportId=${reportId}`, {
+        method: 'DELETE',
+      });
 
-      if (adminError) {
-        console.error('Error checking admin status:', adminError);
-        throw new Error('Failed to verify admin status');
-      }
-
-      if (!adminData?.is_admin) {
-        throw new Error('Unauthorized: Admin access required');
-      }
-
-      // Delete the report directly via Supabase client
-      const { error: deleteError } = await supabase
-        .from('reports')
-        .delete()
-        .eq('id', reportId);
-
-      if (deleteError) {
-        console.error('Error deleting report:', deleteError);
-        throw new Error(deleteError.message || 'Failed to delete report');
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { message: await response.text() };
+        }
+        throw new Error(errorData.message || 'Failed to delete report');
       }
 
       // Remove the deleted report from local state
@@ -698,7 +830,7 @@ export default function AdminPanel() {
       // Log the action
       await logAdminAction('delete_report', reportId, { 
         reportId,
-        status: reports.find(r => r.id === reportId)?.status
+        status: reportToDelete?.status
       });
 
       // Show success message
@@ -710,7 +842,7 @@ export default function AdminPanel() {
       // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000);
     }
-  };
+  }, [supabase, user, reports, logAdminAction, ensureAuthenticatedFetch]);
 
   // Add visibility change handler to prevent reload
   useEffect(() => {
@@ -828,11 +960,125 @@ export default function AdminPanel() {
     );
   }, [reports, reportStatus]);
 
-  if (loading || isLoading) {
+  // Add function to handle admin status changes
+  const handleAdminStatusChange = useCallback(async (userId: string, newAdminStatus: boolean) => {
+    if (!supabase || !user) return;
+    try {
+      const { error } = await supabase.rpc('set_admin_status', {
+        target_user_id: userId,
+        new_admin_status: newAdminStatus,
+        admin_user_id: user?.id
+      });
+
+      if (error) throw error;
+
+      // Update local state
+      setUsers(prev => prev.map(u => 
+        u.user_id === userId ? { ...u, is_admin: newAdminStatus } : u
+      ));
+
+      // Log the action
+      await logAdminAction(newAdminStatus ? 'grant_admin' : 'revoke_admin', userId, {});
+
+      // Show success message
+      setSaveMessage(`Admin status ${newAdminStatus ? 'granted' : 'revoked'}`);
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (err) {
+      console.error('Error updating admin status:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update admin status');
+      setTimeout(() => setError(null), 3000);
+    }
+  }, [supabase, user, logAdminAction]);
+
+  // Add a helper function to convert ProfileData to Profile
+  const profileDataToProfile = (data: ProfileData): Profile => {
+    return {
+      id: data.id || data.user_id,
+      user_id: data.user_id,
+      username: data.username || '',
+      full_name: data.full_name || '',
+      avatar_url: data.avatar_url || '',
+      bio: data.bio ?? '',
+      is_private: data.is_private ?? false,
+      show_email: data.show_email ?? false,
+      is_admin: data.is_admin ?? false,
+      warnings: data.warnings || 0,
+      banned: data.banned || false,
+      ban_type: data.ban_type ?? null,
+      ban_reason: data.ban_reason ?? null,
+      ban_expiry: data.ban_expiry ?? null,
+      last_ban_date: data.last_ban_date ?? null,
+      ban_count: data.ban_count || 0,
+      created_at: data.created_at || '',
+      updated_at: data.updated_at || '',
+    };
+  };
+
+  const handleOpenAdminNotesModal = (reportId: string, currentNotes: string = '') => {
+    setSelectedReportId(reportId);
+    setAdminNotes(currentNotes);
+    setIsAdminNotesModalOpen(true);
+  };
+
+  const handleCloseAdminNotesModal = () => {
+    setIsAdminNotesModalOpen(false);
+    setSelectedReportId(null);
+    setAdminNotes('');
+  };
+
+  const handleSaveAdminNotes = async () => {
+    if (!selectedReportId || !supabase || !user) return;
+
+    try {
+      // Update the report with admin notes using the helper
+      const response = await ensureAuthenticatedFetch('/api/reports', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          reportId: selectedReportId,
+          admin_notes: adminNotes,
+          status: reports.find(r => r.id === selectedReportId)?.status || 'reviewed',
+        }),
+      });
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { message: await response.text() };
+        }
+        throw new Error(errorData.message || 'Failed to update admin notes');
+      }
+
+      const data = await response.json();
+
+      // Update the reports in the local state
+      setReports(prev => prev.map(r => 
+        r.id === selectedReportId ? { ...r, admin_notes: adminNotes } : r
+      ));
+
+      // Log the action
+      await logAdminAction('update_report_notes', selectedReportId, { 
+        reportId: selectedReportId,
+        notes: adminNotes
+      });
+
+      // Close the modal and show success message
+      handleCloseAdminNotesModal();
+      setSaveMessage('Admin notes updated successfully');
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (err) {
+      console.error('Error updating admin notes:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update admin notes');
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="text-2xl mb-4">loading...</div>
+          <div className="text-2xl mb-4">Loading...</div>
         </div>
       </div>
     );
@@ -861,8 +1107,7 @@ export default function AdminPanel() {
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="px-4 py-2 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50 rounded-lg"
-                style={{ background: 'var(--background)', color: 'var(--foreground)' }}
+                className="px-3 py-2 border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
               >
                 {isSaving ? toLower('saving...') : toLower('save changes')}
               </button>
@@ -870,20 +1115,61 @@ export default function AdminPanel() {
           </div>
 
           {error && (
-            <div className="flex flex-col items-center gap-4 p-8 border border-red-400 bg-red-50 dark:bg-red-900/20 shadow-md">
+            <div className="flex flex-col items-center gap-4 p-8 border border-outline bg-transparent dark:bg-red-900/10 shadow-md">
               <span className="text-6xl">⚠️</span>
               <h2 className="text-2xl font-bold">{toLower('error')}</h2>
               <p className="text-lg text-center">{toLower(error)}</p>
             </div>
           )}
 
+          <div className="flex justify-between items-center mb-6">
+            <div className="tabs flex flex-wrap">
+              <button
+                className={`group tab tab-bordered ${tab === 'users' ? 'tab-active' : ''} px-4 py-2 mx-1 transition-all duration-200 flex items-center active:scale-95 rounded-t-lg`}
+                style={{ background: tab === 'users' ? 'var(--background)' : 'transparent', color: 'var(--foreground)' }}
+                onClick={() => setTab('users')}
+              >
+                <span className="mr-2 transform transition-transform group-hover:scale-110">👤</span>
+                <span className="group-hover:text-gray-500 transition-colors">{toLower('users')}</span>
+              </button>
+              <button
+                className={`group tab tab-bordered ${tab === 'recipes' ? 'tab-active' : ''} px-4 py-2 mx-1 transition-all duration-200 flex items-center active:scale-95 rounded-t-lg`}
+                style={{ background: tab === 'recipes' ? 'var(--background)' : 'transparent', color: 'var(--foreground)' }}
+                onClick={() => setTab('recipes')}
+              >
+                <span className="mr-2 transform transition-transform group-hover:scale-110">📝</span>
+                <span className="group-hover:text-gray-500 transition-colors">{toLower('recipes')}</span>
+              </button>
+              <button
+                className={`group tab tab-bordered ${tab === 'reports' ? 'tab-active' : ''} px-4 py-2 mx-1 transition-all duration-200 flex items-center active:scale-95 rounded-t-lg`}
+                style={{ background: tab === 'reports' ? 'var(--background)' : 'transparent', color: 'var(--foreground)' }}
+                onClick={() => setTab('reports')}
+              >
+                <span className="mr-2 transform transition-transform group-hover:scale-110">🚩</span>
+                <span className="group-hover:text-gray-500 transition-colors">{toLower('reports')}</span>
+              </button>
+              <button
+                className={`group tab tab-bordered ${tab === 'audit' ? 'tab-active' : ''} px-4 py-2 mx-1 transition-all duration-200 flex items-center active:scale-95 rounded-t-lg`}
+                style={{ background: tab === 'audit' ? 'var(--background)' : 'transparent', color: 'var(--foreground)' }}
+                onClick={() => setTab('audit')}
+              >
+                <span className="mr-2 transform transition-transform group-hover:scale-110">📊</span>
+                <span className="group-hover:text-gray-500 transition-colors">{toLower('audit log')}</span>
+              </button>
+            </div>
+          </div>
+
+          {tab === 'reports' && (
           <div>
-            <h2 className="text-xl mb-4">{toLower('reports')}</h2>
+            <h2 className="text-xl mb-4 font-medium flex items-center">
+              <span className="mr-2">🚩</span>
+              {toLower('reports')}
+            </h2>
             <div className="flex gap-4 mb-4">
               <select 
                 value={reportStatus}
                 onChange={(e) => setReportStatus(e.target.value as 'pending' | 'reviewed' | 'resolved' | 'all')}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg"
+                className="px-3 py-2 border border-outline bg-transparent rounded-lg"
               >
                 <option value="all">{toLower('all reports')}</option>
                 <option value="pending">{toLower('pending')}</option>
@@ -893,7 +1179,7 @@ export default function AdminPanel() {
             </div>
             <div className="space-y-4">
               {filteredReports.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 p-8 border border border-gray-200 dark:border-gray-800 shadow-md rounded-xl">
+                <div className="flex flex-col items-center gap-4 p-8 border border-outline shadow-md rounded-xl" style={{ background: 'var(--background)' }}>
                   <span className="text-6xl">📝</span>
                   <h2 className="text-2xl font-bold">{toLower('no reports found')}</h2>
                   <p className="text-lg text-center">{toLower('there are no reports matching the current filter')}</p>
@@ -902,78 +1188,91 @@ export default function AdminPanel() {
                 filteredReports.map((report) => (
                   <div
                     key={report.id}
-                    className="p-4 border flex flex-col gap-4 shadow-sm rounded-xl hover:shadow-md transition-shadow"
-                    style={{ 
-                      background: 'var(--background)', 
-                      borderColor: 'var(--outline)',
-                      color: 'var(--foreground)' 
-                    }}
+                    className="p-4 border flex flex-col gap-4 shadow-sm rounded-xl" style={{ background: 'var(--background)', borderColor: 'var(--outline)' }}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 overflow-hidden rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                        <div className="w-12 h-12 overflow-hidden rounded-full flex items-center justify-center" style={{ background: 'var(--background)' }}>
                           <Avatar 
-                            avatar_url={report.profiles?.avatar_url} 
-                            username={report.profiles?.username} 
+                            avatar_url={report.reporter_avatar_url} 
+                            username={report.reporter_username} 
                             size={48} 
                           />
                         </div>
                         <div>
                           <div className="font-semibold text-lg">
                             {report.reported_user_id ? (
-                              <span>Reported User: {toLower(report.reported_profiles?.username || 'unknown')}</span>
+                              <span>{toLower('reported user')}: {toLower(report.reported_username || 'unknown')}</span>
                             ) : (
-                              <span>report: {report.recipe_type}</span>
+                              <span>{toLower('reported recipe')}: {report.recipe_id} ({toLower(report.recipe_type || 'unknown')})</span>
                             )}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">
-                            reported by: {toLower(report.profiles?.username || 'anonymous')}
+                            {toLower('reported by')}: {toLower(report.reporter_username || 'anonymous')}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">
                             {new Date(report.created_at).toLocaleString()}
                           </div>
+                          {report.reviewed_by && (
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {toLower('reviewed by')}: {toLower(report.reviewer_username || 'unknown')}
+                              {report.reviewed_at && ` (${new Date(report.reviewed_at).toLocaleString()})`}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-1 rounded-full text-sm ${
-                          report.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400' :
-                          report.status === 'reviewed' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-400' :
-                          'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400'
-                        }`}>
-                          {toLower(report.status)}
-                        </span>
+                          report.status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
+                          report.status === 'reviewed' ? 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400' :
+                          'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                        }`}>{toLower(report.status)}</span>
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <div className="font-medium">Reason:</div>
-                      <div className="text-sm">{report.reason}</div>
+                      <div className="font-medium">{toLower('reason')}:</div>
+                      <div className="text-sm p-3 rounded-xl border border-outline" style={{ background: 'var(--background)' }}>{toLower(report.reason)}</div>
                       {report.details && (
                         <>
-                          <div className="font-medium">Details:</div>
-                          <div className="text-sm">{report.details}</div>
+                          <div className="font-medium">{toLower('details')}:</div>
+                          <div className="text-sm p-3 rounded-xl border border-outline" style={{ background: 'var(--background)' }}>{toLower(report.details)}</div>
+                        </>
+                      )}
+                      {report.admin_notes && (
+                        <>
+                          <div className="font-medium">{toLower('admin notes')}:</div>
+                          <div className="text-sm p-3 rounded-xl border border-outline" style={{ background: 'var(--background)' }}>{toLower(report.admin_notes)}</div>
                         </>
                       )}
                     </div>
-                    <div className="flex justify-end gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <button
-                        onClick={() => handleReportStatusChange(report.id, 'reviewed')}
-                        disabled={report.status !== 'pending'}
-                        className="px-3 py-1 text-sm border border-gray-200 dark:border-gray-800 rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
+                        onClick={() => handleOpenAdminNotesModal(report.id, report.admin_notes || '')}
+                        className="px-5 py-3 rounded-xl text-sm border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity"
                       >
-                        mark as reviewed
+                        {report.admin_notes ? toLower('edit notes') : toLower('add notes')}
                       </button>
-                      <button
-                        onClick={() => handleReportStatusChange(report.id, 'resolved')}
-                        disabled={report.status === 'resolved'}
-                        className="px-3 py-1 text-sm border border-gray-200 dark:border-gray-800 rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
-                      >
-                        mark as resolved
-                      </button>
+                      {report.status === 'pending' && (
+                        <button
+                          onClick={() => handleReportStatusChange(report.id, 'reviewed')}
+                          className="px-5 py-3 rounded-xl text-sm border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity"
+                        >
+                          {toLower('mark as reviewed')}
+                        </button>
+                      )}
+                      {report.status !== 'resolved' && (
+                        <button
+                          onClick={() => handleReportStatusChange(report.id, 'resolved')}
+                          className="px-5 py-3 rounded-xl text-sm border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity"
+                        >
+                          {toLower('mark as resolved')}
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDeleteReport(report.id)}
-                        className="px-3 py-1 text-sm border border-red-200 dark:border-red-800 text-red-500 rounded-lg hover:opacity-80 transition-opacity"
+                        className="px-5 py-3 rounded-xl text-sm border text-red-500 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/10 transition-opacity"
                       >
-                        delete
+                        {toLower('delete')}
                       </button>
                     </div>
                   </div>
@@ -981,20 +1280,45 @@ export default function AdminPanel() {
               )}
             </div>
           </div>
+          )}
 
+          {tab === 'users' && (
           <div>
-            <h2 className="text-xl mb-4">{toLower('users')}</h2>
+            <div className="mb-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-medium flex items-center">
+                  <span className="mr-2">👤</span>
+                  {toLower('users')}
+                </h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => router.push('/admin/init-warnings')}
+                    className="px-3 py-1 text-sm border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
+                  >
+                    Initialize Warnings System
+                  </button>
+                  {selectedUserIds.length > 0 && (
+                    <button
+                      onClick={openBulkWarningModal}
+                      className="px-3 py-1 text-sm border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
+                    >
+                      {toLower(`Add Warning (${selectedUserIds.length})`)}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
             <div className="flex gap-4 mb-4">
               <input
                 type="text"
                 placeholder={toLower('search by username or email...')}
                 onChange={e => debouncedSearch(e.target.value)}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 w-full rounded-lg"
+                className="px-3 py-2 border border-outline bg-transparent rounded-lg"
               />
               <select 
                 value={filter}
                 onChange={(e) => setFilter(e.target.value as 'all' | 'banned' | 'warned')}
-                className="px-3 py-2 border border-gray-200 dark:border-gray-800 rounded-lg"
+                className="px-3 py-2 border border-outline bg-transparent rounded-lg"
               >
                 <option value="all">{toLower('all users')}</option>
                 <option value="banned">{toLower('banned users')}</option>
@@ -1012,15 +1336,15 @@ export default function AdminPanel() {
                 {selectedUserIds.length > 0 && (
                   <div className="ml-4 flex gap-3 items-center rounded-lg" style={{ background: 'var(--background)', border: '1px solid var(--outline)', color: 'var(--foreground)' }}>
                     <span className="font-semibold">{toLower('bulk actions:')}</span>
-                    <button onClick={() => handleBulkBan(true)} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg" style={{ color: 'var(--danger)', background: 'var(--background)' }}>{toLower('ban')}</button>
-                    <button onClick={() => handleBulkBan(false)} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg" style={{ color: 'var(--accent)', background: 'var(--background)' }}>{toLower('unban')}</button>
-                    <button onClick={openBulkWarningModal} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg" style={{ color: 'var(--warning)', background: 'var(--background)' }}>{toLower('+ warning')}</button>
-                    <button onClick={clearSelectedUsers} className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg" style={{ color: 'var(--foreground)', background: 'var(--background)' }}>{toLower('clear')}</button>
+                    <button onClick={() => handleBulkBan(selectedUserIds, true)} className="px-3 py-2 border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50" style={{ color: 'var(--danger)', background: 'var(--background)' }}>{toLower('ban')}</button>
+                    <button onClick={() => handleBulkBan(selectedUserIds, false)} className="px-3 py-2 border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50" style={{ color: 'var(--accent)', background: 'var(--background)' }}>{toLower('unban')}</button>
+                    <button onClick={openBulkWarningModal} className="px-3 py-2 border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50" style={{ color: 'var(--warning)', background: 'var(--background)' }}>{toLower('+ warning')}</button>
+                    <button onClick={clearSelectedUsers} className="px-3 py-2 border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50" style={{ color: 'var(--foreground)', background: 'var(--background)' }}>{toLower('clear')}</button>
                   </div>
                 )}
               </div>
               {filteredUsers.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 p-8 border border-gray-400 bg-gray-50 dark:bg-gray-900/20 shadow-md rounded-xl">
+                <div className="flex flex-col items-center gap-4 p-8 border border-outline bg-transparent dark:bg-gray-900/10 shadow-md rounded-xl">
                   <span className="text-6xl">🔍</span>
                   <h2 className="text-2xl font-bold">{toLower('no users found')}</h2>
                   <p className="text-lg text-center">{toLower('try adjusting your search or filter criteria')}</p>
@@ -1039,13 +1363,13 @@ export default function AdminPanel() {
                         onChange={() => toggleUserSelection(user.user_id)}
                       />
                       <div className="flex items-center gap-4 cursor-pointer" onClick={() => openUserModal(user)}>
-                        <div className="w-12 h-12 overflow-hidden rounded-full flex items-center justify-center">
+                        <div className="w-12 h-12 overflow-hidden rounded-full flex items-center justify-center" style={{ background: 'var(--background)' }}>
                           <Avatar avatar_url={user.avatar_url} username={user.username} size={48} />
                         </div>
                         <div>
                           <div className="font-semibold text-lg flex items-center gap-2">
                             {toLower(user.username || '[recipes] user')}
-                            {user.is_admin && <span className="text-blue-400 text-xs font-bold border border-blue-400 px-1">{toLower('admin')}</span>}
+                            {user.is_admin && <span className="text-gray-400 text-xs font-bold border border-gray-400 px-1">{toLower('admin')}</span>}
                             {user.banned && <span className="text-red-400 text-xl ml-1">🔒</span>}
                             {user.warnings && user.warnings > 0 && <span className="text-yellow-400 text-xl ml-1">⚠️</span>}
                           </div>
@@ -1055,9 +1379,14 @@ export default function AdminPanel() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={() => handleAdminStatusChange(user.user_id, !user.is_admin)}
+                        className="px-3 py-2 border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
+                      >
+                        {toLower(user.is_admin ? 'revoke admin' : 'make admin')}
+                      </button>
+                      <button
                         onClick={() => handleBanToggle(user.user_id, !!user.banned)}
-                        className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
-                        style={{ color: user.banned ? 'var(--accent)' : 'var(--danger)', background: 'var(--background)' }}
+                        className="px-3 py-2 border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
                       >
                         {toLower(user.banned ? 'unban' : 'ban')}
                       </button>
@@ -1069,13 +1398,12 @@ export default function AdminPanel() {
                           dateFormat="Pp"
                           placeholderText={toLower('select expiry date')}
                           isClearable
-                          className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                          className="px-3 py-2 border border-outline bg-transparent rounded-lg"
                         />
                       </div>
                       <button
                         onClick={() => openWarningModal(user)}
-                        className="px-3 py-1 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
-                        style={{ color: 'var(--warning)', background: 'var(--background)' }}
+                        className="px-3 py-2 border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
                       >
                         {toLower('+ Warning')}
                       </button>
@@ -1086,13 +1414,18 @@ export default function AdminPanel() {
               )}
             </div>
           </div>
+          )}
 
+          {tab === 'recipes' && (
           <div>
-            <h2 className="text-xl mb-4">{toLower('recipes')}</h2>
+            <h2 className="text-xl mb-4 font-medium flex items-center">
+              <span className="mr-2">📝</span>
+              {toLower('recipes')}
+            </h2>
             <div className="space-y-4">
               {recipes.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 p-8 border border-gray-400 bg-gray-50 dark:bg-gray-900/20 shadow-md rounded-xl">
-                  <span className="text-6xl">📝</span>
+                <div className="flex flex-col items-center gap-4 p-8 border border-outline shadow-md rounded-xl" style={{ background: 'var(--background)' }}>
+                  <span className="text-6xl">📋</span>
                   <h2 className="text-2xl font-bold">{toLower('no recipes found')}</h2>
                   <p className="text-lg text-center">{toLower('there are no recipes in the system yet')}</p>
                 </div>
@@ -1100,8 +1433,7 @@ export default function AdminPanel() {
                 recipes.map((recipe) => (
                   <div
                     key={recipe.id}
-                    className="p-4 border border-gray-200 dark:border-gray-800 flex justify-between items-center rounded-xl"
-                  >
+                    className="p-4 border border-outline flex justify-between items-center rounded-xl" style={{ background: 'var(--background)' }}>
                     <div>
                       <p className="font-medium">{toLower(recipe.title)}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1110,7 +1442,7 @@ export default function AdminPanel() {
                     </div>
                     <button
                       onClick={() => handleDeleteRecipe(recipe.id)}
-                      className="px-3 py-2 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity rounded-lg"
+                      className="px-3 py-2 border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
                     >
                       {toLower('delete')}
                     </button>
@@ -1119,67 +1451,97 @@ export default function AdminPanel() {
               )}
             </div>
           </div>
+          )}
 
+          {tab === 'audit' && (
           <div>
-            <h2 className="text-xl mb-4">{toLower('audit log')}</h2>
-            <input
-              type="text"
-              placeholder={toLower('search audit log...')}
-              onChange={e => setAuditSearch(e.target.value)}
-              className="mb-4 px-3 py-2 border border-gray-200 dark:border-gray-800 w-full rounded-lg"
-            />
+            <h2 className="text-xl mb-4 font-medium flex items-center">
+              <span className="mr-2">📊</span>
+              {toLower('audit log')}
+            </h2>
+            <div className="flex gap-4 mb-4">
+              <input
+                type="text"
+                placeholder={toLower('search audit log...')}
+                onChange={e => setAuditSearch(e.target.value)}
+                className="px-3 py-2 border border-outline bg-transparent rounded-lg"
+              />
+            </div>
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {filteredAuditLog.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 p-8 border border-gray-400 bg-gray-50 dark:bg-gray-900/20 shadow-md rounded-xl">
-                  <span className="text-6xl">📋</span>
-                  <h2 className="text-2xl font-bold">{toLower('no audit logs')}</h2>
-                  <p className="text-lg text-center">{toLower('no audit logs found for the current search')}</p>
-                </div>
-              ) : (
-                filteredAuditLog.map((log) => (
-                  <div
-                    key={log.id}
-                    className="p-4 border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/20 transition-colors rounded-xl"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <p className="font-medium">{toLower(formatAction(log.action))}</p>
-                        <p className="text-sm text-gray-500">
-                          {new Date(log.created_at).toLocaleString()}
+            {filteredAuditLog.length === 0 ? (
+              <div className="flex flex-col items-center gap-4 p-8 border border-outline bg-transparent dark:bg-gray-900/10 shadow-md rounded-xl" style={{ background: 'var(--background)' }}>
+                <span className="text-6xl">📜</span>
+                <h2 className="text-2xl font-bold">{toLower('no audit logs')}</h2>
+                <p className="text-lg text-center">{toLower('no audit logs found for the current search')}</p>
+              </div>
+            ) : (
+              filteredAuditLog.map((log) => (
+                <div
+                  key={log.id}
+                  className="p-4 border border-outline transition-colors rounded-xl" style={{ background: 'var(--background)' }}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <p className="font-medium">{toLower(formatAction(log.action))}</p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(log.created_at).toLocaleString()}
+                      </p>
+                      {formatAuditLogDetails(log) && (
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {toLower(formatAuditLogDetails(log))}
                         </p>
-                        {formatAuditLogDetails(log) && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {toLower(formatAuditLogDetails(log))}
-                          </p>
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        <p>{toLower('admin id:')} {toLower(log.admin_id)}</p>
-                        <p>{toLower('target user:')} {toLower(log.target_user_id)}</p>
-                      </div>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      <p>{toLower('admin id:')} {toLower(log.admin_id)}</p>
+                      <p>{toLower('target user:')} {toLower(log.target_user_id)}</p>
                     </div>
                   </div>
-                ))
-              )}
+                </div>
+              ))
+            )}
             </div>
           </div>
+          )}
         </div>
       </main>
 
+      <ModalWrapper />
       <Suspense fallback={null}>
-        {userModalOpen && selectedUser && (
+        {userModalOpen && selectedUser && selectedUser.user_id && (
           <UserModal
             isOpen={userModalOpen}
-            user={selectedUser}
+            onClose={() => setUserModalOpen(false)}
+            user={{
+              id: selectedUser.id ?? selectedUser.user_id,
+              user_id: selectedUser.user_id,
+              username: selectedUser.username ?? '',
+              full_name: selectedUser.full_name ?? '',
+              avatar_url: selectedUser.avatar_url ?? '',
+              bio: selectedUser.bio ?? '',
+              is_private: selectedUser.is_private ?? false,
+              show_email: selectedUser.show_email ?? false,
+              is_admin: selectedUser.is_admin ?? false,
+              warnings: selectedUser.warnings ?? 0,
+              banned: selectedUser.banned ?? false,
+              ban_type: selectedUser.ban_type ?? null,
+              ban_reason: selectedUser.ban_reason ?? null,
+              ban_expiry: selectedUser.ban_expiry ?? null,
+              last_ban_date: selectedUser.last_ban_date ?? null,
+              ban_count: selectedUser.ban_count ?? 0,
+              created_at: selectedUser.created_at ?? new Date().toISOString(),
+              updated_at: selectedUser.updated_at ?? new Date().toISOString(),
+            }}
             warnings={userWarnings}
             activity={userActivity}
-            onClose={() => setUserModalOpen(false)}
+            onRemoveWarning={handleRemoveWarning}
+            isProcessing={isSaving}
           />
         )}
         {showWarningModal && warningTargetUser && (
           <WarningModal
             isOpen={showWarningModal}
-            user={warningTargetUser}
+            user={warningTargetUser as unknown as Profile}
             onClose={closeWarningModal}
             onAddWarning={handleAddWarning}
             warningReason={warningReason}
@@ -1196,6 +1558,38 @@ export default function AdminPanel() {
           />
         )}
       </Suspense>
+
+      {/* Admin Notes Modal */}
+      {isAdminNotesModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+          <div className="w-full max-w-xl p-8 rounded-2xl shadow-lg border border-outline" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
+            <h2 className="text-2xl mb-6">{toLower('Admin Notes')}</h2>
+            <textarea
+              value={adminNotes}
+              onChange={(e) => setAdminNotes(e.target.value)}
+              className="w-full min-h-[160px] px-4 py-3 rounded-xl text-base focus:outline-none focus:ring-2 resize-none border border-outline bg-transparent"
+              placeholder="Add private notes about this report..."
+            />
+            <div className="flex justify-end gap-4 mt-6">
+              <button
+                onClick={handleCloseAdminNotesModal}
+                className="px-5 py-3 rounded-xl text-base border border-outline bg-transparent hover:opacity-80 transition-opacity"
+              >
+                {toLower('cancel')}
+              </button>
+              <button
+                onClick={handleSaveAdminNotes}
+                className="px-5 py-3 rounded-xl text-base border border-outline bg-transparent hover:opacity-80 transition-opacity"
+              >
+                {toLower('save notes')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Add RefreshWarnings component */}
+      <RefreshWarnings triggerRefresh={refreshTrigger} />
     </div>
   );
 }

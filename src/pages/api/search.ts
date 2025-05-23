@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getServerClient } from '@/lib/supabase/serverClient';
 import { searchRecipes } from '@/lib/spoonacular';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -14,8 +14,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Search local recipes
-    const supabaseQuery = getSupabaseClient()
+    // Search local recipes using server client
+    const supabase = getServerClient();
+    const supabaseQuery = supabase
       .from('recipes')
       .select('*')
       .or(
@@ -75,6 +76,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json(allRecipes);
   } catch (error) {
     console.error('Error in search API:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: 'Internal server error', error: error instanceof Error ? error.message : String(error) });
   }
 }

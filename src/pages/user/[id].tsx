@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/router';
-import { useAuth } from '@/lib/auth';
+import { useAuth } from '@/lib/hooks/useAuth';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Head from 'next/head';
@@ -12,6 +12,12 @@ import Modal from '@/components/Modal';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import ReportModal from '@/components/ReportModal';
 import ReportButton from '@/components/ReportButton';
+import ShareButton from '@/components/ShareButton';
+import { GetServerSideProps } from 'next';
+import { createPagesServerClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase';
+import { getSession } from '@/lib/auth-utils';
+import { useStarredRecipes } from '@/hooks/useStarredRecipes';
 
 // UUID validation regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,10 +36,11 @@ interface Recipe {
 }
 
 interface Profile {
+  id: string;
   user_id: string;
   username: string | null;
-  bio: string | null;
   avatar_url: string | null;
+  bio: string | null;
   is_private: boolean;
   show_email: boolean;
   banned: boolean;
@@ -43,6 +50,8 @@ interface Profile {
   ban_count: number;
   last_ban_date: string | null;
   warnings: number;
+  followers_count: number;
+  following_count: number;
 }
 
 interface StarredRecipe {
@@ -58,681 +67,592 @@ interface Follower {
   follower_id: string;
 }
 
-// Create a client-side only component
-const UserProfileContent = () => {
+interface UserProfileProps {
+  initialProfile: Profile | null;
+  initialRecipes: Recipe[];
+  initialStarredRecipes: Recipe[];
+  isPrivateBlocked: boolean;
+}
+
+export const config = {
+  runtime: 'nodejs',
+};
+
+export default function UserProfile({ initialProfile, initialRecipes, initialStarredRecipes, isPrivateBlocked }: UserProfileProps) {
   const router = useRouter();
-  const { id } = router.query;
   const { user } = useAuth();
-  const [supabase, setSupabase] = useState<any>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [starredRecipes, setStarredRecipes] = useState<Recipe[]>([]);
-  const [following, setFollowing] = useState<Profile[]>([]);
-  const [followers, setFollowers] = useState<Profile[]>([]);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [isRequestPending, setIsRequestPending] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [followError, setFollowError] = useState<string | null>(null);
-  const [showUnfollowModal, setShowUnfollowModal] = useState(false);
-  const [isUnfollowing, setIsUnfollowing] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(initialProfile);
+  const [recipes, setRecipes] = useState(initialRecipes);
+  const [starredRecipes, setStarredRecipes] = useState(initialStarredRecipes);
+  const [activeTab, setActiveTab] = useState<'recipes' | 'starred'>('recipes');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
-  const [showBlockModal, setShowBlockModal] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Initialize Supabase client on the client side
-  useEffect(() => {
-    const initSupabase = async () => {
-      try {
-        const { getBrowserClient } = await import('@/lib/supabase/browserClient');
-        setSupabase(getBrowserClient());
-      } catch (error) {
-        console.error('Error initializing Supabase:', error);
-        setFollowError('Failed to initialize client');
-        setLoading(false);
-      }
-    };
-    initSupabase();
-  }, []);
+  const { starredRecipes: starredRaw, isLoading: starredLoading } = useStarredRecipes(profile?.user_id);
+  const [starredDetails, setStarredDetails] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (!id || !supabase) return;
-
-      // Validate UUID format
-      if (typeof id !== 'string' || !UUID_REGEX.test(id)) {
-        console.error('Invalid profile ID format:', id);
-        setFollowError('Invalid profile ID');
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setFollowError(null);
+    const checkFollowStatus = async () => {
+      if (!user || !profile) return;
 
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log('Fetching profile for ID:', id);
-        
-        // Fetch profile data with more detailed logging
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
+        const { data, error } = await supabase
+          .from('follows')
           .select('*')
-          .eq('user_id', id)
+          .eq('follower_id', user.id)
+          .eq('following_id', profile.user_id)
           .maybeSingle();
 
-        console.log('Profile fetch result:', { profileData, profileError });
-
-        if (profileError) {
-          console.error('Profile fetch error:', profileError);
-          if (profileError.code === 'PGRST116') {
-            // No rows found, try to create profile
-            const { data: authUser, error: authError } = await supabase
-              .from('auth.users')
-              .select('id')
-              .eq('id', id)
-              .maybeSingle();
-
-            console.log('Auth user check:', { authUser, authError });
-
-            if (authUser) {
-              // User exists in auth but no profile, create one
-              const { data: newProfile, error: createError } = await supabase
-                .from('profiles')
-                .insert({
-                  user_id: id,
-                  username: `user_${id.slice(0, 8)}`,
-                  is_private: false,
-                  show_email: false
-                })
-                .select()
-                .single();
-
-              console.log('Profile creation result:', { newProfile, createError });
-
-              if (createError) {
-                console.error('Error creating profile:', createError);
-                throw createError;
-              }
-
-              setProfile(newProfile);
-              setLoading(false);
-              return;
-            }
-          }
-          throw profileError;
-        }
-
-        if (!profileData) {
-          console.log('No profile found for ID:', id);
-          setFollowError('Profile not found');
-          setLoading(false);
-          return;
-        }
-
-        // Check if user is banned
-        if (profileData.ban_expires_at) {
-          const banExpiresAt = new Date(profileData.ban_expires_at);
-          const isBanExpired = banExpiresAt < new Date();
-          if (!isBanExpired) {
-            setFollowError('This user has been banned');
-            setLoading(false);
-            return;
-          }
-        }
-
-        setProfile(profileData);
-        console.log('Profile set successfully:', profileData);
-
-        // Check if user is blocked
-        if (session?.user) {
-          console.log('Checking block status for user:', session.user.id);
-          const { data: blockedData, error: blockedError } = await supabase
-            .from('blocked_users')
-            .select('id')
-            .eq('user_id', session.user.id)
-            .eq('blocked_user_id', id)
-            .maybeSingle();
-
-          console.log('Block check result:', { blockedData, blockedError });
-
-          if (blockedError) {
-            console.error('Error checking block status:', blockedError);
-          }
-
-          setIsBlocked(!!blockedData);
-
-          // Check if current user is blocked by profile owner
-          const { data: isBlockedByUser, error: blockedByError } = await supabase
-            .from('blocked_users')
-            .select('id')
-            .eq('user_id', id)
-            .eq('blocked_user_id', session.user.id)
-            .maybeSingle();
-          
-          console.log('Blocked by user check:', { isBlockedByUser, blockedByError });
-
-          if (blockedByError) {
-            console.error('Error checking if blocked by user:', blockedByError);
-          }
-
-          if (isBlockedByUser) {
-            setFollowError('You have been blocked by this user');
-            setLoading(false);
-            return;
-          }
-        }
-
-        // Fetch recipes
-        const { data: recipesData, error: recipesError } = await supabase
-          .from('recipes')
-          .select('*')
-          .eq('user_id', id)
-          .order('created_at', { ascending: false });
-
-        if (recipesError) throw recipesError;
-        setRecipes(recipesData || []);
-
-        // Fetch starred recipes
-        const { data: starredData } = await supabase
-          .from('starred_recipes')
-          .select('recipe_id, recipe_type')
-          .eq('user_id', id);
-
-        if (starredData?.length) {
-          const recipes = await Promise.all(
-            starredData.map(async (star: StarredRecipe) => {
-              if (star.recipe_type === 'user') {
-                const { data } = await supabase
-                  .from('recipes')
-                  .select('*')
-                  .eq('id', star.recipe_id)
-                  .single();
-                return data;
-              }
-              return null;
-            })
-          );
-          setStarredRecipes(recipes.filter(Boolean));
-        }
-
-        // Fetch followers (users who follow this profile)
-        const { data: followersData } = await supabase
-          .from('follows')
-          .select('follower_id')
-          .eq('following_id', id);
-
-        let followersProfiles: Profile[] = [];
-        if (followersData?.length) {
-          const followerIds = followersData.map((f: any) => f.follower_id);
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('*')
-            .in('user_id', followerIds);
-          followersProfiles = profiles || [];
-        }
-        setFollowers(followersProfiles);
-
-        // Fetch following (users this profile follows)
-        const { data: followingData } = await supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', id);
-
-        let followingProfiles: Profile[] = [];
-        if (followingData?.length) {
-          const followingIds = followingData.map((f: any) => f.following_id);
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('*')
-            .in('user_id', followingIds);
-          followingProfiles = profiles || [];
-        }
-        setFollowing(followingProfiles);
-
-        setLoading(false);
+        if (error) throw error;
+        setIsFollowing(!!data);
       } catch (error) {
-        console.error('Error fetching profile:', error);
-        setFollowError('Failed to load profile');
-        setLoading(false);
+        console.error('Error checking follow status:', error);
       }
     };
 
-    const setupBlockSubscription = () => {
-      if (!supabase || !id || !user) return;
-
-      const blockChannel = supabase
-        .channel('block-status')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'blocked_users',
-          filter: `user_id=eq.${id},blocked_user_id=eq.${user.id}`
-        }, async (payload: RealtimePostgresChangesPayload<any>) => {
-          if (payload.eventType === 'DELETE') {
-            setFollowError(null);
-            // Fetch profile again after unblock
-            try {
-              const { data: profileData, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('user_id', id)
-                .maybeSingle();
-
-              if (profileError) throw profileError;
-              setProfile(profileData);
-              setLoading(false);
-            } catch (error) {
-              console.error('Error fetching profile after unblock:', error);
-              setFollowError('Failed to load profile');
-              setLoading(false);
-            }
-          } else if (payload.eventType === 'INSERT') {
-            setFollowError('You have been blocked by this user');
-          }
-        })
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'blocked_users',
-          filter: `user_id=eq.${user.id},blocked_user_id=eq.${id}`
-        }, async (payload: RealtimePostgresChangesPayload<any>) => {
-          if (payload.eventType === 'DELETE') {
-            // When current user unblocks the profile owner
-            setFollowError(null);
-            try {
-              const { data: profileData, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('user_id', id)
-                .maybeSingle();
-
-              if (profileError) throw profileError;
-              setProfile(profileData);
-              setLoading(false);
-            } catch (error) {
-              console.error('Error fetching profile after unblock:', error);
-              setFollowError('Failed to load profile');
-              setLoading(false);
-            }
-          }
-        })
-        .subscribe((status: 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'CLOSED' | 'TIMED_OUT') => {
-          if (status === 'CHANNEL_ERROR') {
-            console.error('Error subscribing to block status channel');
-          }
-        });
-
-      return blockChannel;
-    };
-
-    fetchProfile();
-    const blockChannel = setupBlockSubscription();
-
-    return () => {
-      if (blockChannel) {
-        supabase?.removeChannel(blockChannel);
-      }
-    };
-  }, [id, user, supabase]);
+    checkFollowStatus();
+  }, [user, profile]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
+    const checkBlockStatus = async () => {
+      if (!user || !profile) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('blocked_users')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('blocked_user_id', profile.user_id)
+          .maybeSingle();
+
+        if (error) throw error;
+        setIsBlocked(!!data);
+      } catch (error) {
+        console.error('Error checking block status:', error);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+    checkBlockStatus();
+  }, [user, profile]);
 
   const handleFollow = async () => {
-    if (!user || !id || !supabase) return;
-    setFollowError(null);
-    console.log('Follow button clicked');
+    if (!user || !profile) return;
+    setIsLoading(true);
+
     try {
       if (isFollowing) {
-        await supabase
+        const { error } = await supabase
           .from('follows')
           .delete()
           .eq('follower_id', user.id)
-          .eq('following_id', id);
+          .eq('following_id', profile.user_id);
+
+        if (error) throw error;
         setIsFollowing(false);
-      } else if (profile?.is_private) {
-        // Send follow request
-        const { error: followRequestError } = await supabase
-          .from('follow_requests')
-          .insert({
-            requester_id: user.id,
-            target_id: id,
-            status: 'pending'
-          });
-        if (followRequestError) {
-          setFollowError('Error sending follow request: ' + followRequestError.message);
-          console.error('Error sending follow request:', followRequestError);
-          return;
-        }
-        setIsRequestPending(true);
-        // Send notification for follow request
-        const { error: notificationError } = await supabase
-          .from('notifications')
-          .insert({
-            user_id: id,
-            type: 'follow_request',
-            actor_id: user.id
-          });
-        if (notificationError) {
-          setFollowError('Error sending follow request notification: ' + notificationError.message);
-          console.error('Error sending follow request notification:', notificationError);
-        }
       } else {
-        const { error: followError } = await supabase
+        const { error } = await supabase
           .from('follows')
-          .insert({
-            follower_id: user.id,
-            following_id: id
-          });
-        if (followError) {
-          setFollowError('Error following user: ' + followError.message);
-          console.error('Error following user:', followError);
-          return;
-        }
+          .insert([
+            {
+              follower_id: user.id,
+              following_id: profile.user_id,
+            },
+          ]);
+
+        if (error) throw error;
         setIsFollowing(true);
-        // Send notification for follow
-        const { error: notificationError } = await supabase
-          .from('notifications')
-          .insert({
-            user_id: id,
-            type: 'follow',
-            actor_id: user.id
-          });
-        if (notificationError) {
-          setFollowError('Error sending follow notification: ' + notificationError.message);
-          console.error('Error sending follow notification:', notificationError);
-        }
       }
-      setShowDropdown(false);
-    } catch (error: any) {
-      setFollowError(error.message || 'Unknown error');
-      console.error('error toggling follow:', error);
-    }
-  };
-
-  const canViewContent = () => {
-    if (!profile) return false;
-    if (!profile.is_private) return true;
-    if (!user) return false;
-    if (user.id === id) return true;
-    return isFollowing;
-  };
-
-  const handleUnfollow = async () => {
-    if (!user || !id || !supabase) return;
-    setFollowError(null);
-    console.log('Unfollow button clicked');
-    try {
-      await supabase
-        .from('follows')
-        .delete()
-        .eq('follower_id', user.id)
-        .eq('following_id', id);
-      setIsFollowing(false);
-      setShowUnfollowModal(false);
     } catch (error) {
-      console.error('Error unfollowing user:', error);
-      setFollowError('Failed to unfollow user');
+      console.error('Error toggling follow:', error);
+      setError('Failed to update follow status. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleBlock = async () => {
-    if (!user || !id || !supabase) return;
+    if (!user || !profile) return;
+    setIsBlocking(true);
+
     try {
       if (isBlocked) {
-        // Unblock user
-        await supabase
+        const { error } = await supabase
           .from('blocked_users')
           .delete()
           .eq('user_id', user.id)
-          .eq('blocked_user_id', id);
-        setIsBlocked(false);
-      } else {
-        // Block user
-        await supabase
-          .from('blocked_users')
-          .insert({
-            user_id: user.id,
-            blocked_user_id: id
-          });
-        setIsBlocked(true);
+          .eq('blocked_user_id', profile.user_id);
 
-        // If following, unfollow
-        if (isFollowing) {
-          await supabase
-            .from('follows')
-            .delete()
-            .eq('follower_id', user.id)
-            .eq('following_id', id);
-          setIsFollowing(false);
-        }
+        if (error) throw error;
+        setIsBlocked(false);
+        // Also remove them as a follower
+        await supabase
+          .from('follows')
+          .delete()
+          .eq('follower_id', profile.user_id)
+          .eq('following_id', user.id);
+      } else {
+        const { error } = await supabase
+          .from('blocked_users')
+          .insert([
+            {
+              user_id: user.id,
+              blocked_user_id: profile.user_id,
+            },
+          ]);
+
+        if (error) throw error;
+        setIsBlocked(true);
       }
-      setShowBlockModal(false);
+      setIsBlockModalOpen(false);
     } catch (error) {
       console.error('Error toggling block:', error);
-      setFollowError('Failed to update block status');
+      setError('Failed to update block status. Please try again.');
+    } finally {
+      setIsBlocking(false);
     }
   };
 
-  if (loading) {
-    return <div className="max-w-2xl mx-auto px-4 py-8">loading...</div>;
-  }
+  useEffect(() => {
+    async function fetchDetails() {
+      if (!starredRaw || starredRaw.length === 0) {
+        setStarredDetails([]);
+        return;
+      }
+      const results = await Promise.all(
+        starredRaw.map(async (star) => {
+          try {
+            let url = '';
+            if (star.recipe_type === 'spoonacular') {
+              url = `/api/recipes/spoonacular-${star.recipe_id}`;
+            } else if (star.recipe_type === 'ai') {
+              url = `/api/recipes/${star.recipe_id}`;
+            } else {
+              url = `/api/recipes/${star.recipe_id}`;
+            }
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Failed to fetch');
+            const data = await res.json();
+            return { ...data, recipe_type: star.recipe_type };
+          } catch (e) {
+            return { id: star.recipe_id, recipe_type: star.recipe_type, error: true };
+          }
+        })
+      );
+      setStarredDetails(results);
+    }
+    if (activeTab === 'starred' && profile?.user_id) {
+      fetchDetails();
+    }
+  }, [starredRaw, activeTab, profile?.user_id]);
 
-  if (!profile) {
-    return <div className="max-w-2xl mx-auto px-4 py-8">profile not found</div>;
-  }
-
-  // If user is blocked or has been blocked, show minimal profile
-  if (isBlocked || followError === 'You have been blocked by this user') {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full overflow-hidden border border-gray-200 dark:border-gray-800 flex items-center justify-center">
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt={profile.username || 'avatar'} className="object-cover w-full h-full" />
-              ) : (
-                <span className="text-2xl font-bold text-gray-300">{profile.username?.[0]?.toUpperCase() || 'A'}</span>
-              )}
-            </div>
-            <div>
-              <div className="font-semibold text-xl">{profile.username || '[recipes] user'}</div>
-              <div className="text-sm text-gray-500">
-                {isBlocked ? 'blocked user' : 'this user has blocked you'}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Update the recipes section to use starredRecipes state
+  const displayedRecipes = useMemo(() => {
+    return activeTab === 'recipes' ? recipes : starredRecipes;
+  }, [activeTab, recipes, starredRecipes]);
 
   return (
     <>
       <Head>
-        <title>{profile.username || '[recipes] user'} | [recipes]</title>
+        <title>{profile?.username || '[recipes] user'} | [recipes]</title>
       </Head>
       <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-        <div className="space-y-8">
-          <div className="flex items-center gap-4">
-            <div className="relative w-16 h-16 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-              <Avatar avatar_url={profile.avatar_url} username={profile.username} size={64} />
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32">
+            <p className="text-gray-500 dark:text-gray-400">Loading...</p>
+          </div>
+        ) : error ? (
+          <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
+            <p className="text-red-500">{error}</p>
+          </div>
+        ) : profile ? (
+          <div className="space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="relative w-16 h-16 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+                <Avatar avatar_url={profile.avatar_url} username={profile.username} size={64} />
+              </div>
+              <div>
+                <h1 className="text-2xl dark:text-white">
+                  {profile.username || '[recipes] user'} {profile.is_private && '🔒'}
+                </h1>
+                {profile.bio && <p className="text-gray-500 dark:text-gray-400">{profile.bio}</p>}
+              </div>
+              {user && user.id !== profile.user_id && (
+                <div className="relative flex items-center gap-2" ref={dropdownRef}>
+                  <button
+                    onClick={handleFollow}
+                    disabled={isLoading}
+                    className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
+                    style={{ color: 'white', background: 'var(--background)' }}
+                  >
+                    {isFollowing ? 'unfollow' : 'follow'}
+                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowDropdown(!showDropdown)}
+                      className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
+                    >
+                      •••
+                    </button>
+                    {showDropdown && (
+                      <div className="absolute right-0 mt-2 w-64 border border-gray-200 dark:border-gray-800 shadow-lg z-50 rounded-xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+                        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+                          <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
+                            {profile?.username ? `@${profile.username.toLowerCase()}` : '[recipes] user'}
+                          </p>
+                        </div>
+                        <div className="py-1" role="menu" aria-orientation="vertical">
+                          <button
+                            onClick={() => {
+                              setShowDropdown(false);
+                              setIsBlockModalOpen(true);
+                            }}
+                            className="w-full text-left px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity rounded-lg"
+                            style={{ color: 'white', fontFamily: 'inherit' }}
+                            role="menuitem"
+                          >
+                            {isBlocked ? 'unblock' : 'block'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-            <div>
-              <h1 className="text-2xl">
-                {profile.username || '[recipes] user'} {profile.is_private && '🔒'}
-              </h1>
-              {profile.bio && <p className="text-gray-500 dark:text-gray-400">{profile.bio}</p>}
+
+            <div className="flex gap-4 text-sm text-gray-500 dark:text-gray-400">
+              <Link href={`/followers?id=${profile.user_id}`} className="hover:opacity-80 transition-opacity">
+                <span className="font-medium">{profile.followers_count || 0}</span> followers
+              </Link>
+              <Link href={`/following?id=${profile.user_id}`} className="hover:opacity-80 transition-opacity">
+                <span className="font-medium">{profile.following_count || 0}</span> following
+              </Link>
             </div>
-            {user && user.id !== id && (
-              <div className="relative flex items-center gap-2" ref={dropdownRef}>
-                <button
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg"
-                  disabled={isRequestPending}
-                >
-                  {isFollowing ? 'unfollow' : isRequestPending ? 'requested' : 'follow'}
-                </button>
-                <ReportButton recipeId={profile.user_id} recipeType="user" />
-                {showDropdown && (
-                  <div className="absolute right-0 mt-2 w-64 border border-gray-200 dark:border-gray-800 shadow-lg z-50 rounded-xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
-                      <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
-                        {profile?.username ? `@${profile.username.toLowerCase()}` : '[recipes] user'}
-                      </p>
-                    </div>
-                    <div className="py-1" role="menu" aria-orientation="vertical">
-                      <button
-                        onClick={handleFollow}
-                        className="w-full text-left px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity rounded-lg"
-                        style={{ color: 'inherit', fontFamily: 'inherit' }}
-                        role="menuitem"
-                      >
-                        {isFollowing ? 'unfollow' : isRequestPending ? 'cancel request' : 'follow'}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowDropdown(false);
-                          setShowBlockModal(true);
-                        }}
-                        className="w-full text-left px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity rounded-lg"
-                        style={{ color: isBlocked ? 'var(--accent)' : 'var(--danger)', fontFamily: 'inherit' }}
-                        role="menuitem"
-                      >
-                        {isBlocked ? 'unblock' : 'block'}
-                      </button>
-                    </div>
+
+            {isPrivateBlocked ? (
+              <div className="p-4 border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl">
+                <p className="text-yellow-500">This profile is private. Follow to see their recipes.</p>
+              </div>
+            ) : (
+              <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+                <div className="flex gap-4 mb-4">
+                  <button
+                    onClick={() => setActiveTab('recipes')}
+                    className={`text-lg ${activeTab === 'recipes' ? 'text-accent dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
+                  >
+                    recipes
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('starred')}
+                    className={`text-lg ${activeTab === 'starred' ? 'text-accent dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
+                  >
+                    starred
+                  </button>
+                </div>
+
+                {activeTab === 'recipes' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {recipes.length > 0 ? (
+                      recipes.map((recipe) => (
+                        <div key={recipe.id} className="relative">
+                          <div className="dark:text-white">
+                            <RecipeCard
+                              id={recipe.id}
+                              title={recipe.title}
+                              description={recipe.description}
+                              image_url={recipe.image_url}
+                              user_id={recipe.user_id}
+                              created_at={recipe.created_at}
+                              cuisine_type={recipe.cuisine_type}
+                              cooking_time={recipe.cooking_time}
+                              diet_type={recipe.diet_type}
+                              recipeType={recipe.recipe_type || 'user'}
+                            />
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 dark:text-gray-400">no recipes yet</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {starredLoading ? (
+                      <div>Loading starred recipes...</div>
+                    ) : starredDetails.length === 0 || starredDetails.filter(r => !r.error).length === 0 ? (
+                      <p className="text-gray-500 dark:text-gray-400">no starred recipes yet</p>
+                    ) : (
+                      starredDetails
+                        .filter(recipe => !recipe.error)
+                        .map(recipe => (
+                          <div key={recipe.id} className="relative">
+                            <div className="dark:text-white">
+                              <RecipeCard {...recipe} />
+                            </div>
+                          </div>
+                        ))
+                    )}
                   </div>
                 )}
-                {followError && <p className="text-red-500 text-sm mt-2">{followError}</p>}
               </div>
             )}
           </div>
-
-          <div className="flex gap-4 text-sm text-gray-500 dark:text-gray-400">
-            <Link href={`/followers?id=${id}`} className="hover:opacity-80 transition-opacity">
-              <span className="font-medium">{followers.length}</span> followers
-            </Link>
-            <Link href={`/following?id=${id}`} className="hover:opacity-80 transition-opacity">
-              <span className="font-medium">{following.length}</span> following
-            </Link>
+        ) : (
+          <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
+            <p className="text-red-500">Profile not found</p>
           </div>
-
-          {canViewContent() ? (
-            <>
-              <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-                <h2 className="text-xl mb-4">recipes</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {recipes.length > 0 ? (
-                    recipes.map((recipe) => (
-                      <RecipeCard
-                        key={recipe.id}
-                        id={recipe.id}
-                        title={recipe.title}
-                        description={recipe.description}
-                        image_url={recipe.image_url}
-                        user_id={recipe.user_id}
-                        created_at={recipe.created_at}
-                        cuisine_type={recipe.cuisine_type}
-                        cooking_time={recipe.cooking_time}
-                        diet_type={recipe.diet_type}
-                      />
-                    ))
-                  ) : (
-                    <p className="text-gray-500 dark:text-gray-400">no recipes yet</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-                <h2 className="text-xl mb-4">starred recipes</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {starredRecipes.length > 0 ? (
-                    starredRecipes.map((recipe) => (
-                      <RecipeCard
-                        key={recipe.id}
-                        id={recipe.id}
-                        title={recipe.title}
-                        description={recipe.description}
-                        image_url={recipe.image_url}
-                        user_id={recipe.user_id}
-                        created_at={recipe.created_at}
-                        cuisine_type={recipe.cuisine_type}
-                        cooking_time={recipe.cooking_time}
-                        diet_type={recipe.diet_type}
-                        link={recipe.recipe_type === 'ai' ? `/internet-recipe/${recipe.id}` : `/recipe/${recipe.id}`}
-                      />
-                    ))
-                  ) : (
-                    <p className="text-gray-500 dark:text-gray-400">no starred recipes yet</p>
-                  )}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-             
-            </div>
-          )}
-        </div>
+        )}
       </main>
 
-      {/* Block Modal */}
       <Modal
-        isOpen={showBlockModal}
-        onRequestClose={() => setShowBlockModal(false)}
+        isOpen={isBlockModalOpen}
+        onRequestClose={() => setIsBlockModalOpen(false)}
         contentLabel="Block User"
         className="fixed inset-0 flex items-center justify-center z-50"
         overlayClassName="fixed inset-0 bg-black/50"
         ariaHideApp={false}
       >
         <div className="p-8 shadow-2xl max-w-lg w-full border rounded-xl" style={{ background: 'var(--background)', borderColor: 'var(--outline)', color: 'var(--foreground)' }}>
-          <h2 className="text-2xl font-bold mb-4">{isBlocked ? 'Unblock User' : 'Block User'}</h2>
+          <h2 className="text-2xl font-bold mb-4" style={{ color: 'white' }}>{isBlocked ? 'unblock user' : 'block user'}</h2>
           <p className="mb-6">
-            {isBlocked
-              ? 'Are you sure you want to unblock this user? You will be able to see their content and interact with them again.'
-              : 'Are you sure you want to block this user? You will no longer see their content or be able to interact with them.'}
+            {(
+              isBlocked
+                ? 'Are you sure you want to unblock this user? You will be able to see their content and interact with them again.'
+                : 'Are you sure you want to block this user? You will no longer see their content or be able to interact with them.'
+            ).toLowerCase()}
           </p>
           <div className="flex justify-end gap-4">
             <button
-              onClick={() => setShowBlockModal(false)}
+              onClick={() => setIsBlockModalOpen(false)}
               className="px-4 py-2 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
-              style={{ color: 'var(--foreground)', background: 'var(--background)' }}
+              style={{ color: 'white', background: 'var(--background)' }}
             >
               cancel
             </button>
             <button
               onClick={handleBlock}
               className="px-4 py-2 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
-              style={{ color: isBlocked ? 'var(--accent)' : 'var(--danger)', background: 'var(--background)' }}
+              style={{ color: 'white', background: 'var(--background)' }}
             >
               {isBlocked ? 'unblock' : 'block'}
             </button>
           </div>
         </div>
       </Modal>
-      <ReportModal
-        isOpen={showReportModal}
-        onRequestClose={() => setShowReportModal(false)}
-        reportedUserId={id as string}
-      />
     </>
   );
-};
+}
 
-// Export a dynamically imported version of the component
-export default dynamic(() => Promise.resolve(UserProfileContent), {
-  ssr: false
-}); 
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  try {
+    const supabase = createPagesServerClient(context);
+    const { id } = context.params as { id: string };
+
+    // Validate UUID format
+    if (!UUID_REGEX.test(id)) {
+      return {
+        notFound: true,
+      };
+    }
+
+    // Fetch profile using user_id
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', id)
+      .single();
+
+    if (profileError) {
+      console.error('Error fetching profile:', profileError);
+      return {
+        notFound: true,
+      };
+    }
+
+    // Use the correct user_id for all subsequent queries
+    const userId = id;
+
+    // Fetch followers count
+    const { count: followersCount, error: followersError } = await supabase
+      .from('follows')
+      .select('*', { count: 'exact', head: true })
+      .eq('following_id', userId);
+
+    if (followersError) {
+      console.error('Error fetching followers count:', followersError);
+    }
+
+    // Fetch following count
+    const { count: followingCount, error: followingError } = await supabase
+      .from('follows')
+      .select('*', { count: 'exact', head: true })
+      .eq('follower_id', userId);
+
+    if (followingError) {
+      console.error('Error fetching following count:', followingError);
+    }
+
+    // Update profile with counts
+    const updatedProfile = {
+      ...profile,
+      followers_count: followersCount || 0,
+      following_count: followingCount || 0
+    };
+
+    // Get the current user from the session using the helper
+    const { req } = context;
+    const cookies = {
+      get: (name: string) => req.cookies?.[name],
+    };
+    const sessionResult = await getSession(cookies);
+    const currentUserId = sessionResult.user?.id;
+
+    // Check if the profile is private and if the current user is allowed to view it
+    let isPrivateBlocked = false;
+    if (profile.is_private) {
+      if (currentUserId === profile.user_id) {
+        isPrivateBlocked = false; // Owner always allowed
+      } else {
+        // Check if the current user is a follower
+        const { data: followData, error: followError } = await supabase
+          .from('follows')
+          .select('*')
+          .eq('follower_id', currentUserId)
+          .eq('following_id', profile.user_id)
+          .maybeSingle();
+
+        if (followError || !followData) {
+          isPrivateBlocked = true;
+        }
+      }
+    }
+
+    // If the profile is private and the user is not allowed, return isPrivateBlocked: true
+    if (isPrivateBlocked) {
+      return {
+        props: {
+          initialProfile: updatedProfile,
+          initialRecipes: [],
+          initialStarredRecipes: [],
+          isPrivateBlocked: true
+        },
+      };
+    }
+
+    // Fetch user's recipes
+    const { data: recipes, error: recipesError } = await supabase
+      .from('recipes')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (recipesError) {
+      console.error('Error fetching recipes:', recipesError);
+      return {
+        props: {
+          initialProfile: updatedProfile,
+          initialRecipes: [],
+          initialStarredRecipes: [],
+          isPrivateBlocked: false
+        },
+      };
+    }
+
+    // Debug: Log the userId being used for starred recipes
+    console.log('[Profile Page][getServerSideProps] userId for starred recipes:', userId);
+
+    // Fetch starred recipes using optimized SQL approach
+    const { data: starredRows, error: starredRowsError } = await supabase
+      .from('starred_recipes')
+      .select('*')
+      .eq('user_id', userId);
+
+    // Debug: Log the fetched starredRows
+    console.log('[Profile Page][getServerSideProps] starredRows:', starredRows);
+
+    let starredRecipes: Recipe[] = [];
+    if (!starredRowsError && starredRows) {
+      // Separate recipe IDs by type
+      const userRecipeIds = starredRows.filter(r => r.recipe_type === 'user').map(r => r.recipe_id);
+      const spoonacularRecipeIds = starredRows.filter(r => r.recipe_type === 'spoonacular').map(r => r.recipe_id);
+      const aiRecipeIds = starredRows.filter(r => r.recipe_type === 'ai').map(r => r.recipe_id);
+
+      // Fetch user recipes in one query
+      if (userRecipeIds.length > 0) {
+        const { data: userRecipes, error: userRecipesError } = await supabase
+          .from('recipes')
+          .select('*')
+          .in('id', userRecipeIds);
+        if (userRecipesError) {
+          console.error('Error fetching user starred recipes:', userRecipesError);
+        } else if (userRecipes) {
+          starredRecipes.push(...userRecipes.map(r => ({ ...r, recipe_type: 'user' })));
+        }
+      }
+
+      // Fetch spoonacular recipes in one query
+      if (spoonacularRecipeIds.length > 0) {
+        const { data: spoonacularRecipes, error: spoonacularRecipesError } = await supabase
+          .from('spoonacular_recipes')
+          .select('*')
+          .in('id', spoonacularRecipeIds);
+        if (spoonacularRecipesError) {
+          console.error('Error fetching spoonacular starred recipes:', spoonacularRecipesError);
+        } else if (spoonacularRecipes) {
+          starredRecipes.push(...spoonacularRecipes.map(r => ({ ...r, recipe_type: 'spoonacular' })));
+        }
+      }
+
+      // Fetch AI recipes one by one (API)
+      for (const recipeId of aiRecipeIds) {
+        try {
+          const aiResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/recipes/${recipeId}`);
+          if (aiResponse.ok) {
+            const data = await aiResponse.json();
+            starredRecipes.push({
+              ...data,
+              recipe_type: 'ai' as const,
+              user_id: data.user_id || userId
+            });
+          } else {
+            console.error(`Failed to fetch AI recipe from API for id ${recipeId}:`, aiResponse.status, aiResponse.statusText);
+          }
+        } catch (error) {
+          console.error(`Exception fetching AI recipe (id: ${recipeId}):`, error);
+        }
+      }
+
+      // Sort starred recipes by created_at in descending order
+      starredRecipes.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      return {
+        props: {
+          initialProfile: updatedProfile,
+          initialRecipes: recipes || [],
+          initialStarredRecipes: starredRecipes,
+          isPrivateBlocked: false
+        },
+      };
+    } else {
+      console.error('Error fetching starred recipes from starred_recipes table:', starredRowsError);
+      return {
+        props: {
+          initialProfile: updatedProfile,
+          initialRecipes: recipes || [],
+          initialStarredRecipes: [],
+          isPrivateBlocked: false
+        },
+      };
+    }
+  } catch (error) {
+    console.error('Error in getServerSideProps:', error);
+    return {
+      notFound: true,
+    };
+  }
+};

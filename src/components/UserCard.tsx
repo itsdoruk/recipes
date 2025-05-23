@@ -1,9 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useAuth } from '@/lib/auth';
+import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import ReportModal from './ReportModal';
 
 interface UserCardProps {
@@ -16,7 +15,9 @@ interface UserCardProps {
 }
 
 export default function UserCard({ user }: UserCardProps) {
-  const { user: currentUser } = useAuth();
+  const session = useSession();
+  const supabase = useSupabaseClient();
+  const currentUser = session?.user || null;
   const [isBlocked, setIsBlocked] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
@@ -33,11 +34,11 @@ export default function UserCard({ user }: UserCardProps) {
     };
 
     checkBlockStatus();
-  }, [currentUser, user.user_id]);
+  }, [currentUser, user.user_id, supabase]);
 
   if (isBlocked) {
     return (
-      <div className="block border border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-gray-900 p-4 w-full h-full rounded-xl opacity-50" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      <div className="block border border-outline shadow-sm bg-white dark:bg-gray-900 p-4 w-full h-full rounded-xl opacity-50" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="flex items-center gap-4">
           {user.avatar_url ? (
             <Image
@@ -63,7 +64,7 @@ export default function UserCard({ user }: UserCardProps) {
 
   return (
     <>
-      <div className="block border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow bg-white dark:bg-gray-900 p-4 w-full h-full rounded-xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      <div className="block border border-outline shadow-sm hover:shadow-md transition-shadow p-4 w-full h-full rounded-xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="flex items-center justify-between">
           <Link href={`/user/${user.user_id}`} className="flex items-center gap-4 flex-1">
             {user.avatar_url ? (
@@ -87,7 +88,7 @@ export default function UserCard({ user }: UserCardProps) {
           {currentUser && currentUser.id !== user.user_id && (
             <button
               onClick={() => setIsReportModalOpen(true)}
-              className="text-sm px-2 py-1 border border-gray-200 dark:border-gray-800 hover:opacity-80 rounded-lg"
+              className="text-sm px-2 py-1 border border-outline hover:opacity-80 rounded-lg"
             >
               report
             </button>

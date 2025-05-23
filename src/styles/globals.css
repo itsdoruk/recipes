@@ -1,17 +1,28 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #F0F8FF;
-  --foreground: #0D2F52;
-  --outline: #dbeafe;
-}
+@layer base {
+  :root {
+    --background: #F0F8FF;
+    --foreground: #0D2F52;
+    --outline: #0D2F52;
+    --warning-banner-height: 0px;
+    --danger: #ef4444;
+    --accent: #0D2F52;
+  }
 
-.dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --outline: #222a35;
-}
+  .dark {
+    --background: #0a0a0a;
+    --foreground: #F0F8FF;
+    --outline: #1F2937;
+    --danger: #ef4444;
+    --accent: #0D2F52;
+  }
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+    font-family: Arial, Helvetica, sans-serif;
+    text-transform: lowercase;
+  }
 }

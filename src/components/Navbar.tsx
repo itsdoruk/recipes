@@ -1,94 +1,53 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useAuth } from '@/lib/auth';
+import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useTheme } from 'next-themes';
-import NotificationsDropdown from './NotificationsDropdown';
 import Image from 'next/image';
 import { useRef } from 'react';
 import Avatar from './Avatar';
-
-interface Profile {
-  username: string | null;
-  avatar_url: string | null;
-  is_private: boolean;
-  show_email: boolean;
-}
+import { useProfile } from '@/hooks/useProfile';
+import { getBrowserClient } from '@/lib/supabase/browserClient';
+import { useWarningBanner } from '@/hooks/useWarningBanner';
 
 export const NAVBAR_HEIGHT = 80; // px, matches h-20 in Tailwind for mobile, adjust if needed
+export const WARNING_BANNER_HEIGHT = 32; // px, for the warning banner
 
 export default function Navbar() {
   const router = useRouter();
-  const { user, signOut, warnings } = useAuth();
+  const session = useSession();
+  const supabase = useSupabaseClient();
   const { theme, setTheme } = useTheme();
   const [showSettings, setShowSettings] = useState(false);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { profile, isLoading } = useProfile();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [userResults, setUserResults] = useState<{ user_id: string; username: string | null; avatar_url: string | null }[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [supabase, setSupabase] = useState<any>(null);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+  const { warnings, shouldShowBanner, dismissBanner } = useWarningBanner();
 
-  // Initialize Supabase client on the client side
+  // Set CSS variable for warning banner visibility
   useEffect(() => {
-    const initSupabase = async () => {
-      try {
-        const { getBrowserClient } = await import('@/lib/supabase/browserClient');
-        setSupabase(getBrowserClient());
-      } catch (error) {
-        console.error('Error initializing Supabase:', error);
-      }
-    };
-    initSupabase();
-  }, []);
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!user || !supabase) {
-        setProfile(null);
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('username, avatar_url, is_private, show_email')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error) throw error;
-        setProfile(data);
-      } catch (error) {
-        console.error('error fetching profile:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, [user, supabase]);
+    // Set CSS variable for warning banner visibility
+    document.documentElement.style.setProperty(
+      '--warning-banner-height', 
+      shouldShowBanner ? `${WARNING_BANNER_HEIGHT}px` : '0px'
+    );
+  }, [shouldShowBanner]);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
   const handleSignOut = async () => {
-    try {
-      await signOut();
-      router.push('/login');
-    } catch (error) {
-      console.error('error signing out:', error);
-    }
+    await supabase.auth.signOut();
+    router.push('/login');
   };
 
   const isActive = (path: string) => router.pathname === path;
 
   const handleUserSearch = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!supabase) return;
-    
     const value = e.target.value;
     setSearch(value);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -115,13 +74,7 @@ export default function Navbar() {
 
   return (
     <>
-      {warnings > 0 && (
-        <div className="w-full bg-yellow-200 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100 text-center py-2 flex items-center justify-center gap-2">
-          <span className="text-xl">⚠️</span>
-          <span>You have {warnings} warning{warnings > 1 ? 's' : ''} on your account. Please follow the community guidelines.</span>
-        </div>
-      )}
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 dark:border-gray-800 shadow-md" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-outline shadow-md" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-16">
             {/* Logo and Navigation Links */}
@@ -136,10 +89,15 @@ export default function Navbar() {
                 <Link href="/timer" className="hover:opacity-80 transition-opacity">
                   timer
                 </Link>
-                {user && (
-                  <Link href="/create" className="hover:opacity-80 transition-opacity">
-                    create
-                  </Link>
+                {session && (
+                  <>
+                    <Link href="/create" className="hover:opacity-80 transition-opacity">
+                      create
+                    </Link>
+                    <Link href="/messages" className="hover:opacity-80 transition-opacity">
+                      messages
+                    </Link>
+                  </>
                 )}
               </div>
             </div>
@@ -177,9 +135,8 @@ export default function Navbar() {
 
             {/* Desktop User Menu */}
             <div className="hidden md:flex items-center gap-4">
-              {user ? (
+              {session ? (
                 <>
-                  <NotificationsDropdown />
                   <div className="relative">
                     <button
                       onClick={() => setShowSettings((v) => !v)}
@@ -191,23 +148,23 @@ export default function Navbar() {
                     </button>
                     {showSettings && (
                       <div
-                        className="absolute right-0 mt-2 w-64 border border-gray-200 dark:border-gray-800 shadow-lg z-50 rounded-xl"
+                        className="absolute right-0 mt-2 w-64 border border-outline shadow-lg z-50 rounded-xl"
                         style={{ background: "var(--background)", color: "var(--foreground)" }}
                       >
-                        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
-                          <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
+                        <div className="px-4 py-3 border-b border-outline">
+                          <p className="text-sm" style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}>
                             {profile?.username ? `@${profile.username.toLowerCase()}` : '[recipes] user'}
                           </p>
                           {profile?.show_email && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400" style={{ fontFamily: 'inherit' }}>
-                              {user.email?.toLowerCase()}
+                            <p className="text-sm" style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}>
+                              {session.user.email?.toLowerCase()}
                             </p>
                           )}
                         </div>
                         <Link
-                          href={`/user/${user.id}`}
+                          href={`/user/${session.user.id}`}
                           className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
-                          style={{ color: 'inherit', fontFamily: 'inherit' }}
+                          style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}
                           onClick={() => setShowSettings(false)}
                         >
                           profile
@@ -215,7 +172,7 @@ export default function Navbar() {
                         <Link
                           href="/account"
                           className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
-                          style={{ color: 'inherit', fontFamily: 'inherit' }}
+                          style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}
                           onClick={() => setShowSettings(false)}
                         >
                           account settings
@@ -223,7 +180,7 @@ export default function Navbar() {
                         <Link
                           href="/settings"
                           className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
-                          style={{ color: 'inherit', fontFamily: 'inherit' }}
+                          style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}
                           onClick={() => setShowSettings(false)}
                         >
                           app settings
@@ -252,7 +209,7 @@ export default function Navbar() {
 
           {/* Mobile Menu */}
           {isMenuOpen && (
-            <div className="md:hidden border-t border-gray-200 dark:border-gray-800 py-4">
+            <div className="md:hidden border-t border-outline py-4">
               <div className="flex flex-col gap-4">
                 <Link
                   href="/discover"
@@ -268,7 +225,7 @@ export default function Navbar() {
                 >
                   timer
                 </Link>
-                {user && (
+                {session && (
                   <>
                     <Link
                       href="/create"
@@ -277,10 +234,16 @@ export default function Navbar() {
                     >
                       create
                     </Link>
+                    <Link
+                      href="/messages"
+                      className="hover:opacity-80 transition-opacity"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      messages
+                    </Link>
                     <div className="flex items-center gap-4">
-                      <NotificationsDropdown />
                       <Link
-                        href={`/user/${user.id}`}
+                        href={`/user/${session.user.id}`}
                         className="hover:opacity-80 transition-opacity"
                         onClick={() => setIsMenuOpen(false)}
                       >
@@ -317,6 +280,33 @@ export default function Navbar() {
           )}
         </div>
       </nav>
+      
+      {/* Warning Banner - Separate from navbar */}
+      {shouldShowBanner && (
+        <div 
+          className="fixed left-0 right-0 w-full bg-yellow-200 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100 text-center shadow-md z-40 flex items-center justify-center"
+          style={{ 
+            top: `${NAVBAR_HEIGHT}px`,
+            minHeight: `${WARNING_BANNER_HEIGHT}px`,
+          }}
+        >
+          <div className="py-2 px-4 flex items-center justify-between max-w-7xl w-full">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">⚠️</span>
+              <span>You have {warnings} warning{warnings > 1 ? 's' : ''} on your account. Please follow the community guidelines.</span>
+            </div>
+            <button 
+              onClick={dismissBanner}
+              className="text-yellow-900 dark:text-yellow-100 hover:opacity-80 transition-opacity"
+              aria-label="Dismiss warning"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
