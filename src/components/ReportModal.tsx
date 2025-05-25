@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { fetchWithAuth, postWithAuth } from '@/lib/api-helpers';
+import { getWithAuth, postWithAuth } from '@/lib/api-helpers';
 import Modal from './Modal';
 
 interface ReportModalProps {
@@ -36,7 +36,7 @@ export default function ReportModal({
       const checkAuth = async () => {
         try {
           // Check auth status using the API endpoint
-          const response = await fetchWithAuth('/api/auth-status');
+          const response = await getWithAuth('/api/auth-status');
           const data = await response.json();
           
           if (!isMounted) return;
@@ -91,7 +91,7 @@ export default function ReportModal({
       console.log('Submitting report from modal with auth status:', authStatus);
       
       // Check auth status before proceeding
-      const authResponse = await fetchWithAuth('/api/auth-status');
+      const authResponse = await getWithAuth('/api/auth-status');
       const authData = await authResponse.json();
       
       if (!authData.authenticated) {

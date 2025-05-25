@@ -26,13 +26,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // Use service role to bypass RLS
     const data = await withServiceRoleBypass(async (adminClient) => {
-      // Example query that bypasses RLS
+      // Fetch profiles and join with auth.users to get emails
       const { data, error } = await adminClient
-        .from('user_profiles')
-        .select('*');
+        .from('profiles')
+        .select(`
+          *,
+          auth_users:user_id (
+            email
+          )
+        `);
       
       if (error) throw error;
-      return data;
+
+      // Transform the data to include email directly in the profile object
+      const transformedData = data.map(profile => ({
+        ...profile,
+        email: profile.auth_users?.email || null
+      }));
+
+      return transformedData;
     });
     
     return res.status(200).json({ data });

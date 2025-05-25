@@ -33,6 +33,8 @@ export default function Avatar({ avatar_url, username, alt, size = 48, className
       style={{ width: size, height: size }}
       onError={() => setImageError(true)}
       unoptimized={true}
+      loading="lazy"
+      priority={false}
     />
   );
 } 

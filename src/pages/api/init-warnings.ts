@@ -93,6 +93,14 @@ export default async function handler(
     // If we have a user ID, check if they're an admin
     if (userId) {
       try {
+        // First check if user is verified
+        const { data: { user: authUser }, error: authError } = await supabase.auth.admin.getUserById(userId);
+        if (authError) throw authError;
+        
+        if (!authUser?.email_confirmed_at) {
+          return res.status(403).json({ error: 'User email not verified' });
+        }
+
         // Ensure profile exists for this user
         let { data: profile, error: profileError } = await supabase
           .from('profiles')
@@ -111,7 +119,9 @@ export default async function handler(
               show_email: false,
               banned: false,
               ban_count: 0,
-              warnings: 0
+              warnings: 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
             })
             .select('is_admin, is_moderator')
             .single();

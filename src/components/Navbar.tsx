@@ -143,7 +143,11 @@ export default function Navbar() {
                       className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                     >
                       <div className="relative w-8 h-8 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-                        <Avatar avatar_url={profile?.avatar_url} username={profile?.username} size={32} />
+                        <Avatar 
+                          avatar_url={profile?.avatar_url || null} 
+                          username={profile?.username || 'User'} 
+                          size={32} 
+                        />
                       </div>
                     </button>
                     {showSettings && (
@@ -153,13 +157,10 @@ export default function Navbar() {
                       >
                         <div className="px-4 py-3 border-b border-outline">
                           <p className="text-sm" style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}>
-                            {profile?.username ? `@${profile.username.toLowerCase()}` : '[recipes] user'}
+                            {profile?.username && profile.username !== 'anonymous'
+                              ? `@${profile.username.toLowerCase()}`
+                              : '[recipes] user'}
                           </p>
-                          {profile?.show_email && (
-                            <p className="text-sm" style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}>
-                              {session.user.email?.toLowerCase()}
-                            </p>
-                          )}
                         </div>
                         <Link
                           href={`/user/${session.user.id}`}

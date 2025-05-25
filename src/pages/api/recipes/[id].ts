@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getRecipeById, searchRecipes } from '@/lib/spoonacular';
+import { getRecipeById, searchRecipes, SPOONACULAR_USER_ID } from '@/lib/spoonacular';
 import { getServerClient } from '@/lib/supabase/serverClient';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -89,7 +89,7 @@ async function searchTheMealDBRecipes(searchQuery: string): Promise<Recipe[]> {
     const mealDbRecipes = mealDbData.meals || [];
 
     return mealDbRecipes.map((meal: any) => ({
-      id: `random-internet-${meal.idMeal}`,
+      id: uuidv4(),
       title: meal.strMeal,
       description: meal.strInstructions,
       image_url: meal.strMealThumb,
@@ -223,182 +223,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Handle single recipe requests
   if (req.method === 'GET' && id) {
     try {
-      // If it's a Spoonacular ID
-      if (id.toString().startsWith('spoonacular-')) {
-        const recipeId = id.toString().replace('spoonacular-', '');
-        const recipe = await getRecipeById(recipeId);
-        if (!recipe) {
-          return res.status(404).json({ message: 'Recipe not found' });
-        }
-        return res.status(200).json({
-          ...recipe,
-          id: `spoonacular-${recipe.id}`,
-          recipe_type: 'spoonacular'
-        });
-      }
+      console.log('Fetching recipe with ID:', id);
 
-      // If it's an AI recipe ID
-      if (id.toString().startsWith('random-internet-')) {
-        const mealId = id.toString().replace('random-internet-', '').split('-')[0];
-        const recipeRes = await fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${mealId}`);
-        const recipeData = await recipeRes.json();
-        const meal = recipeData.meals?.[0];
-        
-        if (!meal) {
-          return res.status(404).json({ message: 'AI Recipe not found' });
-        }
-
-        // Generate AI recipe description
-        const improvisePrompt = `Start with a fun, appetizing, and engaging internet-style introduction for this recipe (at least 2 sentences, do not use the title as the description). Then, on new lines, provide:
-CUISINE: [guess the cuisine, e.g. british, italian, etc.]
-DIET: [guess the diet, e.g. vegetarian, gluten-free, etc.]
-COOKING TIME: [guess the total time in minutes, e.g. 30]
-NUTRITION: [guess as: 400 calories, 30g protein, 10g fat, 50g carbohydrates]
-Only provide these fields after the description, each on a new line, and nothing else.
-
-Title: ${meal.strMeal}
-Category: ${meal.strCategory}
-Area: ${meal.strArea}
-Instructions: ${meal.strInstructions}
-Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && meal[k]).map(k => meal[k]).join(', ')}`;
-
-        const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: [
-              { role: 'system', content: 'You are a recipe formatter. Always format recipes with these exact section headers in this order: DESCRIPTION, CUISINE, DIET, COOKING TIME, NUTRITION, INGREDIENTS, INSTRUCTIONS. Each section should start on a new line with its header in uppercase followed by a colon. Ingredients should be bullet points starting with "-". Instructions should be numbered steps starting with "1."' },
-              { role: 'user', content: improvisePrompt }
-            ]
-          })
-        });
-
-        if (!aiRes.ok) {
-          throw new Error('Failed to generate AI description');
-        }
-
-        const aiData = await aiRes.json();
-        let aiContent = aiData.choices[0].message.content;
-        if (aiContent instanceof Promise) {
-          aiContent = await aiContent;
-        }
-
-        // Extract properties from AI markdown
-        const lines = aiContent.split('\n').map((line: string) => line.trim());
-        let description = '';
-        let cuisine_type = '';
-        let diet_type = '';
-        let cooking_time = '';
-        let currentSection = '';
-
-        for (const line of lines as string[]) {
-          if (line.toUpperCase().startsWith('DESCRIPTION:')) {
-            currentSection = 'description';
-            description = line.substring(12).trim();
-          } else if (line.toUpperCase().startsWith('CUISINE:')) {
-            currentSection = '';
-            cuisine_type = line.substring(8).trim().toLowerCase();
-          } else if (line.toUpperCase().startsWith('DIET:')) {
-            currentSection = '';
-            diet_type = line.substring(5).trim().toLowerCase();
-          } else if (line.toUpperCase().startsWith('COOKING TIME:')) {
-            currentSection = '';
-            cooking_time = line.substring(13).trim();
-          } else if (currentSection === 'description') {
-            description += ' ' + line;
-          }
-        }
-
-        // Clean up description
-        description = description.trim();
-        if (!description || description === 'unknown') {
-          description = "A delicious dish you'll love!";
-        }
-
-        // Extract ingredients and instructions
-        const ingredients = Object.keys(meal)
-          .filter(k => k.startsWith('strIngredient') && meal[k] && meal[k].trim() && meal[k].toLowerCase() !== 'null')
-          .map(k => meal[k].trim());
-
-        const instructions = meal.strInstructions
-          ? meal.strInstructions.split(/\r?\n|\.\s+/).map((s: string) => s.trim()).filter(Boolean)
-          : [];
-
-        // Get existing AI recipes to check for duplicates and limit
-        const { data: existingRecipes, error: fetchError } = await supabase
-          .from('recipes')
-          .select('*')
-          .eq('recipe_type', 'ai')
-          .order('created_at', { ascending: false });
-
-        if (fetchError) {
-          console.error('Error fetching existing AI recipes:', fetchError);
-        }
-
-        // Check if this recipe would be a duplicate
-        const isDuplicate = existingRecipes?.some(
-          (recipe: Recipe) => recipe.title?.toLowerCase().trim() === meal.strMeal.toLowerCase().trim()
-        );
-
-        if (isDuplicate) {
-          return res.status(409).json({ message: 'This recipe already exists' });
-        }
-
-        // Check if we already have 5 AI recipes
-        if (existingRecipes && existingRecipes.length >= 5) {
-          // Delete the oldest AI recipe
-          const oldestRecipe = existingRecipes[existingRecipes.length - 1];
-          const { error: deleteError } = await supabase
-            .from('recipes')
-            .delete()
-            .eq('id', oldestRecipe.id);
-
-          if (deleteError) {
-            console.error('Error deleting oldest AI recipe:', deleteError);
-          }
-        }
-
-        // Save the new AI recipe to the database
-        const aiRecipeId = uuidv4();
-        const aiUserId = '00000000-0000-0000-0000-000000000000';
-        const { error: insertError } = await supabase
-          .from('recipes')
-          .insert({
-            id: aiRecipeId,
-            title: meal.strMeal,
-            description,
-            image_url: meal.strMealThumb,
-            user_id: aiUserId,
-            created_at: new Date().toISOString(),
-            ingredients,
-            instructions,
-            cuisine_type: cuisine_type || meal.strArea || 'unknown',
-            diet_type: diet_type || 'unknown',
-            cooking_time: cooking_time || '30 mins',
-            recipe_type: 'ai'
-          });
-
-        if (insertError) {
-          console.error('Error saving AI recipe to database:', insertError);
-        }
-
-        return res.status(200).json({
-          id: aiRecipeId,
-          title: meal.strMeal,
-          description,
-          image_url: meal.strMealThumb,
-          user_id: aiUserId,
-          created_at: new Date().toISOString(),
-          ingredients,
-          instructions,
-          cuisine_type: cuisine_type || meal.strArea || 'unknown',
-          diet_type: diet_type || 'unknown',
-          cooking_time: cooking_time || '30 mins',
-          recipe_type: 'ai'
-        });
-      }
-
-      // For user recipes, query Supabase
+      // First, try to fetch from Supabase for user recipes
+      console.log('Querying Supabase for recipe:', id);
       const { data: recipe, error } = await supabase
         .from('recipes')
         .select('*')
@@ -410,13 +238,83 @@ Ingredients: ${Object.keys(meal).filter(k => k.startsWith('strIngredient') && me
         return res.status(500).json({ message: 'Failed to fetch recipe from database' });
       }
 
-      if (!recipe) {
-        return res.status(404).json({ message: 'Recipe not found' });
+      if (recipe) {
+        console.log('Found recipe in Supabase:', recipe);
+        return res.status(200).json(recipe);
       }
 
-      return res.status(200).json(recipe);
+      // If not found in Supabase, check if it's a Spoonacular ID
+      if (id.toString().startsWith('spoonacular-')) {
+        const recipeId = id.toString().replace('spoonacular-', '');
+        const spoonacularRecipe = await getRecipeById(recipeId);
+        if (!spoonacularRecipe) {
+          console.log('Spoonacular recipe not found');
+          return res.status(404).json({ message: 'Recipe not found' });
+        }
+
+        // First, check if we already have this recipe in our database
+        const { data: existingRecipe } = await supabase
+          .from('recipes')
+          .select('*')
+          .eq('recipe_type', 'spoonacular')
+          .eq('spoonacular_id', recipeId)
+          .maybeSingle();
+
+        if (existingRecipe) {
+          console.log('Found existing Spoonacular recipe in database:', existingRecipe);
+          return res.status(200).json(existingRecipe);
+        }
+
+        // If not found, create a new recipe entry
+        const recipeData = {
+          title: spoonacularRecipe.title,
+          description: spoonacularRecipe.summary || 'A delicious recipe to try!',
+          image_url: spoonacularRecipe.image,
+          user_id: SPOONACULAR_USER_ID,
+          created_at: new Date().toISOString(),
+          cuisine_type: spoonacularRecipe.cuisines?.[0] || null,
+          cooking_time: spoonacularRecipe.readyInMinutes ? `${spoonacularRecipe.readyInMinutes} mins` : null,
+          diet_type: spoonacularRecipe.diets?.[0] || null,
+          cooking_time_value: spoonacularRecipe.readyInMinutes,
+          recipe_type: 'spoonacular',
+          spoonacular_id: recipeId,
+          ingredients: spoonacularRecipe.extendedIngredients?.map((ing: any) => ing.original) || [],
+          instructions: spoonacularRecipe.analyzedInstructions?.[0]?.steps?.map((step: any) => step.step) || []
+        };
+
+        // Insert the recipe into our database
+        const { data: newRecipe, error: insertError } = await supabase
+          .from('recipes')
+          .insert(recipeData)
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error inserting Spoonacular recipe:', insertError);
+          return res.status(500).json({ message: 'Failed to store recipe' });
+        }
+
+        console.log('Successfully stored Spoonacular recipe:', newRecipe);
+        return res.status(200).json(newRecipe);
+      }
+
+      // Finally, check for AI recipes
+      const { data: aiRecipe, error: aiError } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('id', id)
+        .eq('recipe_type', 'ai')
+        .maybeSingle();
+
+      if (aiRecipe) {
+        return res.status(200).json(aiRecipe);
+      }
+
+      // If we get here, the recipe was not found
+      console.log('Recipe not found in any source');
+      return res.status(404).json({ message: 'Recipe not found' });
     } catch (error) {
-      console.error('Error fetching recipe:', error);
+      console.error('Error in recipe fetch handler:', error);
       return res.status(500).json({ message: 'Failed to fetch recipe' });
     }
   }

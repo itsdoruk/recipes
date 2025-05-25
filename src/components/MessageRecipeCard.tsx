@@ -33,7 +33,7 @@ export default function MessageRecipeCard({ recipeId, recipeType }: MessageRecip
           const response = await fetch(`/api/recipes/${recipeId}`);
           if (!response.ok) throw new Error('Failed to fetch recipe');
           data = await response.json();
-        } else if (source === 'internet') {
+        } else if ((source as string) === 'internet') {
           const response = await fetch(`/api/recipes/${recipeId}`);
           if (!response.ok) throw new Error('Failed to fetch recipe');
           data = await response.json();

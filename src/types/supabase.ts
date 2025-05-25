@@ -29,6 +29,7 @@ export interface Database {
           ban_count: number
           created_at: string
           updated_at: string
+          email: string | null
         }
         Insert: {
           id?: string
@@ -49,6 +50,7 @@ export interface Database {
           ban_count?: number
           created_at?: string
           updated_at?: string
+          email?: string | null
         }
         Update: {
           id?: string
@@ -69,6 +71,7 @@ export interface Database {
           ban_count?: number
           created_at?: string
           updated_at?: string
+          email?: string | null
         }
       }
       recipes: {
@@ -92,6 +95,8 @@ export interface Database {
           recipe_type: 'user' | 'spoonacular' | 'ai'
           user_id: string
           is_starred: boolean
+          spoonacular_id?: string
+          image_url?: string | null
         }
         Insert: {
           id: string
@@ -113,6 +118,8 @@ export interface Database {
           recipe_type: 'user' | 'spoonacular' | 'ai'
           user_id: string
           is_starred?: boolean
+          spoonacular_id?: string
+          image_url?: string | null
         }
         Update: {
           id?: string
@@ -134,6 +141,8 @@ export interface Database {
           recipe_type?: 'user' | 'spoonacular' | 'ai'
           user_id?: string
           is_starred?: boolean
+          spoonacular_id?: string
+          image_url?: string | null
         }
       }
       starred_recipes: {
@@ -172,4 +181,87 @@ export interface Database {
   }
 }
 
-export type Profile = Database['public']['Tables']['profiles']['Row'];
+export interface Report {
+  id: string;
+  reported_user_id: string;
+  reported_username: string | null;
+  reported_avatar_url: string | null;
+  reported_bio: string | null;
+  reported_is_private: boolean;
+  reported_show_email: boolean;
+  reported_is_admin: boolean;
+  reported_full_name: string | null;
+  reporter_username: string | null;
+  reporter_avatar_url: string | null;
+  status: string;
+  warnings: number;
+  ban_type: 'temporary' | 'permanent' | 'warning' | null;
+  ban_reason: string | null;
+  ban_expiry: string | null;
+  last_ban_date: string | null;
+  ban_count: number;
+  created_at: string;
+  updated_at: string;
+  email: string | null;
+  admin_id: string | null;
+  reason: string;
+  details: any;
+  admin_notes?: string;
+  recipe_type?: string;
+  recipe_id?: string;
+  title?: string;
+  reviewed_by?: string;
+  reviewer_username?: string;
+  reviewed_at?: string;
+}
+
+export interface Profile {
+  id: string;
+  user_id: string;
+  username: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  is_private: boolean;
+  show_email: boolean;
+  is_admin: boolean;
+  warnings: number;
+  banned: boolean;
+  ban_type: 'temporary' | 'permanent' | 'warning' | null;
+  ban_reason: string | null;
+  ban_expiry: string | null;
+  last_ban_date: string | null;
+  ban_count: number;
+  created_at: string;
+  updated_at: string;
+  email: string | null;
+  followers_count?: number;
+  following_count?: number;
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Conversation {
+  id: string;
+  user1_id: string;
+  user2_id: string;
+  created_at: string;
+  updated_at: string;
+  last_message_at: string | null;
+}
+
+export interface ExtendedConversation extends Conversation {
+  other_user: {
+    id: string;
+    username: string | null;
+    avatar_url: string | null;
+  };
+  last_message: Message | null;
+}

@@ -62,6 +62,7 @@ export default function RecipeList({ recipes, onLike, onComment }: RecipeListPro
           cooking_time={recipe.cooking_time}
           onLike={() => onLike?.(recipe.id)}
           onComment={() => onComment?.(recipe.id)}
+          recipeType="user"
         />
       ))}
     </div>

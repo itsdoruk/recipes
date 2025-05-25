@@ -11,52 +11,53 @@ import ShareDialog from './ShareDialog';
 import { formatDistanceToNow } from 'date-fns';
 import StarButton from './StarButton';
 import ShareButton from './ShareButton';
+import { fetchProfileById } from '@/lib/api/profile';
+import { getBrowserClient } from '@/lib/supabase/browserClient';
+import ReportButton from './ReportButton';
+import { Recipe } from '@/types';
+import type { RecipeType } from '@/types';
 
 interface Profile {
   username: string | null;
   avatar_url: string | null;
 }
 
-interface RecipeCardProps {
-  id: string | undefined;
-  title: string;
-  description: string;
-  image_url: string | null;
-  user_id: string;
-  created_at: string;
-  cuisine_type?: string | null;
-  cooking_time?: string | null;
-  diet_type?: string | null;
-  readyInMinutes?: number;
-  link?: string;
+interface RecipeCardProps extends Partial<Recipe> {
   loading?: boolean;
-  recipeType?: 'user' | 'spoonacular' | 'ai';
-  funDescription?: string;
   hideLoadingAnimation?: boolean;
+  onLike?: () => void;
+  onComment?: () => void;
+  recipeType?: RecipeType;
 }
 
 function RecipeCardContent({
-  id,
-  title,
-  description,
-  image_url,
-  user_id,
-  created_at,
-  cuisine_type,
-  cooking_time,
-  diet_type,
+  id = '',
+  title = '',
+  description = '',
+  image_url = null,
+  user_id = '',
+  username: initialUsername,
+  created_at = '',
+  cuisine_type = null,
+  cooking_time = null,
+  diet_type = null,
   readyInMinutes,
   link,
   loading = false,
   recipeType = 'user',
   funDescription,
   hideLoadingAnimation = false,
+  likes_count = 0,
+  comments_count = 0,
+  is_liked = false,
+  onLike,
+  onComment,
 }: RecipeCardProps) {
   const router = useRouter();
   const user = useUser();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<{ username: string | null; avatar_url: string | null } | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -64,44 +65,50 @@ function RecipeCardContent({
 
   console.log('Rendering RecipeCard:', { id, title, recipeType });
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        // Check for special user IDs that aren't UUIDs
-        if (user_id === 'spoonacular') {
-          setProfile({ username: 'internet recipe', avatar_url: null });
-          return;
-        }
-        
-        if (user_id === 'ai') {
-          setProfile({ username: 'ai recipe', avatar_url: null });
-          return;
-        }
-        
-        // Only try to fetch from the database for regular user IDs
-        const { data, error } = await getSupabaseClient()
-          .from('profiles')
-          .select('username, avatar_url')
-          .eq('user_id', user_id)
-          .single();
+  // Ensure recipeId is always a string and handle undefined values
+  const hasValidId = Boolean(id);
+  const linkPath = hasValidId ? (link || `/recipe/${id}`) : '/';
 
-        if (error) throw error;
-        setProfile(data);
-      } catch (err) {
-        console.error('Error fetching profile:', err);
-        setError('failed to load user profile');
+  const recipeTitle = title || '';
+  const recipeDescription = description || '';
+  const recipeImageUrl = image_url || null;
+  const recipeUserId = user_id || '';
+  const recipeCreatedAt = created_at || '';
+
+  async function fetchSimpleProfile(userId: string) {
+    const { data, error } = await getBrowserClient()
+      .from('profiles')
+      .select('username, avatar_url')
+      .eq('user_id', userId)
+      .single();
+    if (error) {
+      console.error('Error fetching simple profile:', error);
+      return { username: null, avatar_url: null };
+    }
+    return data;
+  }
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchOwnerProfile() {
+      if (recipeType === 'user' && user_id && user_id !== 'spoonacular' && user_id !== 'ai' && user_id !== '00000000-0000-0000-0000-000000000000') {
+        setProfileLoading(true);
+        const ownerProfile = await fetchSimpleProfile(user_id);
+        if (isMounted) {
+          setProfile(ownerProfile ? { username: ownerProfile.username, avatar_url: ownerProfile.avatar_url } : { username: null, avatar_url: null });
+          setProfileLoading(false);
+        }
+      } else {
+        setProfile(null);
+        setProfileLoading(false);
       }
-    };
-    fetchProfile();
-  }, [user_id]);
+    }
+    fetchOwnerProfile();
+    return () => { isMounted = false; };
+  }, [user_id, recipeType]);
 
   const getRecipeUrl = () => {
-    // For Spoonacular recipes, use the original ID format
-    if (recipeType === 'spoonacular') {
-      return `/recipe/${id}`;
-    }
-    
-    // For other recipes, use the standard format
+    // All recipes now use UUIDs
     return `/recipe/${id}`;
   };
 
@@ -165,16 +172,6 @@ function RecipeCardContent({
     }
   };
 
-  const handleReport = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsReportModalOpen(true);
-  };
-
-  const handleCloseReportModal = () => {
-    setIsReportModalOpen(false);
-  };
-
   const handleCloseShareDialog = () => {
     setIsShareDialogOpen(false);
   };
@@ -209,21 +206,20 @@ function RecipeCardContent({
     return `${cooking_time} mins`;
   };
 
-  // Ensure recipeId is always a string and handle undefined values
-  const recipeId = id?.toString() || '';
-  const hasValidId = Boolean(recipeId);
-  const linkPath = hasValidId ? (link || `/recipe/${recipeId}`) : '/';
+  // Helper to strip <b> and </b> tags
+  const stripBoldTags = (text: string) => text.replace(/<\/?b>/gi, '');
+
   const cardClass = loading && !hideLoadingAnimation
     ? "animate-pulse cursor-wait"
     : "cursor-pointer hover:opacity-90 transition-opacity";
 
   const cardContent = (
     <div className="h-[400px] flex flex-col rounded-xl overflow-hidden border border-outline shadow-md hover:shadow-lg transition-shadow" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-      {image_url ? (
+      {recipeImageUrl ? (
         <div className="relative w-full h-48 flex-shrink-0">
           <Image
-            src={image_url}
-            alt={title}
+            src={recipeImageUrl}
+            alt={recipeTitle}
             fill
             className="object-cover"
           />
@@ -231,9 +227,26 @@ function RecipeCardContent({
       ) : (
         <div className="w-full h-48 flex-shrink-0" style={{ background: "var(--background)" }} />
       )}
-      <div className="flex-1 flex flex-col p-4">
+      <div className="flex flex-wrap gap-2 p-4 pb-0">
+        {cuisine_type && cuisine_type !== 'unknown' && (
+          <span className="text-xs px-2 py-1 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-800 text-white">
+            {cuisine_type}
+          </span>
+        )}
+        {diet_type && diet_type !== 'unknown' && diet_type.split(',').map((diet, index) => (
+          <span key={`${id}-diet-${index}`} className="text-xs px-2 py-1 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-800 text-white">
+            {diet.trim()}
+          </span>
+        ))}
+        {(cooking_time || readyInMinutes) && (
+          <span className="text-xs px-2 py-1 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-800 text-white">
+            {formatCookingTimePill(cooking_time) || formatTime(readyInMinutes)}
+          </span>
+        )}
+      </div>
+      <div className="flex-1 flex flex-col p-4 pt-2">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-medium line-clamp-1" style={{ color: "var(--foreground)" }}>{title}</h2>
+          <h2 className="text-lg font-medium line-clamp-1" style={{ color: "var(--foreground)" }}>{stripBoldTags(recipeTitle)}</h2>
         </div>
         {funDescription && (
           <p className="text-sm-600 dark:text-gray-400 mb-2 line-clamp-1">
@@ -241,109 +254,82 @@ function RecipeCardContent({
           </p>
         )}
         <p className="text-sm mb-4 line-clamp-2" style={{ color: "var(--foreground)" }}>
-          {formatDescription(description)}
+          {stripBoldTags(formatDescription(recipeDescription))}
         </p>
         <div className="mt-auto">
-          <div className="flex flex-wrap gap-2 mb-2">
-            {cuisine_type && cuisine_type !== 'unknown' && (
-              <span className="text-xs px-2 py-1 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-800 text-white">
-                {cuisine_type}
-              </span>
-            )}
-            {diet_type && diet_type !== 'unknown' && diet_type.split(',').map((diet, index) => (
-              <span key={`${recipeId}-diet-${index}`} className="text-xs px-2 py-1 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-800 text-white">
-                {diet.trim()}
-              </span>
-            ))}
-            {(cooking_time || readyInMinutes) && (
-              <span className="text-xs px-2 py-1 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-800 text-white">
-                {formatCookingTimePill(cooking_time) || formatTime(readyInMinutes)}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
-            <div className="flex items-center">
-              {recipeType === 'ai' || user_id === '00000000-0000-0000-0000-000000000000' ? (
-                <>
-                  <Avatar avatar_url={undefined} username="AI Recipe" size={24} className="mr-2" />
-                  <span className="text-xs line-clamp-1">AI Recipe</span>
-                </>
-              ) : (
-                <>
-                  <Avatar 
-                    avatar_url={profile?.avatar_url} 
-                    username={profile?.username} 
-                    size={24} 
-                    className="mr-2"
-                  />
-                  <span className="text-xs line-clamp-1">
-                    {profile?.username || 'anonymous'}
-                  </span>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              <StarButton recipeId={recipeId} recipeType={recipeType} />
-              <ShareButton
-                recipeId={recipeId}
-                recipeTitle={title}
-                recipeType={recipeType}
-                className="p-1 flex items-center justify-center hover:opacity-80 transition-opacity"
-                iconOnly={true}
-              />
-              {recipeType === 'user' && user && hasValidId && (
-                <button 
-                  onClick={handleReport} 
-                  className="p-1 flex items-center justify-center hover:opacity-80 transition-opacity"
-                  aria-label="Report recipe"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="w-5 h-5 text-red-500"
-                  >
-                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-                    <line x1="4" y1="15" x2="4" y2="21" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </div>
   );
 
   return (
-    <>
+    <div className="relative">
       <Link href={linkPath} className={cardClass}>
         {cardContent}
       </Link>
-
-      {recipeType !== 'spoonacular' && isReportModalOpen && hasValidId && (
-        <ReportModal
-          isOpen={isReportModalOpen}
-          onRequestClose={handleCloseReportModal}
-          reportedRecipeId={recipeId}
-          recipeType={recipeType}
+      {/* Action row with all buttons, outside the Link to prevent navigation on click */}
+      <div className="flex items-center gap-4 h-16 px-4 border-t border-outline bg-transparent absolute bottom-0 left-0 w-full" onClick={e => e.stopPropagation()}>
+        <Avatar
+          avatar_url={
+            profile && profile.avatar_url && recipeType === 'user'
+              ? profile.avatar_url
+              : undefined
+          }
+          username={
+            recipeType === 'user' && profile && profile.username
+              ? profile.username.toLowerCase()
+              : recipeType === 'ai' || user_id === '00000000-0000-0000-0000-000000000000'
+              ? 'ai recipe'
+              : recipeType === 'spoonacular' || user_id === 'spoonacular'
+              ? 'spoonacular'
+              : '[recipes] user'
+          }
+          size={24}
+          className="bg-gray-200 text-gray-800 dark:bg-gray-900 dark:text-gray-200 font-bold"
         />
-      )}
-      
+        <span className="text-xs font-normal align-middle lowercase" style={{ lineHeight: '24px' }}>
+          {recipeType === 'user' && profile && profile.username
+            ? profile.username.toLowerCase()
+            : recipeType === 'ai' || user_id === '00000000-0000-0000-0000-000000000000'
+            ? 'ai recipe'
+            : recipeType === 'spoonacular' || user_id === 'spoonacular'
+            ? 'spoonacular'
+            : '[recipes] user'}
+        </span>
+        <div className="flex items-center gap-4 ml-auto">
+          <StarButton
+            recipeId={id}
+            recipeType={recipeType}
+            isStarred={false}
+            onToggle={(isStarred) => {
+              // Handle star toggle
+              console.log('Star toggled:', isStarred);
+            }}
+          />
+          <ShareButton
+            recipeId={id}
+            recipeTitle={recipeTitle}
+            recipeType={recipeType}
+            className="p-1 flex items-center justify-center hover:opacity-80 transition-opacity"
+            iconOnly={true}
+          />
+          <ReportButton
+            recipeId={id}
+            recipeType={recipeType}
+            className="p-1 flex items-center justify-center hover:opacity-80 transition-opacity"
+          />
+        </div>
+      </div>
       {isShareDialogOpen && hasValidId && (
         <ShareDialog
           isOpen={isShareDialogOpen}
           onRequestClose={handleCloseShareDialog}
-          recipeId={recipeId}
-          recipeTitle={title}
+          recipeId={id}
+          recipeTitle={recipeTitle}
           recipeType={recipeType}
         />
       )}
-    </>
+    </div>
   );
 }
 

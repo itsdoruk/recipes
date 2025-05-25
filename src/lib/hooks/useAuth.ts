@@ -5,28 +5,45 @@ import { User, Session } from '@supabase/supabase-js';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
-const REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = getBrowserClient();
 
   const handleAuthError = async (error: any, retryCount = 0): Promise<boolean> => {
     console.error('[Auth] Error:', error);
+    setAuthError(error.message || 'Authentication error');
     
-    // Handle JWT errors
-    if (error.message?.includes('JWT')) {
-      console.warn('[Auth] JWT error detected, attempting to refresh session');
+    if (error.message?.includes('JWT') || error.message?.includes('invalid session')) {
+      console.warn('[Auth] Session error detected, attempting to refresh session');
       try {
+        // First try a normal refresh
         const { data: { session: newSession }, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) throw refreshError;
+        
+        if (refreshError) {
+          console.error('[Auth] Normal refresh failed:', refreshError);
+          // If normal refresh fails, try a force refresh
+          const { data: { session: forceSession }, error: forceError } = await supabase.auth.getSession();
+          if (forceError) throw forceError;
+          if (forceSession) {
+            console.debug('[Auth] Force refresh successful');
+            setSession(forceSession);
+            setUser(forceSession.user);
+            setAuthError(null);
+            return true;
+          }
+          throw refreshError;
+        }
+        
         if (newSession) {
           console.debug('[Auth] Session refreshed successfully');
           setSession(newSession);
           setUser(newSession.user);
+          setAuthError(null);
           return true;
         }
       } catch (refreshError) {
@@ -35,6 +52,11 @@ export const useAuth = () => {
           console.debug(`[Auth] Retrying refresh (${retryCount + 1}/${MAX_RETRIES})...`);
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * Math.pow(2, retryCount)));
           return handleAuthError(error, retryCount + 1);
+        } else {
+          // If we've exhausted retries, force a re-login
+          setAuthError('Session expired. Please log in again.');
+          forceClearSupabaseAuth();
+          router.push('/login');
         }
       }
     }
@@ -42,78 +64,13 @@ export const useAuth = () => {
     return false;
   };
 
-  const handleSessionChange = async (event: string, currentSession: Session | null, isMounted: boolean) => {
-    console.debug('[Auth] Session change:', event);
-    
-    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-      if (currentSession) {
-        // Validate session expiration
-        const expiresAt = currentSession.expires_at;
-        const now = Math.floor(Date.now() / 1000);
-        
-        if (expiresAt && expiresAt < now) {
-          console.warn('[Auth] Session expired, attempting refresh');
-          const { data: { session: newSession }, error } = await supabase.auth.refreshSession();
-          if (error) {
-            console.error('[Auth] Failed to refresh expired session:', error);
-            await supabase.auth.signOut();
-            if (isMounted && router.pathname !== '/login') {
-              router.push('/login');
-            }
-            return;
-          }
-          if (newSession) {
-            setSession(newSession);
-            setUser(newSession.user);
-            return;
-          }
-        }
-        
-        setSession(currentSession);
-        setUser(currentSession.user);
-      }
-    } else if (event === 'SIGNED_OUT') {
-      setSession(null);
-      setUser(null);
-      if (isMounted && router.pathname !== '/login') {
-        router.push('/login');
-      }
-    }
-  };
-
-  const refreshSession = async (): Promise<boolean> => {
-    try {
-      console.debug('[Auth] Manually refreshing session');
-      const { data: { session: newSession }, error } = await supabase.auth.refreshSession();
-      
-      if (error) {
-        console.error('[Auth] Error refreshing session:', error);
-        return false;
-      }
-      
-      if (newSession) {
-        console.debug('[Auth] Session refreshed successfully');
-        setSession(newSession);
-        setUser(newSession.user);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('[Auth] Unexpected error refreshing session:', error);
-      return false;
-    }
-  };
-
   useEffect(() => {
     let mounted = true;
 
-    // Set up initial session
     const initializeAuth = async () => {
       try {
         setLoading(true);
         
-        // First try to get the current session
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -152,7 +109,6 @@ export const useAuth = () => {
 
     initializeAuth();
 
-    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, currentSession: Session | null) => {
       console.debug('[Auth] Auth state changed:', event);
       
@@ -166,7 +122,6 @@ export const useAuth = () => {
       } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
-        // Only redirect if we're not already on the login page and not in the middle of loading
         if (router.pathname !== '/login' && !loading) {
           router.push('/login');
         }
@@ -179,14 +134,57 @@ export const useAuth = () => {
     };
   }, []);
 
+  const refreshSession = async (force = false): Promise<boolean> => {
+    try {
+      console.debug('[Auth] Manually refreshing session', force ? '(forced)' : '');
+      setAuthError(null);
+      
+      if (force) {
+        // Force a complete session refresh by signing out and back in
+        await supabase.auth.signOut();
+        const { data: { session: newSession }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (newSession) {
+          setSession(newSession);
+          setUser(newSession.user);
+          return true;
+        }
+        return false;
+      }
+      
+      const { data: { session: newSession }, error } = await supabase.auth.refreshSession();
+      
+      if (error) {
+        console.error('[Auth] Error refreshing session:', error);
+        setAuthError(error.message || 'Failed to refresh session');
+        return false;
+      }
+      
+      if (newSession) {
+        console.debug('[Auth] Session refreshed successfully');
+        setSession(newSession);
+        setUser(newSession.user);
+        return true;
+      }
+      
+      setAuthError('No active session found');
+      return false;
+    } catch (error: any) {
+      console.error('[Auth] Unexpected error refreshing session:', error);
+      setAuthError(error.message || 'Unexpected error refreshing session');
+      return false;
+    }
+  };
+
   return {
     user,
     session,
     loading,
     isAuthenticated: !!session,
-    authError: null,
+    authError,
     refreshSession,
-    handleAuthError
+    handleAuthError,
+    forceClearAuth: forceClearSupabaseAuth
   };
 };
 

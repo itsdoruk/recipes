@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { getBrowserClient, removeChannel } from '@/lib/supabase/browserClient';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import Image from 'next/image';
 import Link from 'next/link';
 import MessageRecipeCard from '@/components/MessageRecipeCard';
@@ -12,9 +13,10 @@ import Avatar from '@/components/Avatar';
 export default function MessagePage() {
   const router = useRouter();
   const { id } = router.query;
-  const { user, loading: sessionLoading, isAuthenticated } = useAuth();
+  const { session, user, loading: sessionLoading } = useAuth();
+  const { profile, isLoading: profileLoading } = useProfile();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [conversation, setConversation] = useState<ExtendedConversation | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [conversationError, setConversationError] = useState<string | null>(null);
@@ -47,12 +49,10 @@ export default function MessagePage() {
       return;
     }
     
-    if (!isAuthenticated || !id) {
-      console.log('Auth check failed:', { isAuthenticated, id });
-      if (!isAuthenticated) {
-        const redirectPath = id ? `/login?redirectTo=/messages/${id}` : '/login';
-        router.push(redirectPath);
-      }
+    if (sessionLoading || profileLoading) return;
+    if (!session) {
+      const redirectPath = id ? `/login?redirectTo=/messages/${id}` : '/login';
+      router.push(redirectPath);
       return;
     }
 
@@ -81,7 +81,7 @@ export default function MessagePage() {
     loadData();
     
     // Mark conversation as read when viewing
-    if (user && id) {
+    if (session && id) {
       markConversationAsRead();
     }
 
@@ -173,29 +173,29 @@ export default function MessagePage() {
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [router.isReady, id, supabase, sessionLoading, isAuthenticated, user, router]);
+  }, [router.isReady, id, supabase, sessionLoading, profileLoading, session, router]);
 
   // Add an effect to mark conversation as read when messages change
   useEffect(() => {
-    if (user && id && supabase && messages.length > 0 && !loading) {
+    if (session && id && supabase && messages.length > 0 && !loading) {
       markConversationAsRead();
     }
-  }, [messages, id, user, supabase, loading]);
+  }, [messages, id, session, supabase, loading]);
 
   const fetchConversation = async () => {
-    if (!user || !id) {
-      console.log('Cannot fetch conversation:', { hasUser: !!user, id });
+    if (!session || !id || !user) {
+      console.log('Cannot fetch conversation:', { hasUser: !!session, id });
       return;
     }
     try {
-      console.log('Starting to fetch conversation:', { id, userId: user.id });
+      console.log('Starting to fetch conversation:', { id, userId: user?.id });
       setConversationError(null);
       
       // Try to fetch the conversation directly first
       console.log('Fetching conversation directly');
       const { data: conversationData, error: conversationError } = await supabase
         .from('conversations')
-        .select('id, user_id, other_user_id, created_at, updated_at')
+        .select('id, user_id, other_user_id, created_at, updated_at, last_message_at, last_message')
         .eq('id', id)
         .single();
       
@@ -234,21 +234,23 @@ export default function MessagePage() {
       console.log('Profile fetch result:', { data: profileData, error: profileError });
       
       // Create a conversation object with the required fields
-      const convoWithUser: Conversation = {
+      const conversation: ExtendedConversation = {
         id: conversationData.id,
-        user_id: conversationData.user_id,
-        other_user_id: conversationData.other_user_id,
+        user1_id: conversationData.user_id,
+        user2_id: conversationData.other_user_id,
         created_at: conversationData.created_at,
         updated_at: conversationData.updated_at,
+        last_message_at: conversationData.last_message_at,
         other_user: {
-          id: otherUserId,
-          username: profileError ? 'Unknown User' : profileData.username,
-          avatar_url: profileError ? null : profileData.avatar_url
-        }
+          id: profileData?.user_id || otherUserId,
+          username: profileData?.username || 'Unknown',
+          avatar_url: profileData?.avatar_url || null
+        },
+        last_message: conversationData.last_message
       };
       
-      console.log('Setting conversation:', convoWithUser);
-      setConversation(convoWithUser);
+      console.log('Setting conversation:', conversation);
+      setConversation(conversation);
     } catch (error) {
       console.error('Error in fetchConversation:', error);
       setConversationError('Failed to load conversation. Please try again.');
@@ -258,6 +260,7 @@ export default function MessagePage() {
   };
 
   const fetchMessages = async () => {
+    if (!user) return;
     try {
       console.log('fetchMessages called with id:', id);
       if (!id) {
@@ -316,7 +319,7 @@ export default function MessagePage() {
       const messagesWithProfiles = messagesData.map((msg: any) => ({
         ...msg,
         sender: profilesMap[msg.sender_id] || { 
-          username: msg.sender_id === user?.id ? 'You' : 'Unknown', 
+          username: msg.sender_id === user.id ? 'You' : 'Unknown', 
           avatar_url: null
         }
       }));
@@ -337,6 +340,7 @@ export default function MessagePage() {
   };
 
   const handleNewMessage = async (payload: any) => {
+    if (!user) return;
     console.log('New message payload:', payload);
     console.log('Recipe data in payload:', {
       recipe_id: payload.new.recipe_id,
@@ -351,7 +355,7 @@ export default function MessagePage() {
       .single();
     
     const senderInfo = profileData || { 
-      username: payload.new.sender_id === user?.id ? 'You' : 'Unknown', 
+      username: payload.new.sender_id === user.id ? 'You' : 'Unknown', 
       avatar_url: null
     };
     
@@ -417,19 +421,17 @@ export default function MessagePage() {
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     setSendError(null);
-    console.log('sendMessage called', { newMessage, user, id, supabase });
-    
-    if (!newMessage.trim() || !user || !id || !supabase) {
+    if (!user || !newMessage.trim() || !session || !id || !supabase) {
       const errorMessage = !newMessage.trim() ? 'Please enter a message' : 
-                           !user ? 'User not authenticated' : 
+                           !session ? 'User not authenticated' : 
                            !id ? 'Missing conversation ID' : 
                            !supabase ? 'Supabase client not initialized' : 
                            'Missing required information';
-      console.error('Send message error:', errorMessage);
       setSendError(errorMessage);
       return;
     }
-
+    console.log('sendMessage called', { newMessage, session, id, supabase });
+    
     // Check if the message contains a recipe URL
     const recipeInfo = isRecipeUrl(newMessage.trim());
     console.log('Recipe URL check result:', recipeInfo);
@@ -464,8 +466,8 @@ export default function MessagePage() {
         const sentMessage = {
           ...data[0],
           sender: {
-            username: (user && 'username' in user ? user.username : 'You'),
-            avatar_url: (user && 'avatar_url' in user ? user.avatar_url : null)
+            username: (session && 'username' in session ? session.username : 'You'),
+            avatar_url: (session && 'avatar_url' in session ? session.avatar_url : null)
           }
         };
         
@@ -482,7 +484,7 @@ export default function MessagePage() {
 
   // Share a recipe by sending its URL as a message
   const shareRecipe = async (recipeId: string, recipeType: 'user' | 'ai' | 'spoonacular') => {
-    if (!user || !id) return;
+    if (!session || !id || !user) return;
 
     try {
       // Instead of putting the recipe URL in the content, use the dedicated fields
@@ -510,8 +512,8 @@ export default function MessagePage() {
         const sentMessage = {
           ...data[0],
           sender: {
-            username: (user && 'username' in user ? user.username : 'You'),
-            avatar_url: (user && 'avatar_url' in user ? user.avatar_url : null)
+            username: (session && 'username' in session ? session.username : 'You'),
+            avatar_url: (session && 'avatar_url' in session ? session.avatar_url : null)
           }
         };
         
@@ -529,7 +531,7 @@ export default function MessagePage() {
 
   const handleDeleteMessage = async (messageId: string) => {
     if (!confirm('Are you sure you want to delete this message?')) return;
-    if (!user) return;
+    if (!session) return;
     try {
       const { error } = await supabase
         .from('messages')
@@ -543,7 +545,7 @@ export default function MessagePage() {
   };
 
   const markConversationAsRead = async () => {
-    if (!user || !id || !supabase) return;
+    if (!session || !id || !supabase || !user) return;
     
     try {
       console.log('Marking conversation as read:', id);
@@ -567,7 +569,7 @@ export default function MessagePage() {
 
   // Helper function to render each message
   const renderMessage = (message: any) => {
-    const isCurrentUser = message.sender_id === user?.id;
+    const isCurrentUser = user && message.sender_id === user.id;
     
     // Check for recipe data
     const hasRecipe = Boolean(message.recipe_id && message.recipe_type);
@@ -614,12 +616,13 @@ export default function MessagePage() {
             
             <div className="flex gap-1 hidden group-hover:flex">
               <ReportButton recipeId={message.id} recipeType="message" />
-              {message.sender_id === user?.id && (
+              {user && message.sender_id === user.id && (
                 <button
                   onClick={() => handleDeleteMessage(message.id)}
-                  className="px-1.5 py-0.5 border border-outline rounded-lg text-red-500 text-xs hover:opacity-80 transition-opacity"
+                  className="px-1.5 py-0.5 rounded-lg text-red-500 text-xs hover:opacity-80 transition-opacity flex items-center"
+                  aria-label="Delete message"
                 >
-                  delete
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M6 6v8m4-8v8m4-8v8M3 6h14M5 6V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg>
                 </button>
               )}
             </div>
@@ -629,30 +632,16 @@ export default function MessagePage() {
     );
   };
 
-  if (!user) {
+  if (sessionLoading || profileLoading || loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8 flex flex-col h-[80vh] items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-        <div className="text-center">
-          <p className="mb-4">Loading your profile...</p>
-          <Link href="/messages" className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg inline-block">
-            ← back to messages
-          </Link>
-        </div>
+      <div className="flex justify-center items-center min-h-[40vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white mx-auto" />
       </div>
     );
   }
 
-  if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8 flex flex-col h-[80vh] items-center justify-center" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-        <div className="text-center">
-          <p className="mb-4">Loading conversation...</p>
-          <Link href="/messages" className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg inline-block">
-            ← back to messages
-          </Link>
-        </div>
-      </div>
-    );
+  if (!session || !user) {
+    return null;
   }
 
   if (conversationError || messagesError) {

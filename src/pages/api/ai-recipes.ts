@@ -101,14 +101,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('[Debug] Combined recipes:', recipes);
 
     // Map recipes to ensure consistent data structure
-    const mappedRecipes = (recipes || []).map(recipe => ({
-      ...recipe,
-      title: recipe.title || 'Untitled Recipe',
-      description: recipe.description || 'A delicious AI-generated recipe',
-      image_url: recipe.image_url || RANDOM_CARD_IMG,
-      created_at: recipe.created_at || new Date().toISOString(),
-      user_id: recipe.user_id || '00000000-0000-0000-0000-000000000000',
-      recipeType: 'ai'
+    const mappedRecipes = await Promise.all((recipes || []).map(async (recipe) => {
+      let description = recipe.description || '';
+      // If description is missing or looks like instructions, generate one
+      if (!description || description.split('.').length > 3 || description.length > 200) {
+        try {
+          const aiRes = await fetch('https://ai.hackclub.com/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: 'gpt-3.5-turbo',
+              messages: [
+                { role: 'system', content: 'You are a helpful recipe assistant.' },
+                { role: 'user', content: `Given the following recipe title and instructions, write a short, engaging description (1-2 sentences) about the dish for a recipe website.\n\nTitle: ${recipe.title}\nInstructions: ${Array.isArray(recipe.instructions) ? recipe.instructions.join(' ') : recipe.instructions || ''}\n\nDescription:` }
+              ]
+            })
+          });
+          if (aiRes.ok) {
+            const aiData = await aiRes.json();
+            description = aiData.choices?.[0]?.message?.content?.trim() || description;
+          }
+        } catch (descErr) {
+          console.error('Error generating AI description:', descErr);
+        }
+      }
+      return {
+        ...recipe,
+        title: recipe.title || 'Untitled Recipe',
+        description: description || 'A delicious AI-generated recipe',
+        image_url: recipe.image_url || RANDOM_CARD_IMG,
+        created_at: recipe.created_at || new Date().toISOString(),
+        user_id: recipe.user_id || '00000000-0000-0000-0000-000000000000',
+        recipeType: 'ai'
+      };
     }));
 
     console.log('[Debug] Sending response with mapped recipes:', mappedRecipes.length);

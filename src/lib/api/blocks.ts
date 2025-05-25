@@ -1,49 +1,54 @@
-import { getSupabaseClient } from '@/lib/supabase';
+import { getBrowserClient } from '@/lib/supabase/browserClient';
 
-export async function blockUser(blockedId: string) {
+interface Block {
+  blocked_user_id: string;
+}
+
+export async function getBlockedUsers(): Promise<string[]> {
+  const supabase = getBrowserClient();
   const { data, error } = await supabase
-    .from('blocked_users')
-    .insert({
-      blocker_id: (await getSupabaseClient().auth.getUser()).data.user?.id,
-      blocked_user_id: blockedId
-    });
+    .from('blocks')
+    .select('blocked_user_id');
+
+  if (error) throw error;
+  return data.map((block: Block) => block.blocked_user_id);
+}
+
+export async function blockUser(userId: string, blockedUserId: string) {
+  const supabase = getBrowserClient();
+  const { data, error } = await supabase
+    .from('blocks')
+    .insert({ user_id: userId, blocked_user_id: blockedUserId })
+    .select()
+    .single();
 
   if (error) throw error;
   return data;
 }
 
-export async function unblockUser(blockedId: string) {
+export async function unblockUser(userId: string, blockedUserId: string) {
+  const supabase = getBrowserClient();
   const { data, error } = await supabase
-    .from('blocked_users')
+    .from('blocks')
     .delete()
-    .match({
-      blocker_id: (await getSupabaseClient().auth.getUser()).data.user?.id,
-      blocked_user_id: blockedId
-    });
+    .eq('user_id', userId)
+    .eq('blocked_user_id', blockedUserId)
+    .select()
+    .single();
 
   if (error) throw error;
   return data;
 }
 
-export async function getBlockedUsers() {
+export async function isBlocked(userId: string, blockedUserId: string) {
+  const supabase = getBrowserClient();
   const { data, error } = await supabase
-    .from('blocked_users')
-    .select('blocked_user_id')
-    .eq('blocker_id', (await getSupabaseClient().auth.getUser()).data.user?.id);
-
-  if (error) throw error;
-  return data.map((block: { blocked_user_id: string }) => block.blocked_user_id);
-}
-
-export async function isUserBlocked(userId: string) {
-  const { data, error } = await supabase
-    .from('blocked_users')
+    .from('blocks')
     .select('id')
-    .match({
-      blocker_id: (await getSupabaseClient().auth.getUser()).data.user?.id,
-      blocked_user_id: userId
-    });
+    .eq('user_id', userId)
+    .eq('blocked_user_id', blockedUserId)
+    .single();
 
-  if (error) throw error;
-  return data.length > 0;
+  if (error && error.code !== 'PGRST116') throw error;
+  return !!data;
 }

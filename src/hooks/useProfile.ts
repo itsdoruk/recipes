@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { Profile } from '@/types/supabase';
+
+// Global cache for profiles
+const profileCache = new Map<string, { profile: Profile | null; timestamp: number }>();
+const CACHE_DURATION = 30000; // 30 seconds cache duration
 
 export function useProfile() {
   const session = useSession();
@@ -9,33 +13,76 @@ export function useProfile() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isVerified, setIsVerified] = useState(false);
+  
+  // Add fetch lock and last fetch time
+  const isFetchingRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+  const FETCH_COOLDOWN = 5000; // 5 seconds cooldown between fetches
 
   // Function to fetch the profile data
-  const fetchProfile = useCallback(async () => {
+  const fetchProfile = useCallback(async (force = false) => {
     if (!user) {
       setProfile(null);
+      setIsLoading(false);
+      setIsVerified(false);
+      return;
+    }
+
+    // Check cache first
+    const cached = profileCache.get(user.id);
+    const now = Date.now();
+    if (!force && cached && (now - cached.timestamp < CACHE_DURATION)) {
+      console.log('Using cached profile for user:', user.id);
+      setProfile(cached.profile);
       setIsLoading(false);
       return;
     }
 
+    // Check if we're already fetching or if we need to respect cooldown
+    if (!force && (isFetchingRef.current || (now - lastFetchTimeRef.current < FETCH_COOLDOWN))) {
+      console.log('Skipping profile fetch - fetch in progress or cooldown active');
+      return;
+    }
+
     try {
+      isFetchingRef.current = true;
+      lastFetchTimeRef.current = now;
       console.log('Fetching profile for user:', user.id);
+      
+      // First check if user is verified
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      
+      const isUserVerified = authUser?.email_confirmed_at != null;
+      setIsVerified(isUserVerified);
+
+      // Then fetch profile
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
-        .maybeSingle();
+        .single();
 
       if (error) {
         console.error('Error fetching profile:', error);
         // If profile doesn't exist, create one
         if (error.code === 'PGRST116') {
           console.log('Profile not found, creating new profile...');
+          
+          // Only create profile if user is verified
+          if (!isUserVerified) {
+            setError('Please verify your email before creating a profile');
+            setProfile(null);
+            setIsLoading(false);
+            return;
+          }
+
           const { data: newProfile, error: createError } = await supabase
             .from('profiles')
             .insert({
               user_id: user.id,
-              username: `user_${user.id.slice(0, 8)}`,
+              username: user.user_metadata?.username || `user_${user.id.slice(0, 8)}`,
               is_private: false,
               show_email: false,
               bio: null,
@@ -46,7 +93,9 @@ export function useProfile() {
               ban_count: 0,
               last_ban_date: null,
               warnings: 0,
-              is_admin: false
+              is_admin: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
             })
             .select()
             .single();
@@ -54,90 +103,52 @@ export function useProfile() {
           if (createError) {
             console.error('Error creating profile:', createError);
             setError('Failed to create profile');
-            throw createError;
+            setProfile(null);
+            return;
           }
-
-          console.log('New profile created:', newProfile);
           setProfile(newProfile);
-          setIsLoading(false);
+          profileCache.set(user.id, { profile: newProfile, timestamp: now });
+        } else {
+          setError('Failed to fetch profile');
+          setProfile(null);
           return;
         }
-        setError('Failed to fetch profile');
-        throw error;
-      }
-
-      if (!data) {
-        console.log('No profile data returned, creating new profile...');
-        const { data: newProfile, error: createError } = await supabase
-          .from('profiles')
-          .insert({
-            user_id: user.id,
-            username: `user_${user.id.slice(0, 8)}`,
-            is_private: false,
-            show_email: false,
-            bio: null,
-            banned: false,
-            ban_type: null,
-            ban_reason: null,
-            ban_expiry: null,
-            ban_count: 0,
-            last_ban_date: null,
-            warnings: 0,
-            is_admin: false
-          })
-          .select()
-          .single();
-
-        if (createError) {
-          console.error('Error creating profile:', createError);
-          setError('Failed to create profile');
-          throw createError;
-        }
-
-        console.log('New profile created:', newProfile);
-        setProfile(newProfile);
       } else {
-        console.log('Profile fetched successfully:', data);
         setProfile(data);
+        profileCache.set(user.id, { profile: data, timestamp: now });
       }
     } catch (error) {
       console.error('Error in useProfile:', error);
       setError('An error occurred while fetching profile');
+      setProfile(null);
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   }, [user, supabase]);
 
-  // Public method to refresh the profile
-  const refreshProfile = useCallback(async () => {
-    setIsLoading(true);
-    await fetchProfile();
-  }, [fetchProfile]);
-
-  // Handle profile fetching
+  // Handle profile fetching with debounce
   useEffect(() => {
-    // Skip if we don't have user
     if (!user) {
       setProfile(null);
       setIsLoading(false);
+      setIsVerified(false);
       return;
     }
 
-    console.log('useProfile: User detected', { userId: user.id });
+    const timeoutId = setTimeout(() => {
+      fetchProfile();
+    }, 100); // Small debounce to prevent rapid refetches
 
-    // Set a timeout to prevent infinite loading
-    const timeout = setTimeout(() => {
-      if (isLoading) {
-        console.log('Profile loading timeout reached');
-        setIsLoading(false);
-        setError('Loading timed out. Please refresh the page.');
-      }
-    }, 5000); // 5 second timeout
-
-    fetchProfile();
-    
-    return () => clearTimeout(timeout);
+    return () => clearTimeout(timeoutId);
   }, [user, fetchProfile]);
 
-  return { profile, isLoading, error, refreshProfile };
+  // Clear cache when user changes
+  useEffect(() => {
+    if (!user) {
+      profileCache.clear();
+    }
+  }, [user]);
+
+  return { profile, isLoading, error, isVerified, refreshProfile: () => fetchProfile(true) };
 } 

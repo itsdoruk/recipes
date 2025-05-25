@@ -33,6 +33,7 @@ interface Recipe {
   cuisine_type?: string | null;
   cooking_time?: string | null;
   diet_type?: string | null;
+  username?: string;
 }
 
 interface Profile {
@@ -50,8 +51,8 @@ interface Profile {
   ban_count: number;
   last_ban_date: string | null;
   warnings: number;
-  followers_count: number;
-  following_count: number;
+  followers_count?: number;
+  following_count?: number;
 }
 
 interface StarredRecipe {
@@ -82,8 +83,18 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
   const router = useRouter();
   const { user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(initialProfile);
-  const [recipes, setRecipes] = useState(initialRecipes);
-  const [starredRecipes, setStarredRecipes] = useState(initialStarredRecipes);
+  const [recipes, setRecipes] = useState(
+    initialRecipes.map(recipe => ({
+      ...recipe,
+      username: initialProfile?.username || '[recipes] user',
+    }))
+  );
+  const [starredRecipes, setStarredRecipes] = useState(
+    initialStarredRecipes.map(recipe => ({
+      ...recipe,
+      username: recipe.recipe_type === 'user' ? initialProfile?.username || '[recipes] user' : undefined,
+    }))
+  );
   const [activeTab, setActiveTab] = useState<'recipes' | 'starred'>('recipes');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +106,7 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { starredRecipes: starredRaw, isLoading: starredLoading } = useStarredRecipes(profile?.user_id);
   const [starredDetails, setStarredDetails] = useState<any[]>([]);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     const checkFollowStatus = async () => {
@@ -317,6 +329,17 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
                           >
                             {isBlocked ? 'unblock' : 'block'}
                           </button>
+                          <button
+                            onClick={() => {
+                              setShowDropdown(false);
+                              setShowReportModal(true);
+                            }}
+                            className="w-full text-left px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity rounded-lg"
+                            style={{ color: 'white', fontFamily: 'inherit' }}
+                            role="menuitem"
+                          >
+                            report
+                          </button>
                         </div>
                       </div>
                     )}
@@ -371,7 +394,8 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
                               cuisine_type={recipe.cuisine_type}
                               cooking_time={recipe.cooking_time}
                               diet_type={recipe.diet_type}
-                              recipeType={recipe.recipe_type || 'user'}
+                              recipeType={recipe.recipe_type === 'ai' ? 'ai' : recipe.recipe_type === 'spoonacular' ? 'spoonacular' : 'user'}
+                              username={recipe.username}
                             />
                           </div>
                         </div>
@@ -392,7 +416,19 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
                         .map(recipe => (
                           <div key={recipe.id} className="relative">
                             <div className="dark:text-white">
-                              <RecipeCard {...recipe} />
+                              <RecipeCard
+                                id={recipe.id}
+                                title={recipe.title}
+                                description={recipe.description}
+                                image_url={recipe.image_url}
+                                user_id={recipe.user_id}
+                                created_at={recipe.created_at}
+                                cuisine_type={recipe.cuisine_type}
+                                cooking_time={recipe.cooking_time}
+                                diet_type={recipe.diet_type}
+                                recipeType={recipe.recipe_type === 'ai' ? 'ai' : recipe.recipe_type === 'spoonacular' ? 'spoonacular' : 'user'}
+                                username={recipe.username}
+                              />
                             </div>
                           </div>
                         ))
@@ -444,6 +480,17 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
           </div>
         </div>
       </Modal>
+
+      {showReportModal && profile && (
+        <ReportButton
+          recipeId={profile.user_id}
+          recipeType="user"
+          onReportSubmitted={() => setShowReportModal(false)}
+          className="fixed z-50"
+          showOnlyModal
+          openOnMount
+        />
+      )}
     </>
   );
 }

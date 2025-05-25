@@ -45,7 +45,7 @@ interface FormData {
 export default function AccountPage() {
   const router = useRouter();
   const { session, loading: sessionLoading } = useAuth();
-  const { profile: userProfile, isLoading: profileLoading } = useProfile();
+  const { profile: userProfile, isLoading: profileLoading, refreshProfile } = useProfile();
   const supabase = useSupabaseClient();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [form, setForm] = useState<FormData>({
@@ -158,6 +158,9 @@ export default function AccountPage() {
 
       if (updateError) throw updateError;
       setSuccess('Profile updated successfully!');
+      if (typeof refreshProfile === 'function') {
+        await refreshProfile();
+      }
       if (session?.user?.id) {
         router.push(`/user/${session.user.id}`);
       } else {
@@ -279,7 +282,7 @@ export default function AccountPage() {
                 type="text"
                 value={form.username}
                 onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
-                className="w-full h-10 px-3 border border-outline hover:opacity-80 transition-opacity rounded-lg"
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
               />
             </div>
             <div>
@@ -288,7 +291,7 @@ export default function AccountPage() {
                 value={form.bio}
                 onChange={(e) => setForm(prev => ({ ...prev, bio: e.target.value }))}
                 rows={4}
-                className="w-full px-3 py-2 border border-outline hover:opacity-80 transition-opacity rounded-lg"
+                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
               />
             </div>
             <div className="space-y-4">
@@ -374,7 +377,7 @@ export default function AccountPage() {
             <div className="space-y-4">
               <button
                 onClick={() => router.push('/account/change-password')}
-                className="px-3 py-2 border border-outline hover:opacity-80 transition-opacity text-left rounded-lg"
+                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-left"
                 style={{ color: 'var(--foreground)' }}
               >
                 change password
@@ -382,7 +385,7 @@ export default function AccountPage() {
               
               <button
                 onClick={() => router.push('/account/change-email')}
-                className="px-3 py-2 border border-outline hover:opacity-80 transition-opacity text-left rounded-lg"
+                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-left"
                 style={{ color: 'var(--foreground)' }}
               >
                 change email
@@ -390,7 +393,8 @@ export default function AccountPage() {
 
               <button
                 onClick={() => router.push('/account/delete')}
-                className="px-3 py-2 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 transition-opacity text-left rounded-lg"
+                className="w-full px-4 py-3 border border-red-200 dark:border-red-800 bg-transparent hover:opacity-80 transition-opacity rounded-xl text-left"
+                style={{ color: 'var(--danger)' }}
               >
                 delete account
               </button>
@@ -411,7 +415,7 @@ export default function AccountPage() {
                       Could not load recipe details.
                     </div>
                   ) : (
-                    <RecipeCard key={recipe.id} {...recipe} />
+                    <RecipeCard key={recipe.id} {...recipe} recipeType={recipe.recipe_type === 'ai' ? 'ai' : recipe.recipe_type === 'spoonacular' ? 'spoonacular' : 'recipe'} />
                   )
                 )}
               </div>

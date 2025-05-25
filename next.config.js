@@ -2,6 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   distDir: '.next',
+  pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   images: {
     remotePatterns: [
       {
@@ -10,8 +11,13 @@ const nextConfig = {
       },
     ],
   },
+  webpack: (config, { isServer }) => {
+    return config;
+  },
+  // Disable static optimization for pages that use getServerSideProps
   experimental: {
-    appDir: false,
+    // This ensures that pages using getServerSideProps are not statically optimized
+    isrMemoryCacheSize: 0,
   },
 };
 

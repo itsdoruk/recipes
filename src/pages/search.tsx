@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getBrowserClient } from '@/lib/supabase/browserClient';
 import { searchRecipes } from '@/lib/spoonacular';
 import RecipeCard from '@/components/RecipeCard';
 import useSWR from 'swr';
@@ -9,9 +9,9 @@ import useSWR from 'swr';
 interface SpoonacularRecipe {
   id: number;
   title: string;
+  summary: string;
   image: string;
-  readyInMinutes?: number;
-  description?: string;
+  readyInMinutes: number;
 }
 
 interface LocalRecipe {
@@ -35,6 +35,11 @@ const fetcher = async (url: string) => {
   return res.json();
 };
 
+// Helper to check for UUID
+function isUUID(id: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 export default function SearchPage() {
   const router = useRouter();
   const { q: query, cuisine, diet, time } = router.query;
@@ -42,6 +47,7 @@ export default function SearchPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const supabase = getBrowserClient();
 
   // Use SWR for caching search results
   const { data: searchResults, error: searchError } = useSWR(
@@ -192,35 +198,64 @@ export default function SearchPage() {
         </h1>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {recipes.map((recipe) => (
-            'user_id' in recipe ? (
-              <RecipeCard
-                key={recipe.id}
-                id={recipe.id}
-                title={recipe.title}
-                description={recipe.description}
-                image_url={recipe.image_url}
-                user_id={recipe.user_id}
-                created_at={recipe.created_at}
-                cuisine_type={recipe.cuisine_type}
-                cooking_time={recipe.cooking_time}
-                diet_type={recipe.diet_type}
-              />
-            ) : (
-              <RecipeCard
-                key={recipe.id}
-                id={`spoonacular-${recipe.id}`}
-                title={recipe.title}
-                description={'summary' in recipe && typeof recipe.summary === 'string' ? recipe.summary : ''}
-                image_url={recipe.image}
-                user_id="spoonacular"
-                created_at={new Date().toISOString()}
-                cuisine_type={'cuisines' in recipe && Array.isArray(recipe.cuisines) && recipe.cuisines.length > 0 ? recipe.cuisines[0] : null}
-                cooking_time={recipe.readyInMinutes ? `${recipe.readyInMinutes} mins` : null}
-                diet_type={'diets' in recipe && Array.isArray(recipe.diets) && recipe.diets.length > 0 ? recipe.diets[0] : null}
-              />
-            )
-          ))}
+          {recipes.map((recipe) => {
+            // AI recipes
+            if ('user_id' in recipe && recipe.user_id === '00000000-0000-0000-0000-000000000000' && isUUID(recipe.id)) {
+              return (
+                <RecipeCard
+                  key={recipe.id}
+                  id={recipe.id}
+                  title={recipe.title}
+                  description={recipe.description}
+                  image_url={recipe.image_url}
+                  user_id={recipe.user_id}
+                  created_at={recipe.created_at}
+                  cuisine_type={recipe.cuisine_type}
+                  cooking_time={recipe.cooking_time}
+                  diet_type={recipe.diet_type}
+                  recipeType="ai"
+                />
+              );
+            }
+            // Spoonacular recipes
+            if ('readyInMinutes' in recipe) {
+              return (
+                <RecipeCard
+                  key={`spoonacular-${recipe.id}`}
+                  id={`spoonacular-${recipe.id}`}
+                  title={recipe.title}
+                  description={recipe.summary}
+                  image_url={recipe.image}
+                  user_id="spoonacular"
+                  created_at={new Date().toISOString()}
+                  cuisine_type={null}
+                  cooking_time={recipe.readyInMinutes ? `${recipe.readyInMinutes} mins` : null}
+                  diet_type={null}
+                  recipeType="spoonacular"
+                />
+              );
+            }
+            // User recipes (valid UUID)
+            if ('user_id' in recipe && isUUID(recipe.id)) {
+              return (
+                <RecipeCard
+                  key={recipe.id}
+                  id={recipe.id}
+                  title={recipe.title}
+                  description={recipe.description}
+                  image_url={recipe.image_url}
+                  user_id={recipe.user_id}
+                  created_at={recipe.created_at}
+                  cuisine_type={recipe.cuisine_type}
+                  cooking_time={recipe.cooking_time}
+                  diet_type={recipe.diet_type}
+                  recipeType="user"
+                />
+              );
+            }
+            // Fallback: skip rendering for unknown types
+            return null;
+          })}
         </div>
       </main>
     </>

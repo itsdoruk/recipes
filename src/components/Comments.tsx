@@ -186,17 +186,19 @@ export default function Comments({ recipeId }: CommentsProps) {
                     {user?.id === comment.user_id && (
                       <button
                         onClick={() => startEditing(comment)}
-                        className="text-sm px-2 py-1 border border-outline hover:opacity-80 rounded-lg"
+                        className="p-2 bg-transparent border-none shadow-none outline-none hover:opacity-80 transition-opacity flex items-center"
+                        aria-label="Edit comment"
                       >
-                        edit
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M4 13.5V16h2.5l7.06-7.06-2.5-2.5L4 13.5z"/><path d="M14.06 6.94a1.5 1.5 0 0 0 0-2.12l-1.88-1.88a1.5 1.5 0 0 0-2.12 0l-1.06 1.06 4 4 1.06-1.06z"/></svg>
                       </button>
                     )}
                     {(user?.id === comment.user_id || user?.user_metadata?.is_admin) && (
                       <button
                         onClick={() => handleDelete(comment.id)}
-                        className="text-sm px-2 py-1 border border-red-200 dark:border-red-800 text-red-500 hover:opacity-80 rounded-lg"
+                        className="p-2 bg-transparent border-none shadow-none outline-none text-red-500 hover:opacity-80 transition-opacity flex items-center"
+                        aria-label="Delete comment"
                       >
-                        delete
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M6 6v8m4-8v8m4-8v8M3 6h14M5 6V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg>
                       </button>
                     )}
                     <ReportButton

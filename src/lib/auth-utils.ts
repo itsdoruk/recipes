@@ -149,11 +149,19 @@ export async function ensureProfile(userId: string): Promise<void> {
       }
     });
 
+    // First check if user is verified
+    const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(userId);
+    if (authError) throw authError;
+    
+    if (!user?.email_confirmed_at) {
+      throw new Error('User email not verified');
+    }
+
     // Check if profile exists
     const { data: existingProfile, error: checkError } = await supabase
       .from('profiles')
-      .select('id')
-      .eq('id', userId)
+      .select('user_id')
+      .eq('user_id', userId)
       .single();
 
     if (checkError && checkError.code !== 'PGRST116') {
@@ -165,13 +173,15 @@ export async function ensureProfile(userId: string): Promise<void> {
       const { error: createError } = await supabase
         .from('profiles')
         .insert({
-          id: userId,
+          user_id: userId,
           username: `user_${userId.slice(0, 8)}`,
           is_private: false,
           show_email: false,
           banned: false,
           ban_count: 0,
-          warnings: 0
+          warnings: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         });
 
       if (createError) {
@@ -334,6 +344,7 @@ export async function signUp(email: string, password: string, username: string):
         data: {
           username,
         },
+        emailRedirectTo: `${window.location.origin}/auth/callback`
       },
     });
 
@@ -347,23 +358,9 @@ export async function signUp(email: string, password: string, username: string):
       return { error: new Error('No user returned after sign up') };
     }
 
-    // Create the user's profile
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id: data.user.id,
-        username,
-        is_private: false,
-        show_email: false,
-        banned: false,
-        ban_count: 0,
-        warnings: 0
-      });
-
-    if (profileError) {
-      console.error('Error creating profile:', profileError);
-      return { error: profileError };
-    }
+    // Don't create profile immediately - wait for email verification
+    // The profile will be created when the user verifies their email
+    // and visits the site for the first time
 
     console.log('Successfully signed up user:', data.user.id);
     return { error: null };

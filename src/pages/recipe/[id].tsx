@@ -13,10 +13,11 @@ import StarButton from '../../components/StarButton';
 import ReportButton from '../../components/ReportButton';
 import { useProfile } from '../../hooks/useProfile';
 import ShareButton from '@/components/ShareButton';
-import { cleanStepPrefix, extractRecipePropertiesFromMarkdown } from '@/lib/recipeUtils';
-import { parseRecipeId } from '@/lib/recipeIdUtils';
+import { cleanStepPrefix, extractRecipePropertiesFromMarkdown, stripHtmlTags } from '@/lib/recipeUtils';
+import { parseRecipeId, isValidRecipeId } from '@/lib/recipeIdUtils';
 import { RANDOM_CARD_IMG } from '@/lib/constants';
 import { generateRecipeId } from '@/lib/recipeIdUtils';
+import { fetchProfileById } from '@/lib/api/profile';
 
 function hasUserId(recipe: any): recipe is { user_id: string } {
   return recipe && typeof recipe.user_id === 'string';
@@ -94,10 +95,9 @@ function extractNutritionFromText(text: string) {
   return result;
 }
 
-// Utility to strip HTML tags
-function stripHtmlTags(str: string) {
-  if (!str) return '';
-  return str.replace(/<[^>]*>/g, '');
+// Helper to strip <b> and </b> tags
+function stripBoldTags(text: string) {
+  return typeof text === 'string' ? text.replace(/<\/?b>/gi, '') : text;
 }
 
 export default function RecipePage({ recipe, lastUpdated, error: serverError }: RecipePageProps) {
@@ -111,6 +111,8 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
   const [recipeType, setRecipeType] = useState<'user' | 'ai' | 'spoonacular'>(
     recipe?.id.toString().startsWith('spoonacular-') ? 'spoonacular' : 'user'
   );
+  const [ownerProfile, setOwnerProfile] = useState<any>(null);
+  const [ownerProfileLoading, setOwnerProfileLoading] = useState(true);
 
   const handleDelete = async () => {
     if (!recipe || !user || recipe.user_id !== user.id) return;
@@ -135,7 +137,22 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
     }
   };
 
-  if (isProfileLoading) {
+  useEffect(() => {
+    async function loadOwnerProfile() {
+      if (!recipe?.user_id || recipe.user_id === 'spoonacular' || recipe.user_id === 'ai' || recipe.user_id === '00000000-0000-0000-0000-000000000000') {
+        setOwnerProfile(null);
+        setOwnerProfileLoading(false);
+        return;
+      }
+      setOwnerProfileLoading(true);
+      const profile = await fetchProfileById(recipe.user_id);
+      setOwnerProfile(profile);
+      setOwnerProfileLoading(false);
+    }
+    loadOwnerProfile();
+  }, [recipe?.user_id]);
+
+  if (isProfileLoading || ownerProfileLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
         <p className="">loading...</p>
@@ -158,10 +175,10 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
   return (
     <>
       <Head>
-        <title>{recipe.title} | [recipes]</title>
-        <meta name="description" content={recipe.description} />
-        <meta property="og:title" content={recipe.title} />
-        <meta property="og:description" content={recipe.description} />
+        <title>{stripBoldTags(recipe.title)} | [recipes]</title>
+        <meta name="description" content={stripBoldTags(recipe.description)} />
+        <meta property="og:title" content={stripBoldTags(recipe.title)} />
+        <meta property="og:description" content={stripBoldTags(recipe.description)} />
         {recipe.image_url && <meta property="og:image" content={recipe.image_url} />}
         <meta name="last-modified" content={lastUpdated} />
       </Head>
@@ -180,7 +197,7 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
           ) : null}
 
           <div>
-            <h1 className="text-3xl mb-6">{recipe.title}</h1>
+            <h1 className="text-3xl mb-6">{stripBoldTags(recipe.title)}</h1>
             <div className="flex items-center gap-2 mb-2">
               {recipeType === 'spoonacular' ? (
                 <>
@@ -191,10 +208,10 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
                 <span className="font-medium prose prose-invert">AI Recipe</span>
               ) : (
                 <>
-                  {profile?.avatar_url && (
+                  {ownerProfile?.avatar_url && (
                     <img
-                      src={profile.avatar_url}
-                      alt={profile.username || '[recipes] user'}
+                      src={ownerProfile.avatar_url}
+                      alt={ownerProfile.username || '[recipes] user'}
                       className="w-8 h-8 rounded-full object-cover"
                     />
                   )}
@@ -202,7 +219,7 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
                     href={`/user/${recipe.user_id}`}
                     className="text-gray-500 dark:text-gray-400 hover:underline"
                   >
-                    {profile?.username || '[recipes] user'}
+                    {ownerProfile?.username || '[recipes] user'}
                   </Link>
                 </>
               )}
@@ -213,16 +230,18 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
                 <div className="flex gap-2 ml-auto">
                   <Link
                     href={`/edit-recipe/${recipe.id}`}
-                    className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity rounded-lg flex items-center justify-center"
+                    className="p-2 bg-transparent border-none shadow-none outline-none hover:opacity-80 transition-opacity flex items-center"
+                    aria-label="Edit recipe"
                   >
-                    edit
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M4 13.5V16h2.5l7.06-7.06-2.5-2.5L4 13.5z"/><path d="M14.06 6.94a1.5 1.5 0 0 0 0-2.12l-1.88-1.88a1.5 1.5 0 0 0-2.12 0l-1.06 1.06 4 4 1.06-1.06z"/></svg>
                   </Link>
                   <button
                     onClick={handleDelete}
                     disabled={isDeleting}
-                    className="h-10 px-3 border border-gray-200 dark:border-gray-800 hover:opacity-80 transition-opacity disabled:opacity-50 text-red-500 dark:text-red-400 rounded-lg"
+                    className="p-2 bg-transparent border-none shadow-none outline-none text-red-500 hover:opacity-80 transition-opacity flex items-center"
+                    aria-label="Delete recipe"
                   >
-                    {isDeleting ? 'deleting...' : 'delete'}
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M6 6v8m4-8v8m4-8v8M3 6h14M5 6V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg>
                   </button>
                 </div>
               )}
@@ -338,14 +357,16 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
                 <ol className="list-decimal list-inside space-y-4">
                   {recipe.instructions.map((instruction: string, index: number) => (
                     <li key={index} className="">
-                      {cleanStepPrefix(instruction)}
+                      {recipeType === 'spoonacular' ? stripHtmlTags(cleanStepPrefix(instruction)) : cleanStepPrefix(instruction)}
                     </li>
                   ))}
                 </ol>
               ) : (
                 <ol className="list-decimal list-inside space-y-4">
                   {splitInstructions(recipe.instructions).map((step, idx) => (
-                    <li key={idx} className="">{step}</li>
+                    <li key={idx} className="">
+                      {recipeType === 'spoonacular' ? stripHtmlTags(step) : step}
+                    </li>
                   ))}
                 </ol>
               )}
@@ -356,6 +377,11 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
             <StarButton
               recipeId={recipe.id.toString()}
               recipeType={recipeType}
+              isStarred={false}
+              onToggle={(isStarred) => {
+                // Handle star toggle
+                console.log('Star toggled:', isStarred);
+              }}
             />
             {recipeType === 'user' && (
               <ReportButton
@@ -384,71 +410,57 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
   );
 }
 
-export const getServerSideProps: GetServerSideProps = async ({ params }) => {
+export const getServerSideProps: GetServerSideProps = async ({ params, req }) => {
   const { id } = params as { id: string };
 
   try {
-    const { source, id: originalId } = parseRecipeId(id);
-
-    // If it's a Spoonacular ID, fetch from the API
-    if (source === 'spoonacular') {
-      const recipe = await getRecipeById(id); // Pass the full ID with prefix
-      if (!recipe) {
-        return {
-          notFound: true,
-        };
-      }
-      return {
-        props: {
-          recipe: {
-            ...recipe,
-            id: id, // Keep the original ID with prefix
-            user_id: 'spoonacular'
-          },
-          lastUpdated: new Date().toISOString(),
-        },
-      };
-    }
-
-    // If it's an AI recipe ID (random-internet-), fetch from the API
-    if (id.startsWith('random-internet-')) {
-      try {
-        const response = await fetch(`/api/recipes/${id}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch AI recipe');
-        }
-        const recipe = await response.json();
-        return {
-          props: {
-            recipe,
-            lastUpdated: new Date().toISOString(),
-          },
-        };
-      } catch (error) {
-        console.error('Error fetching AI recipe:', error);
-        return {
-          notFound: true,
-        };
-      }
-    }
-
-    // If it's a local recipe, fetch from Supabase
-    const supabase = getSupabaseClient();
-    const { data: recipe, error } = await supabase
-      .from('recipes')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error || !recipe) {
+    // Check if it's a valid UUID
+    if (!isValidRecipeId(id)) {
       return {
         notFound: true,
       };
     }
 
+    // Get the host from the request headers
+    const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https';
+    const host = req.headers.host || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
+
+    // First try to fetch from our database
+    const supabase = getSupabaseClient();
+    const { data: recipe, error: dbError } = await supabase
+      .from('recipes')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (recipe) {
+      // If we found the recipe in our database, return it
+      return {
+        props: {
+          recipe,
+          lastUpdated: new Date().toISOString(),
+        },
+      };
+    }
+
+    // If not found in database, try the API endpoint
+    const response = await fetch(`${baseUrl}/api/recipes/${id}`);
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        return {
+          notFound: true,
+        };
+      }
+      throw new Error('Failed to fetch recipe');
+    }
+
+    const recipeData = await response.json();
+
     return {
       props: {
-        recipe,
+        recipe: recipeData,
         lastUpdated: new Date().toISOString(),
       },
     };

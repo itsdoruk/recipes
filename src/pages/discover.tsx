@@ -10,6 +10,7 @@ import RecipeCard from '@/components/RecipeCard';
 import { RANDOM_CARD_IMG } from '@/lib/constants';
 import MiniRecipeCard from '@/components/MiniRecipeCard';
 import { getPopularRecipes } from '@/lib/spoonacular';
+import { Recipe } from '@/types';
 
 const CUISINE_TYPES = [
   'italian', 'mexican', 'asian', 'american', 'mediterranean',
@@ -30,29 +31,6 @@ const COOKING_TIMES = [
 
 interface BlockedUser {
   blocked_user_id: string;
-}
-
-interface Recipe {
-  id: string;
-  title: string;
-  description: string;
-  image_url: string | null;
-  user_id: string;
-  created_at: string;
-  cuisine_type: string | null;
-  cooking_time: string | null;
-  diet_type: string | null;
-  cooking_time_value?: number;
-  recipe_type: 'user' | 'spoonacular' | 'ai';
-  ingredients: string[];
-  instructions: string[];
-  nutrition: {
-    calories: string;
-    protein: string;
-    fat: string;
-    carbohydrates: string;
-  };
-  is_starred: boolean;
 }
 
 interface UserPreferences {
@@ -210,7 +188,7 @@ export default function DiscoverPage() {
       if (recipesError) throw recipesError;
 
       // Filter out blocked users' recipes
-      const filteredRecipes = recipesData?.filter(recipe => !blockedUsers.includes(recipe.user_id)) || [];
+      const filteredRecipes = recipesData?.filter((recipe: { user_id: string }) => !blockedUsers.includes(recipe.user_id)) || [];
       setRecipes(filteredRecipes);
       setIsLoading(false);
     } catch (error) {
@@ -228,52 +206,117 @@ export default function DiscoverPage() {
   useEffect(() => {
     // Only fetch AI recipes when preferences change
     fetchAiRecipes();
-  }, [preferences]);
+  }, [preferences, user]);
 
   const fetchAiRecipes = async () => {
-    if (aiLoading) return; // Prevent multiple simultaneous calls
-    
+    if (aiLoading || !user) return; // Prevent multiple simultaneous calls or if user is not logged in
+
     try {
       setAiLoading(true);
       setError(null);
-      
-      // Generate multiple AI recipes based on preferences
-      const recipePromises = Array.from({ length: 3 }, () => {
-        // Generate a random meal ID between 52772 and 53000 (TheMealDB range)
-        const randomMealId = Math.floor(Math.random() * (53000 - 52772 + 1)) + 52772;
-        return fetch(`/api/recipes/random-internet-${randomMealId}`);
+
+      // Construct a prompt that includes the user's preferences
+      let prompt = 'Generate a recipe';
+      if (preferences.cuisine) {
+        prompt += ` with a ${preferences.cuisine} cuisine`;
+      }
+      if (preferences.diet) {
+        prompt += ` that is ${preferences.diet}`;
+      }
+      if (preferences.cookingTime) {
+        prompt += ` that takes less than ${preferences.cookingTime} to cook`;
+      }
+      prompt += '.';
+
+      // Call our backend API to generate a recipe using the AI
+      const response = await fetch('/api/generate-recipe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
       });
 
-      const results = await Promise.allSettled(recipePromises);
-      
-      // Filter out failed generations and map the successful ones
-      const newRecipes = await Promise.all(
-        results
-          .filter((result): result is PromiseFulfilledResult<Response> => 
-            result.status === 'fulfilled'
-          )
-          .map(async (result) => {
-            const data = await result.value.json();
-            if (!result.value.ok) {
-              throw new Error(data.message || 'Failed to generate recipe');
-            }
-            return data;
-          })
-      );
-
-      if (newRecipes.length === 0) {
-        const errors = results
-          .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-          .map(result => result.reason?.message || 'Unknown error');
-        
-        throw new Error(`Failed to generate recipes: ${errors.join(', ')}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate AI recipe');
       }
-      
-      // Add the new recipes to the list
-      setAiRecipes(prev => [...newRecipes, ...prev]);
+
+      const newRecipe = await response.json();
+
+      // Add the new recipe to the beginning of the AI recipes list
+      // and ensure it's marked as 'ai' type for filtering
+      setAiRecipes(prevRecipes => [{
+        ...newRecipe,
+        recipe_type: 'ai',
+        recipeType: 'ai'
+      }, ...prevRecipes]);
+
     } catch (error) {
       console.error('Error generating AI recipes:', error);
-      setError(error instanceof Error ? error.message : 'Failed to generate recipe suggestions. Please try again later.');
+      
+      try {
+        // Generate multiple AI recipes based on preferences
+        const recipePromises = Array.from({ length: 3 }, async () => {
+          // Generate a random meal ID between 52772 and 53000 (TheMealDB range)
+          const randomMealId = Math.floor(Math.random() * (53000 - 52772 + 1)) + 52772;
+          // First fetch the meal data
+          const mealRes = await fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${randomMealId}`);
+          const mealData = await mealRes.json();
+          const meal = mealData.meals?.[0];
+          
+          if (!meal) {
+            throw new Error('Failed to fetch meal data');
+          }
+
+          // Then create the recipe in our database
+          const response = await fetch('/api/recipes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: meal.strMeal,
+              description: meal.strInstructions,
+              image_url: meal.strMealThumb,
+              ingredients: Object.keys(meal)
+                .filter(k => k.startsWith('strIngredient') && meal[k])
+                .map(k => meal[k]),
+              instructions: meal.strInstructions.split(/\r?\n|\.\s+/).filter(Boolean),
+              cuisine_type: meal.strArea?.toLowerCase() || 'unknown',
+              diet_type: 'unknown',
+              cooking_time: '30 mins',
+              recipe_type: 'ai',
+              recipeType: 'ai'
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to create recipe');
+          }
+
+          return response.json();
+        });
+
+        const results = await Promise.allSettled(recipePromises);
+        
+        // Filter out failed generations and map the successful ones
+        const newRecipes = results
+          .filter((result): result is PromiseFulfilledResult<Recipe> => 
+            result.status === 'fulfilled'
+          )
+          .map(result => result.value);
+
+        if (newRecipes.length === 0) {
+          const errors = results
+            .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+            .map(result => result.reason?.message || 'Unknown error');
+          
+          throw new Error(`Failed to generate recipes: ${errors.join(', ')}`);
+        }
+        
+        // Add the new recipes to the list
+        setAiRecipes(prev => [...newRecipes, ...prev]);
+      } catch (fallbackError) {
+        console.error('Error in fallback recipe generation:', fallbackError);
+        setError(fallbackError instanceof Error ? fallbackError.message : 'Failed to generate recipe suggestions. Please try again later.');
+      }
     } finally {
       setAiLoading(false);
     }
@@ -539,6 +582,7 @@ export default function DiscoverPage() {
                         cuisine_type={recipe.cuisine_type}
                         cooking_time={recipe.cooking_time}
                         diet_type={recipe.diet_type}
+                        recipeType="user"
                       />
                     ))}
                   </div>
@@ -564,7 +608,6 @@ export default function DiscoverPage() {
                           cooking_time=""
                           diet_type=""
                           loading={true}
-                          recipeType="ai"
                         />
                       ))
                     ) : (
@@ -580,7 +623,7 @@ export default function DiscoverPage() {
                           cuisine_type={recipe.cuisine_type}
                           cooking_time={recipe.cooking_time}
                           diet_type={recipe.diet_type}
-                          recipeType="ai"
+                          recipeType="user"
                         />
                       ))
                     )}

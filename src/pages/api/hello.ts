@@ -2,7 +2,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
 type Data = {
-  name: string;
+  name?: string;
+  message?: string;
 };
 
 export default function handler(
@@ -13,6 +14,6 @@ export default function handler(
     res.status(200).json({ name: "John Doe" });
   } catch (error) {
     console.error('API error:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
   }
 }

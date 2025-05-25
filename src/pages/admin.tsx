@@ -80,7 +80,7 @@ export default function AdminPanel() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [reports, setReports] = useState<any[]>([]);
-  const [reportStatus, setReportStatus] = useState<'pending' | 'reviewed' | 'resolved' | 'all'>('pending');
+  const [reportStatus, setReportStatus] = useState<'under review' | 'resolved' | 'all'>('under review');
   const [tab, setTab] = useState('users');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
@@ -163,49 +163,19 @@ export default function AdminPanel() {
   const fetchReports = useCallback(async () => {
     if (!supabase) return;
     
-    // Check if we have a session before making the request
-    if (!session) {
-      console.error('No session available when trying to fetch reports');
-      setError('Authentication error - Please try refreshing the page');
-      return;
-    }
-    
     try {
-      console.log('Fetching reports with session:', session.user.id);
-      
-      // Use the ensureAuthenticatedFetch helper if available, or fall back to regular fetch
-      const fetchFunc = typeof ensureAuthenticatedFetch === 'function' 
-        ? ensureAuthenticatedFetch 
-        : (url: string) => fetch(url, {
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': session?.access_token ? `Bearer ${session.access_token}` : ''
-            }
-          });
-      
-      const response = await fetchFunc(
-        `/api/reports${reportStatus !== 'all' ? `?status=${reportStatus}` : ''}`
-      );
-      
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch {
-          errorData = { message: await response.text() };
-        }
-        console.error('Error response from reports API:', errorData);
-        throw new Error(errorData.message || 'Failed to fetch reports');
-      }
-      
-      const data = await response.json();
+      const { data, error } = await supabase
+        .from('reports_with_profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
       setReports(data || []);
     } catch (err) {
       console.error('Error in fetchReports:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch reports');
     }
-  }, [supabase, reportStatus, session, ensureAuthenticatedFetch]);
+  }, [supabase]);
 
   const fetchAuditLog = useCallback(async () => {
     if (!supabase || !user) return;
@@ -232,7 +202,7 @@ export default function AdminPanel() {
     try {
       const [usersResponse, recipesResponse] = await Promise.all([
         supabase.from('profiles').select('*'),
-        supabase.from('recipes').select('*')
+        supabase.from('recipes').select('*').eq('recipe_type', 'user')
       ]);
 
       if (usersResponse.error) throw usersResponse.error;
@@ -751,34 +721,27 @@ export default function AdminPanel() {
       setIsSaving(true);
       setSaveMessage(null);
 
-      // Update the report status
-      const response = await ensureAuthenticatedFetch('/api/reports', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          reportId,
+      // Update the report status directly using Supabase
+      const { error } = await supabase
+        .from('reports')
+        .update({
           status,
           admin_notes: adminNotes,
-        }),
-      });
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', reportId);
 
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch {
-          errorData = { message: await response.text() };
-        }
-        console.error('Error response:', errorData);
-        throw new Error(errorData.message || 'Failed to update report status');
-      }
-
-      const data = await response.json();
+      if (error) throw error;
 
       // Update the report in the local state
-      setReports(prev => prev.map(r => r.id === reportId ? { ...r, status, admin_notes: adminNotes || r.admin_notes } : r));
+      setReports(prev => prev.map(r => r.id === reportId ? { 
+        ...r, 
+        status, 
+        admin_notes: adminNotes || r.admin_notes,
+        reviewed_by: user.id,
+        reviewed_at: new Date().toISOString()
+      } : r));
 
       // Log the action
       await logAdminAction('update_report_status', reportId, { 
@@ -793,12 +756,11 @@ export default function AdminPanel() {
     } catch (err) {
       console.error('Error updating report status:', err);
       setError(err instanceof Error ? err.message : 'Failed to update report status');
-      // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000);
     } finally {
       setIsSaving(false);
     }
-  }, [supabase, user, logAdminAction, ensureAuthenticatedFetch]);
+  }, [supabase, user, logAdminAction]);
 
   const handleDeleteReport = useCallback(async (reportId: string) => {
     if (!supabase || !user) return;
@@ -806,23 +768,13 @@ export default function AdminPanel() {
     if (!confirm('Are you sure you want to delete this report?')) return;
 
     try {
-      // Save the report status before deleting for audit purposes
-      const reportToDelete = reports.find(r => r.id === reportId);
-      
-      // Delete the report using the API with the helper
-      const response = await ensureAuthenticatedFetch(`/api/reports?reportId=${reportId}`, {
-        method: 'DELETE',
-      });
+      // Delete the report directly using Supabase
+      const { error } = await supabase
+        .from('reports')
+        .delete()
+        .eq('id', reportId);
 
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch {
-          errorData = { message: await response.text() };
-        }
-        throw new Error(errorData.message || 'Failed to delete report');
-      }
+      if (error) throw error;
 
       // Remove the deleted report from local state
       setReports(prev => prev.filter(r => r.id !== reportId));
@@ -830,7 +782,7 @@ export default function AdminPanel() {
       // Log the action
       await logAdminAction('delete_report', reportId, { 
         reportId,
-        status: reportToDelete?.status
+        status: reports.find(r => r.id === reportId)?.status
       });
 
       // Show success message
@@ -839,10 +791,9 @@ export default function AdminPanel() {
     } catch (err) {
       console.error('Error deleting report:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete report');
-      // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000);
     }
-  }, [supabase, user, reports, logAdminAction, ensureAuthenticatedFetch]);
+  }, [supabase, user, reports, logAdminAction]);
 
   // Add visibility change handler to prevent reload
   useEffect(() => {
@@ -993,24 +944,25 @@ export default function AdminPanel() {
   // Add a helper function to convert ProfileData to Profile
   const profileDataToProfile = (data: ProfileData): Profile => {
     return {
-      id: data.id || data.user_id,
+      id: data.user_id,
       user_id: data.user_id,
-      username: data.username || '',
-      full_name: data.full_name || '',
-      avatar_url: data.avatar_url || '',
-      bio: data.bio ?? '',
-      is_private: data.is_private ?? false,
-      show_email: data.show_email ?? false,
-      is_admin: data.is_admin ?? false,
+      username: data.username || null,
+      avatar_url: data.avatar_url || null,
+      bio: data.bio || null,
+      is_private: data.is_private || false,
+      email: data.email || null,
+      full_name: data.full_name || null,
+      is_admin: data.is_admin || false,
       warnings: data.warnings || 0,
       banned: data.banned || false,
-      ban_type: data.ban_type ?? null,
-      ban_reason: data.ban_reason ?? null,
-      ban_expiry: data.ban_expiry ?? null,
-      last_ban_date: data.last_ban_date ?? null,
+      ban_type: (data.ban_type as "temporary" | "permanent" | "warning" | null) ?? null,
+      ban_reason: data.ban_reason || null,
+      ban_expiry: data.ban_expiry || null,
+      last_ban_date: data.last_ban_date || null,
       ban_count: data.ban_count || 0,
-      created_at: data.created_at || '',
-      updated_at: data.updated_at || '',
+      created_at: data.created_at || new Date().toISOString(),
+      updated_at: data.updated_at || new Date().toISOString(),
+      show_email: data.show_email || false
     };
   };
 
@@ -1030,31 +982,26 @@ export default function AdminPanel() {
     if (!selectedReportId || !supabase || !user) return;
 
     try {
-      // Update the report with admin notes using the helper
-      const response = await ensureAuthenticatedFetch('/api/reports', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          reportId: selectedReportId,
+      // Update the report with admin notes directly using Supabase
+      const { error } = await supabase
+        .from('reports')
+        .update({
           admin_notes: adminNotes,
-          status: reports.find(r => r.id === selectedReportId)?.status || 'reviewed',
-        }),
-      });
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', selectedReportId);
 
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch {
-          errorData = { message: await response.text() };
-        }
-        throw new Error(errorData.message || 'Failed to update admin notes');
-      }
-
-      const data = await response.json();
+      if (error) throw error;
 
       // Update the reports in the local state
       setReports(prev => prev.map(r => 
-        r.id === selectedReportId ? { ...r, admin_notes: adminNotes } : r
+        r.id === selectedReportId ? { 
+          ...r, 
+          admin_notes: adminNotes,
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString()
+        } : r
       ));
 
       // Log the action
@@ -1168,12 +1115,11 @@ export default function AdminPanel() {
             <div className="flex gap-4 mb-4">
               <select 
                 value={reportStatus}
-                onChange={(e) => setReportStatus(e.target.value as 'pending' | 'reviewed' | 'resolved' | 'all')}
+                onChange={(e) => setReportStatus(e.target.value as 'under review' | 'resolved' | 'all')}
                 className="px-3 py-2 border border-outline bg-transparent rounded-lg"
               >
                 <option value="all">{toLower('all reports')}</option>
-                <option value="pending">{toLower('pending')}</option>
-                <option value="reviewed">{toLower('reviewed')}</option>
+                <option value="under review">{toLower('under review')}</option>
                 <option value="resolved">{toLower('resolved')}</option>
               </select>
             </div>
@@ -1201,11 +1147,46 @@ export default function AdminPanel() {
                         </div>
                         <div>
                           <div className="font-semibold text-lg">
-                            {report.reported_user_id ? (
-                              <span>{toLower('reported user')}: {toLower(report.reported_username || 'unknown')}</span>
-                            ) : (
-                              <span>{toLower('reported recipe')}: {report.recipe_id} ({toLower(report.recipe_type || 'unknown')})</span>
-                            )}
+                            <span>
+                              {report.report_type === 'user' && (
+                                <>
+                                  {toLower('reported user')}: {toLower(report.reported_username || 'unknown')}
+                                  <br />
+                                  <span className="mt-1 text-xs text-gray-400">
+                                    user: {report.reported_user_id}
+                                  </span>
+                                </>
+                              )}
+                              {report.report_type === 'recipe' && (
+                                <>
+                                  {toLower('reported recipe')}: {report.recipe_id} ({toLower(report.recipe_type || 'unknown')})
+                                  <br />
+                                  <span className="mt-1 text-xs text-gray-400">
+                                    user: {report.recipe_user_id}
+                                  </span>
+                                </>
+                              )}
+                              {report.report_type === 'message' && (
+                                <>
+                                  {toLower('reported message')}: {report.message_id}
+                                  <br />
+                                  <span className="mt-1 text-xs text-gray-400">
+                                    user: {report.reported_user_id}
+                                  </span>
+                                  {report.message_content && (
+                                    <div className="mt-2 text-sm text-gray-300">
+                                      <span className="font-medium">{toLower('message details')}:</span>
+                                      <div className="p-2 border border-outline rounded bg-gray-900/30 mt-1">
+                                        {report.message_content}
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {toLower('type')}: {toLower(report.report_type)}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">
                             {toLower('reported by')}: {toLower(report.reporter_username || 'anonymous')}
@@ -1223,8 +1204,7 @@ export default function AdminPanel() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-1 rounded-full text-sm ${
-                          report.status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
-                          report.status === 'reviewed' ? 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400' :
+                          report.status === 'under review' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
                           'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
                         }`}>{toLower(report.status)}</span>
                       </div>
@@ -1252,14 +1232,6 @@ export default function AdminPanel() {
                       >
                         {report.admin_notes ? toLower('edit notes') : toLower('add notes')}
                       </button>
-                      {report.status === 'pending' && (
-                        <button
-                          onClick={() => handleReportStatusChange(report.id, 'reviewed')}
-                          className="px-5 py-3 rounded-xl text-sm border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity"
-                        >
-                          {toLower('mark as reviewed')}
-                        </button>
-                      )}
                       {report.status !== 'resolved' && (
                         <button
                           onClick={() => handleReportStatusChange(report.id, 'resolved')}
@@ -1437,6 +1409,9 @@ export default function AdminPanel() {
                     <div>
                       <p className="font-medium">{toLower(recipe.title)}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {toLower('id')}: {recipe.id}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {new Date(recipe.created_at).toLocaleDateString()}
                       </p>
                     </div>
@@ -1524,13 +1499,14 @@ export default function AdminPanel() {
               is_admin: selectedUser.is_admin ?? false,
               warnings: selectedUser.warnings ?? 0,
               banned: selectedUser.banned ?? false,
-              ban_type: selectedUser.ban_type ?? null,
+              ban_type: (selectedUser.ban_type as "temporary" | "permanent" | "warning" | null) ?? null,
               ban_reason: selectedUser.ban_reason ?? null,
               ban_expiry: selectedUser.ban_expiry ?? null,
               last_ban_date: selectedUser.last_ban_date ?? null,
               ban_count: selectedUser.ban_count ?? 0,
               created_at: selectedUser.created_at ?? new Date().toISOString(),
               updated_at: selectedUser.updated_at ?? new Date().toISOString(),
+              email: selectedUser.email ?? null
             }}
             warnings={userWarnings}
             activity={userActivity}

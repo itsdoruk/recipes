@@ -81,7 +81,7 @@ export interface Report {
   recipe_type: 'user' | 'ai' | 'spoonacular';
   user_id: string;
   reason: string;
-  status: 'pending' | 'reviewed' | 'resolved';
+  status: 'under review' | 'resolved';
   created_at: string;
 }
 
@@ -90,7 +90,7 @@ export async function submitReport(report: Omit<Report, 'id' | 'created_at' | 's
     .from('reports')
     .insert({
       ...report,
-      status: 'pending'
+      status: 'under review'
     })
     .select()
     .single();

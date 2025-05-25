@@ -117,17 +117,25 @@ export async function submitReport(report: Omit<Report, 'id' | 'created_at' | 's
 }
 
 export async function getReports(status?: Report['status']) {
-  const supabase = getBrowserClient()
-  const query = supabase
-    .from('reports')
+  const supabase = getBrowserClient();
+  let query = supabase
+    .from('reports_with_profiles')
     .select('*')
     .order('created_at', { ascending: false });
-
   if (status) {
-    query.eq('status', status);
+    query = query.eq('status', status);
   }
-
   const { data, error } = await query;
   if (error) throw error;
   return data;
+}
+
+export function removeChannel(channel: any) {
+  if (channel) {
+    try {
+      channel.unsubscribe();
+    } catch (error) {
+      console.error('Error unsubscribing from channel:', error);
+    }
+  }
 } 

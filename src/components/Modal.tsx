@@ -16,8 +16,9 @@ export default function Modal({ isOpen, onRequestClose, children }: ModalProps) 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div 
-        className="fixed inset-0 bg-black/50" 
-        onClick={onRequestClose}
+        className="fixed inset-0 bg-black opacity-100 z-50" 
+        style={{ backgroundColor: 'rgba(0,0,0,1)' }}
+        onClick={e => { e.stopPropagation(); onRequestClose(); }}
       />
       <div className="relative z-50">
         {children}

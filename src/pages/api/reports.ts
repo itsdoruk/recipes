@@ -68,7 +68,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     get: (name) => {
       const cookie = req.cookies[name];
       if (cookie) {
-        console.log(`Found cookie: ${name} (length: ${cookie.length})`);
         return cookie;
       } else {
         console.log(`Cookie not found: ${name}`);
@@ -80,8 +79,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.setHeader('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax`);
     },
     remove: (name) => {
-      console.log(`Removing cookie: ${name}`);
-      res.setHeader('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+      const cookie = req.cookies[name];
+      if (cookie) {
+        res.setHeader('Set-Cookie', `${name}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax`);
+      }
     },
   });
   
@@ -233,11 +234,31 @@ async function handleRequestWithUser(
         query = query.eq('status', status);
       }
 
-      const { data, error } = await query;
+      let data, error;
+      try {
+        const result = await query;
+        data = result.data;
+        error = result.error;
+      } catch (e) {
+        error = e;
+      }
 
       if (error) {
-        console.error('Error fetching reports:', error);
-        return res.status(500).json({ message: 'Failed to fetch reports' });
+        console.error('Error fetching from reports_with_profiles, falling back to reports:', error);
+        // Fallback to reports table
+        let fallbackQuery = supabaseServer
+          .from('reports')
+          .select()
+          .order('created_at', { ascending: false });
+        if (status && status !== 'all') {
+          fallbackQuery = fallbackQuery.eq('status', status);
+        }
+        const fallbackResult = await fallbackQuery;
+        if (fallbackResult.error) {
+          console.error('Error fetching reports fallback:', fallbackResult.error);
+          return res.status(500).json({ message: 'Failed to fetch reports' });
+        }
+        return res.status(200).json(fallbackResult.data);
       }
 
       return res.status(200).json(data);
@@ -283,7 +304,7 @@ async function handleRequestWithUser(
           reporter_id: user.id,
           reason,
           details,
-          status: 'pending'
+          status: 'under review'
         })
         .select()
         .single();
@@ -315,7 +336,7 @@ async function handleRequestWithUser(
               reporter_id: user.id,
               reason,
               details,
-              status: 'pending'
+              status: 'under review'
             })
             .select()
             .single();

@@ -1,8 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from './supabase';
 import { generateRecipeId, parseRecipeId } from './recipeIdUtils';
+import { stripHtmlTags } from './recipeUtils';
 
 const SPOONACULAR_API_KEY = process.env.NEXT_PUBLIC_SPOONACULAR_API_KEY;
+const SPOONACULAR_API_URL = 'https://api.spoonacular.com/recipes';
+export const SPOONACULAR_USER_ID = '00000000-0000-0000-0000-000000000001'; // Special UUID for Spoonacular recipes
 
 // Log API key status on load
 console.log('Spoonacular API key available:', !!SPOONACULAR_API_KEY);
@@ -12,7 +15,7 @@ if (!SPOONACULAR_API_KEY) {
 
 // Basic recipe interface
 export interface Recipe {
-  id: number | string;
+  id: string; // Now always a UUID
   title: string;
   image: string;
   readyInMinutes?: number;
@@ -35,6 +38,11 @@ export interface Recipe {
       unit: string;
     }>;
   };
+  analyzedInstructions?: Array<{
+    steps: Array<{
+      step: string;
+    }>;
+  }>;
 }
 
 export type SpoonacularRecipe = Recipe;
@@ -45,54 +53,73 @@ interface SearchOptions {
   maxReadyTime?: number;
 }
 
-// Simple API key validation
-function validateApiKey(): string | null {
-  const apiKey = process.env.NEXT_PUBLIC_SPOONACULAR_API_KEY;
-  if (!apiKey) {
-    console.error('Spoonacular API key not found');
-    return null;
+// Helper function to fetch from Spoonacular API
+async function fetchFromSpoonacular(endpoint: string, params: Record<string, string> = {}): Promise<any> {
+  if (!SPOONACULAR_API_KEY) {
+    throw new Error('Spoonacular API key not configured');
   }
-  return apiKey;
+
+  const queryParams = new URLSearchParams({
+    apiKey: SPOONACULAR_API_KEY,
+    ...params
+  });
+
+  const response = await fetch(`${SPOONACULAR_API_URL}/${endpoint}?${queryParams}`);
+  
+  if (!response.ok) {
+    if (response.status === 402) {
+      throw new Error('Spoonacular API quota exceeded');
+    }
+    throw new Error(`API request failed: ${response.statusText}`);
+  }
+
+  return response.json();
 }
 
-// Simple fetch wrapper with error handling
-async function fetchFromSpoonacular(endpoint: string, params: Record<string, string>): Promise<any> {
-  const apiKey = validateApiKey();
-  if (!apiKey) return null;
-
+// Get recipe by ID
+export async function getRecipeById(id: string): Promise<Recipe | null> {
   try {
-    // Determine if we're on the server or client
-    const isServer = typeof window === 'undefined';
-    const baseUrl = isServer ? process.env.NEXT_PUBLIC_VERCEL_URL || 'http://localhost:3000' : window.location.origin;
+    const supabase = getSupabaseClient();
     
-    const response = await fetch(`${baseUrl}/api/spoonacular`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        endpoint,
-        params
-      })
-    });
-    
-    if (!response.ok) {
-      if (response.status === 402) {
-        console.error('Spoonacular API quota exceeded');
-        return null;
-      }
-      throw new Error(`API request failed: ${response.statusText}`);
+    // First, check if we have a mapping for this UUID
+    const { data: mapping, error: mappingError } = await supabase
+      .from('spoonacular_mappings')
+      .select('spoonacular_id')
+      .eq('recipe_id', id)
+      .single();
+
+    if (mappingError) {
+      console.error('Error fetching Spoonacular mapping:', mappingError);
+      return null;
     }
 
-    return await response.json();
+    if (!mapping) {
+      return null;
+    }
+
+    // Fetch the recipe from Spoonacular
+    const data = await fetchFromSpoonacular(`${mapping.spoonacular_id}/information`, {
+      addRecipeInformation: 'true',
+      fillIngredients: 'true'
+    });
+
+    if (!data) return null;
+
+    return {
+      ...data,
+      id: id, // Use our UUID
+      dateAdded: new Date().toISOString(),
+      image: data.image || '',
+      nutrition: data.nutrition || null
+    };
   } catch (error) {
-    console.error('Error fetching from Spoonacular:', error);
+    console.error('Error fetching recipe:', error);
     return null;
   }
 }
 
 // Search recipes with simplified parameters
-export async function searchRecipes(query: string, options: SearchOptions = {}): Promise<SpoonacularRecipe[]> {
+export async function searchRecipes(query: string, options: SearchOptions = {}): Promise<Recipe[]> {
   const params: Record<string, string> = {
     number: '10',
     addRecipeInformation: 'true',
@@ -119,69 +146,106 @@ export async function searchRecipes(query: string, options: SearchOptions = {}):
     params.maxReadyTime = options.maxReadyTime.toString();
   }
 
-  const data = await fetchFromSpoonacular('complexSearch', params);
-  if (!data?.results) return [];
-
-  return data.results.map((recipe: any) => ({
-    ...recipe,
-    id: recipe.id.toString(),
-    dateAdded: new Date().toISOString(),
-    title: recipe.title || 'Untitled Recipe',
-    image: recipe.image || '',
-    summary: recipe.summary || recipe.instructions || 'No description available',
-    nutrition: recipe.nutrition || null
-  }));
-}
-
-// Get recipe by ID
-export async function getRecipeById(id: string): Promise<Recipe | null> {
-  const { source, id: originalId } = parseRecipeId(id);
-  
-  // Handle Spoonacular IDs
-  if (source === 'spoonacular') {
-    const data = await fetchFromSpoonacular(`${originalId}/information`, {
-      addRecipeInformation: 'true',
-      fillIngredients: 'true'
-    });
-
-    if (!data) return null;
-
-    return {
-      ...data,
-      id: id, // Keep the original ID with prefix
-      dateAdded: new Date().toISOString(),
-      image: data.image || '',
-      nutrition: data.nutrition || null
-    };
-  }
-
-  // Handle local recipe IDs
   try {
+    const data = await fetchFromSpoonacular('complexSearch', params);
+    if (!data?.results) return [];
+
     const supabase = getSupabaseClient();
-    const { data: recipe, error } = await supabase
-      .from('recipes')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const recipes: Recipe[] = [];
 
-    if (error || !recipe) return null;
+    for (const recipe of data.results) {
+      try {
+        // First, check if we already have this recipe in our database
+        const { data: existingRecipe } = await supabase
+          .from('recipes')
+          .select('*')
+          .eq('recipe_type', 'spoonacular')
+          .eq('spoonacular_id', recipe.id.toString())
+          .maybeSingle();
 
-    return {
-      id: recipe.id,
-      title: recipe.title,
-      image: recipe.image_url || '',
-      instructions: recipe.instructions.join('\n'),
-      extendedIngredients: recipe.ingredients.map((ing: string) => ({
-        id: Math.random(),
-        original: ing,
-        amount: 0,
-        unit: ''
-      })),
-      dateAdded: recipe.created_at
-    };
+        if (existingRecipe) {
+          // If recipe exists, use it
+          recipes.push({
+            ...recipe,
+            id: existingRecipe.id,
+            dateAdded: existingRecipe.created_at,
+            title: existingRecipe.title,
+            image: existingRecipe.image_url || '',
+            summary: stripHtmlTags(existingRecipe.description),
+            nutrition: null
+          });
+          continue;
+        }
+
+        // Generate a new UUID for this recipe
+        const recipeId = generateRecipeId('spoonacular');
+
+        // Create the recipe entry first
+        const recipeData = {
+          id: recipeId,
+          title: recipe.title || 'Untitled Recipe',
+          description: stripHtmlTags(recipe.summary || recipe.instructions || 'No description available'),
+          image_url: recipe.image || '',
+          user_id: SPOONACULAR_USER_ID,
+          created_at: new Date().toISOString(),
+          cuisine_type: recipe.cuisines?.[0] || null,
+          cooking_time: recipe.readyInMinutes ? `${recipe.readyInMinutes} mins` : null,
+          diet_type: recipe.diets?.[0] || null,
+          cooking_time_value: recipe.readyInMinutes,
+          recipe_type: 'spoonacular',
+          spoonacular_id: recipe.id.toString(),
+          ingredients: recipe.extendedIngredients?.map((ing: any) => ing.original) || [],
+          instructions: recipe.analyzedInstructions?.[0]?.steps?.map((step: any) => stripHtmlTags(step.step)) || []
+        };
+
+        // Insert the recipe
+        const { error: insertError } = await supabase
+          .from('recipes')
+          .insert(recipeData);
+
+        if (insertError) {
+          console.error('Error inserting Spoonacular recipe:', insertError);
+          continue;
+        }
+
+        // Now create the mapping
+        const { error: mappingError } = await supabase
+          .from('spoonacular_mappings')
+          .insert({
+            recipe_id: recipeId,
+            spoonacular_id: recipe.id.toString(),
+            created_at: new Date().toISOString()
+          });
+
+        if (mappingError) {
+          console.error('Error storing Spoonacular mapping:', mappingError);
+          // If mapping fails, we should probably delete the recipe to maintain consistency
+          await supabase
+            .from('recipes')
+            .delete()
+            .eq('id', recipeId);
+          continue;
+        }
+
+        recipes.push({
+          ...recipe,
+          id: recipeId,
+          dateAdded: recipeData.created_at,
+          title: recipeData.title,
+          image: recipeData.image_url,
+          summary: recipeData.description,
+          nutrition: recipe.nutrition || null
+        });
+      } catch (error) {
+        console.error('Error processing Spoonacular recipe:', error);
+        continue;
+      }
+    }
+
+    return recipes;
   } catch (error) {
-    console.error('Error fetching local recipe:', error);
-    return null;
+    console.error('Error searching recipes:', error);
+    return [];
   }
 }
 
@@ -195,14 +259,39 @@ export async function getPopularRecipes(): Promise<Recipe[]> {
 
   if (!data?.results) return [];
 
-  return data.results.map((recipe: any) => ({
-    ...recipe,
-    id: recipe.id.toString(),
-    dateAdded: new Date().toISOString(),
-    title: recipe.title || 'Untitled Recipe',
-    image: recipe.image || '',
-    summary: recipe.summary || recipe.instructions || 'No description available'
-  }));
+  const supabase = getSupabaseClient();
+  const recipes: Recipe[] = [];
+
+  for (const recipe of data.results) {
+    // Generate a new UUID for this recipe
+    const recipeId = generateRecipeId('spoonacular', recipe.id.toString());
+
+    // Store the mapping
+    const { error: mappingError } = await supabase
+      .from('spoonacular_mappings')
+      .upsert({
+        recipe_id: recipeId,
+        spoonacular_id: recipe.id.toString(),
+        created_at: new Date().toISOString()
+      });
+
+    if (mappingError) {
+      console.error('Error storing Spoonacular mapping:', mappingError);
+      continue;
+    }
+
+    recipes.push({
+      ...recipe,
+      id: recipeId,
+      dateAdded: new Date().toISOString(),
+      title: recipe.title || 'Untitled Recipe',
+      image: recipe.image || '',
+      summary: stripHtmlTags(recipe.summary || recipe.instructions || 'No description available'),
+      nutrition: recipe.nutrition || null
+    });
+  }
+
+  return recipes;
 }
 
 // Example usage:

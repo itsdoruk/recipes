@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 
 interface ReportButtonProps {
   recipeId: string;
-  recipeType: 'user' | 'spoonacular' | 'ai' | 'message';
+  recipeType: 'user' | 'spoonacular' | 'ai' | 'message' | 'recipe';
   onReportSubmitted?: () => void;
   className?: string;
+  showOnlyModal?: boolean;
+  openOnMount?: boolean;
+  isUserProfileReport?: boolean;
 }
 
-export default function ReportButton({ recipeId, recipeType, onReportSubmitted, className }: ReportButtonProps) {
+export default function ReportButton({ recipeId, recipeType, onReportSubmitted, className, showOnlyModal = false, openOnMount = false, isUserProfileReport = false }: ReportButtonProps) {
   const session = useSession();
   const supabase = useSupabaseClient();
   const user = session?.user;
@@ -17,34 +20,28 @@ export default function ReportButton({ recipeId, recipeType, onReportSubmitted, 
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (openOnMount) setIsOpen(true);
+  }, [openOnMount]);
+
   // Get appropriate title based on what's being reported
   const getTitle = () => {
-    switch (recipeType) {
-      case 'user':
-        return 'User Report';
-      case 'spoonacular':
-      case 'ai':
-        return 'Recipe Report';
-      case 'message':
-        return 'Message Report';
-      default:
-        return 'Report';
+    if (["user", "spoonacular", "ai"].includes(recipeType)) {
+      return "Recipe Report";
     }
+    if (recipeType === "message") return "Message Report";
+    if (recipeType === "user") return "User Report";
+    return "Report";
   };
 
   // Get appropriate placeholder text
   const getPlaceholder = () => {
-    switch (recipeType) {
-      case 'user':
-        return 'please describe the issue with this user';
-      case 'spoonacular':
-      case 'ai':
-        return 'please explain why you are reporting this recipe';
-      case 'message':
-        return 'please explain why you are reporting this message';
-      default:
-        return 'please explain why you are reporting this content';
+    if (["user", "spoonacular", "ai"].includes(recipeType)) {
+      return "please explain why you are reporting this recipe";
     }
+    if (recipeType === "message") return "please explain why you are reporting this message";
+    if (recipeType === "user") return "please describe the issue with this user";
+    return "please explain why you are reporting this content";
   };
 
   const handleOpenModal = () => {
@@ -77,50 +74,70 @@ export default function ReportButton({ recipeId, recipeType, onReportSubmitted, 
         reporter_id: user.id,
         reason: reason.trim(),
         details: reason.trim(),
-        status: 'pending'
+        status: 'under review'
       };
 
       // Handle different report types
-      if (recipeType === 'user') {
-        // For direct user reports
+      if (recipeType === 'message') {
+        // For message reports, get the message to find its sender
+        const { data: messageData, error: messageError } = await supabase
+          .from('messages')
+          .select('sender_id')
+          .eq('id', recipeId)
+          .single();
+
+        if (messageError || !messageData) {
+          throw new Error('Cannot report this message. The message may have been deleted.');
+        }
+
+        reportData.recipe_id = recipeId;
+        reportData.report_type = 'message';
+        reportData.reported_user_id = messageData.sender_id;
+      } else if (recipeType === 'user' && isUserProfileReport) {
+        // Only use this block for true user profile reports (not recipe cards)
         if (recipeId === user.id) {
           throw new Error('You cannot report yourself');
         }
-        
         // Check if the user exists
         const { data: profileCheck, error: profileCheckError } = await supabase
           .from('profiles')
           .select('user_id')
           .eq('user_id', recipeId);
-          
         if (profileCheckError) {
           console.error('Error checking profile:', profileCheckError);
         }
-        
         if (!profileCheck || profileCheck.length === 0) {
           throw new Error('Cannot report this user. The user may not exist in our system.');
         }
-        
         reportData.reported_user_id = recipeId;
-      } else if (['spoonacular', 'ai'].includes(recipeType)) {
-        // For recipe reports - just include the recipe ID without trying to find the creator
+        reportData.report_type = 'user';
+      } else {
+        // For all recipe cards (including recipeType 'user', 'spoonacular', 'ai')
+        // First get the recipe to find its creator
+        const { data: recipeData, error: recipeError } = await supabase
+          .from('recipes')
+          .select('user_id')
+          .eq('id', recipeId)
+          .single();
+
+        if (recipeError || !recipeData) {
+          throw new Error('Cannot report this recipe. The recipe may have been deleted.');
+        }
+
+        // Set the reported user ID to the recipe creator's ID
         reportData.recipe_id = recipeId;
         reportData.recipe_type = recipeType;
-      } else if (recipeType === 'message') {
-        // For message reports
-        reportData.recipe_id = recipeId;
-        reportData.recipe_type = 'user'; // Messages are associated with users
+        reportData.report_type = 'recipe';
+        reportData.reported_user_id = recipeData.user_id;
       }
-      
+
       // Submit the report
       const { data: insertData, error: insertError } = await supabase
         .from('reports')
         .insert(reportData)
         .select();
-        
       if (insertError) {
         console.error('Error inserting report:', insertError);
-        
         if (insertError.message.includes('violates foreign key constraint')) {
           if (insertError.message.includes('reported_user_id')) {
             throw new Error('Cannot report this user. The user may not exist in our system.');
@@ -158,25 +175,27 @@ export default function ReportButton({ recipeId, recipeType, onReportSubmitted, 
 
   return (
     <>
-      <button
-        onClick={handleOpenModal}
-        aria-label="report"
-        className={`p-2 hover:opacity-80 transition-opacity ${className || ''}`}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="w-5 h-5 text-red-500"
+      {!showOnlyModal && (
+        <button
+          onClick={handleOpenModal}
+          aria-label="report"
+          className={`p-2 hover:opacity-80 transition-opacity ${className || ''}`}
         >
-          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-          <line x1="4" y1="15" x2="4" y2="21" />
-        </svg>
-      </button>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-5 h-5 text-red-500"
+          >
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+            <line x1="4" y1="15" x2="4" y2="21" />
+          </svg>
+        </button>
+      )}
 
       {isOpen && (
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>

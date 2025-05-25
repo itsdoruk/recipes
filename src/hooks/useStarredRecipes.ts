@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { getBrowserClient } from '@/lib/supabase/browserClient';
 
-type RecipeType = 'user' | 'spoonacular' | 'ai';
+type RecipeType = 'user' | 'spoonacular' | 'ai' | 'recipe';
 
 interface StarredRecipe {
   recipe_id: string;
@@ -21,6 +21,9 @@ export function useStarredRecipes(userId?: string) {
   const [error, setError] = useState<string | null>(null);
   const [pendingStars, setPendingStars] = useState<Set<string>>(new Set());
   const subscriptionRef = useRef<any>(null);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 1000;
 
   const fetchStarredRecipes = useCallback(async () => {
     const effectiveUserId = userId || currentUser?.id;
@@ -32,13 +35,17 @@ export function useStarredRecipes(userId?: string) {
 
     try {
       const supabase = getBrowserClient();
+      
       // Get blocked users
       const { data: blockedUsers, error: blockedError } = await supabase
         .from('blocked_users')
         .select('blocked_user_id')
         .eq('user_id', effectiveUserId);
 
-      if (blockedError) throw blockedError;
+      if (blockedError) {
+        console.error('Error fetching blocked users:', blockedError);
+        throw blockedError;
+      }
 
       const blockedUserIds = new Set(blockedUsers?.map((b: BlockedUser) => b.blocked_user_id) || []);
 
@@ -48,25 +55,43 @@ export function useStarredRecipes(userId?: string) {
         .select('recipe_id, recipe_type, created_at')
         .eq('user_id', effectiveUserId);
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error('Error fetching starred recipes:', fetchError);
+        throw fetchError;
+      }
 
       // Filter out recipes from blocked users
       const filteredRecipes = data?.filter((recipe: StarredRecipe) => {
         if (recipe.recipe_type === 'user') {
-          // For user recipes, we need to check if the recipe creator is blocked
           return !blockedUserIds.has(recipe.recipe_id);
         }
-        return true; // Keep non-user recipes (spoonacular, ai)
+        return true;
       }) || [];
 
       setStarredRecipes(filteredRecipes);
       setError(null);
+      retryCountRef.current = 0; // Reset retry count on success
     } catch (error) {
       console.error('Error fetching starred recipes:', error);
-      setError(error instanceof Error ? error.message : 'Failed to fetch starred recipes');
-      setStarredRecipes([]);
+      
+      // Implement retry logic
+      if (retryCountRef.current < MAX_RETRIES) {
+        retryCountRef.current += 1;
+        const delay = RETRY_DELAY * Math.pow(2, retryCountRef.current - 1);
+        console.log(`Retrying fetch in ${delay}ms (attempt ${retryCountRef.current}/${MAX_RETRIES})`);
+        
+        setTimeout(() => {
+          fetchStarredRecipes();
+        }, delay);
+      } else {
+        setError(error instanceof Error ? error.message : 'Failed to fetch starred recipes');
+        setStarredRecipes([]);
+        retryCountRef.current = 0; // Reset retry count
+      }
     } finally {
-      setIsLoading(false);
+      if (retryCountRef.current === 0) {
+        setIsLoading(false);
+      }
     }
   }, [userId, currentUser]);
 
@@ -94,31 +119,50 @@ export function useStarredRecipes(userId?: string) {
       }, async (payload: any) => {
         console.log('Starred recipes update:', payload);
         
-        // Get current blocked users
-        const { data: blockedUsers } = await supabase
-          .from('blocked_users')
-          .select('blocked_user_id')
-          .eq('user_id', effectiveUserId);
+        try {
+          // Get current blocked users
+          const { data: blockedUsers } = await supabase
+            .from('blocked_users')
+            .select('blocked_user_id')
+            .eq('user_id', effectiveUserId);
 
-        const blockedUserIds = new Set(blockedUsers?.map((b: BlockedUser) => b.blocked_user_id) || []);
+          const blockedUserIds = new Set(blockedUsers?.map((b: BlockedUser) => b.blocked_user_id) || []);
 
-        if (payload.eventType === 'INSERT') {
-          // Check if the recipe is from a blocked user
-          if (payload.new.recipe_type === 'user' && blockedUserIds.has(payload.new.recipe_id)) {
-            return; // Don't add recipes from blocked users
+          if (payload.eventType === 'INSERT') {
+            // Check if the recipe is from a blocked user
+            if (payload.new.recipe_type === 'user' && blockedUserIds.has(payload.new.recipe_id)) {
+              return; // Don't add recipes from blocked users
+            }
+            setStarredRecipes(prev => [...prev, {
+              recipe_id: payload.new.recipe_id,
+              recipe_type: payload.new.recipe_type,
+              created_at: payload.new.created_at
+            }]);
+          } else if (payload.eventType === 'DELETE') {
+            setStarredRecipes(prev => prev.filter(
+              r => !(r.recipe_id === payload.old.recipe_id && r.recipe_type === payload.old.recipe_type)
+            ));
           }
-          setStarredRecipes(prev => [...prev, {
-            recipe_id: payload.new.recipe_id,
-            recipe_type: payload.new.recipe_type,
-            created_at: payload.new.created_at
-          }]);
-        } else if (payload.eventType === 'DELETE') {
-          setStarredRecipes(prev => prev.filter(
-            r => !(r.recipe_id === payload.old.recipe_id && r.recipe_type === payload.old.recipe_type)
-          ));
+        } catch (error) {
+          console.error('Error handling realtime update:', error);
         }
       })
-      .subscribe();
+      .subscribe((status: string) => {
+        console.log('Subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to starred recipes changes');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Error subscribing to starred recipes changes');
+          // Attempt to resubscribe after a delay
+          setTimeout(() => {
+            if (subscriptionRef.current) {
+              subscriptionRef.current.unsubscribe();
+              subscriptionRef.current = null;
+            }
+            // The effect will run again and set up a new subscription
+          }, RETRY_DELAY);
+        }
+      });
 
     return () => {
       if (subscriptionRef.current) {
@@ -135,27 +179,8 @@ export function useStarredRecipes(userId?: string) {
     }
 
     const supabase = getBrowserClient();
-    // Verify the user is authenticated
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      setError('User not authenticated');
-      return;
-    }
-
-    // Check if the recipe is from a blocked user
-    if (recipeType === 'user') {
-      const { data: blockedUsers } = await supabase
-        .from('blocked_users')
-        .select('blocked_user_id')
-        .eq('user_id', currentUser.id);
-
-      if (blockedUsers?.some((b: BlockedUser) => b.blocked_user_id === recipeId)) {
-        setError('Cannot star recipes from blocked users');
-        return;
-      }
-    }
-
     const starKey = `${recipeId}-${recipeType}`;
+    
     if (pendingStars.has(starKey)) return;
 
     try {

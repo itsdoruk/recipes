@@ -2,18 +2,43 @@ export interface Recipe {
     id: string;
     title: string;
     description: string;
-    ingredients: Ingredient[];
+    image_url: string | null;
+    user_id: string;
+    created_at: string;
+    cuisine_type: string | null;
+    cooking_time: string | null;
+    diet_type: string | null;
+    cooking_time_value?: number;
+    recipe_type: 'user' | 'spoonacular' | 'ai';
+    recipeType?: 'user' | 'spoonacular' | 'ai'; // For backward compatibility
+    ingredients: string[];
     instructions: string[];
-    cookingTime: number;
-    servings: number;
-    imageUrl: string;
-    userId: string;
-    createdAt: Date;
-    updatedAt: Date;
-    calories?: number;
-    protein?: number;
-    fat?: number;
-    carbohydrates?: number;
+    nutrition?: {
+      calories: string;
+      protein: string;
+      fat: string;
+      carbohydrates: string;
+      nutrients?: Array<{
+        name: string;
+        amount: number;
+        unit: string;
+      }>;
+    };
+    is_starred?: boolean;
+    username?: string;
+    likes_count?: number;
+    comments_count?: number;
+    is_liked?: boolean;
+    readyInMinutes?: number;
+    summary?: string;
+    cuisines?: string[];
+    diets?: string[];
+    cooking_time_unit?: string;
+    extendedIngredients?: Array<{
+      original: string;
+    }>;
+    spoonacular_id?: string;
+    [key: string]: any; // Allow additional properties for flexibility
   }
   
   export interface Ingredient {
@@ -62,3 +87,5 @@ export interface Recipe {
     last_ban_date?: string | null;
     ban_count?: number;
   }
+
+export type RecipeType = 'ai' | 'spoonacular' | 'user';
