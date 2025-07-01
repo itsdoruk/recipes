@@ -84,6 +84,9 @@ export default function Navbar() {
                 [recipes]
               </Link>
               <div className="hidden md:flex items-center gap-6">
+                <Link href="/home" className="hover:opacity-80 transition-opacity">
+                  recipes
+                </Link>
                 <Link href="/discover" className="hover:opacity-80 transition-opacity">
                   discover
                 </Link>
@@ -216,6 +219,9 @@ export default function Navbar() {
           {isMenuOpen && (
             <div className="md:hidden py-4 border-t border-outline">
               <div className="flex flex-col gap-4">
+                <Link href="/home" className="hover:opacity-80 transition-opacity">
+                  recipes
+                </Link>
                 <Link href="/discover" className="hover:opacity-80 transition-opacity">
                   discover
                 </Link>
