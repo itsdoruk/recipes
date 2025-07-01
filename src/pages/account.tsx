@@ -14,6 +14,7 @@ import { Database } from '@/types/supabase';
 import RecipeCard from '@/components/RecipeCard';
 import { unlinkGoogleAccount } from '@/lib/auth-utils';
 import { getBrowserClient } from '@/lib/supabase/browserClient';
+import Skeleton from '@/components/Skeleton';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
@@ -139,8 +140,8 @@ export default function AccountPage() {
         if (starredRowsError || !starredRows) {
           setStarredRecipes([]);
           setStarredLoading(false);
-          return;
-        }
+        return;
+      }
         // Separate recipe IDs by type
         const userRecipeIds = starredRows.filter((r: any) => r.recipe_type === 'user').map((r: any) => r.recipe_id);
         const spoonacularRecipeIds = starredRows.filter((r: any) => r.recipe_type === 'spoonacular').map((r: any) => r.recipe_id);
@@ -378,8 +379,32 @@ export default function AccountPage() {
 
   if (loading || sessionLoading || profileLoading) {
     return (
-      <div className="flex justify-center items-center min-h-[40vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white mx-auto" />
+      <div className="flex flex-col gap-6 max-w-2xl mx-auto px-4 py-8">
+        <div className="rounded-2xl p-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+          <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10 mb-8">
+            <Skeleton width={128} height={128} className="rounded-full" />
+            <div className="flex-1 flex flex-col gap-2 items-center md:items-start">
+              <Skeleton width={180} height={32} />
+              <Skeleton width={220} height={20} />
+              <div className="flex gap-2 mt-2">
+                <Skeleton width={100} height={32} />
+                <Skeleton width={100} height={32} />
+              </div>
+            </div>
+          </div>
+          <div className="space-y-6">
+            <Skeleton width="100%" height={48} />
+            <Skeleton width="100%" height={48} />
+            <Skeleton width="100%" height={48} />
+          </div>
+          <div className="pt-8 border-t border-outline mt-8">
+            <Skeleton width="60%" height={32} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <Skeleton width="100%" height={120} />
+              <Skeleton width="100%" height={120} />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -399,7 +424,7 @@ export default function AccountPage() {
       </Head>
       <main className="max-w-2xl mx-auto px-4 py-8">
         <div className="rounded-2xl p-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-          <div className="space-y-8">
+        <div className="space-y-8">
             {/* Profile Header */}
             <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10">
               <div className="relative w-32 h-32 rounded-full overflow-hidden flex items-center justify-center border-4 border-accent shadow-lg">
@@ -417,13 +442,13 @@ export default function AccountPage() {
                   <label htmlFor="avatar-upload" className="px-4 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg cursor-pointer text-sm font-medium">
                     Change Avatar
                   </label>
-                  <input
+              <input
                     id="avatar-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
                     className="hidden"
-                    disabled={isUploading}
+                disabled={isUploading}
                     ref={avatarInputRef}
                   />
                   <button
@@ -440,32 +465,32 @@ export default function AccountPage() {
             {/* Profile Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+            <div>
                   <label className="block mb-2 text-[var(--foreground)] lowercase">username</label>
-                  <input
-                    type="text"
-                    value={form.username}
-                    onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
-                    className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+              <input
+                type="text"
+                value={form.username}
+                onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
                     required
                     minLength={3}
                     maxLength={32}
-                  />
-                </div>
-                <div>
+              />
+            </div>
+            <div>
                   <label className="block mb-2 text-[var(--foreground)] lowercase">cooking skill level</label>
-                  <select
-                    value={form.cooking_skill_level}
-                    onChange={(e) => setForm(prev => ({ ...prev, cooking_skill_level: e.target.value }))}
-                    className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
-                  >
-                    <option value="">select skill level</option>
-                    <option value="beginner">beginner</option>
-                    <option value="intermediate">intermediate</option>
-                    <option value="advanced">advanced</option>
-                    <option value="expert">expert</option>
-                  </select>
-                </div>
+              <select
+                value={form.cooking_skill_level}
+                onChange={(e) => setForm(prev => ({ ...prev, cooking_skill_level: e.target.value }))}
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+              >
+                <option value="">select skill level</option>
+                <option value="beginner">beginner</option>
+                <option value="intermediate">intermediate</option>
+                <option value="advanced">advanced</option>
+                <option value="expert">expert</option>
+              </select>
+            </div>
               </div>
               <div>
                 <label className="block mb-2 text-[var(--foreground)] lowercase">bio</label>
@@ -497,22 +522,22 @@ export default function AccountPage() {
                     id="show-email"
                   />
                   <label htmlFor="show-email" className="text-[var(--foreground)] lowercase cursor-pointer">show email</label>
-                </div>
-                <button
-                  type="submit"
+            </div>
+              <button
+                type="submit"
                   disabled={loading || !formChanged}
                   className="px-6 py-3 border border-outline bg-[var(--background)] text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'saving...' : 'save changes'}
-                </button>
-              </div>
-              {error && (
+              >
+                {loading ? 'saving...' : 'save changes'}
+              </button>
+            </div>
+            {error && (
                 <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl mb-2">
-                  <p className="text-red-500">{error}</p>
-                </div>
-              )}
+                <p className="text-red-500">{error}</p>
+              </div>
+            )}
               {success && <p className="p-4 border border-green-200 bg-green-50 rounded-xl text-green-600 mb-2">{success}</p>}
-            </form>
+          </form>
 
             {/* Account Management */}
             <div className="pt-8 border-t border-outline">
@@ -550,40 +575,42 @@ export default function AccountPage() {
             {/* Blocked Users */}
             <div className="pt-8 border-t border-outline">
               <h2 className="text-xl mb-4 text-[var(--foreground)] lowercase">blocked users</h2>
-              {blockedUsers.length > 0 ? (
-                <div className="space-y-4">
-                  {blockedUsers.map((blockedUser) => (
+            {blockedUsers.length > 0 ? (
+              <div className="space-y-4">
+                {blockedUsers.map((blockedUser) => (
                     <div key={blockedUser.user_id} className="flex items-center justify-between p-4 border border-outline rounded-xl">
-                      <div className="flex items-center gap-4">
-                        <div className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center">
-                          <Avatar avatar_url={blockedUser.avatar_url} username={blockedUser.username} size={40} />
-                        </div>
-                        <div>
+                    <div className="flex items-center gap-4">
+                      <div className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center">
+                        <Avatar avatar_url={blockedUser.avatar_url} username={blockedUser.username} size={40} />
+                      </div>
+                      <div>
                           <div className="font-medium text-[var(--foreground)]">{blockedUser.username || '[recipes] user'}</div>
                         </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setSelectedUser(blockedUser);
-                          setShowUnblockModal(true);
-                        }}
-                        className="px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-left text-[var(--foreground)]"
-                      >
-                        unblock
-                      </button>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400">no blocked users</p>
-              )}
-            </div>
+                    <button
+                      onClick={() => {
+                        setSelectedUser(blockedUser);
+                        setShowUnblockModal(true);
+                      }}
+                        className="px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-left text-[var(--foreground)]"
+                    >
+                      unblock
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">no blocked users</p>
+            )}
+          </div>
 
             {/* Starred Recipes */}
             <div className="pt-8 border-t border-outline">
               <h2 className="text-xl mb-4 text-[var(--foreground)] lowercase">starred recipes</h2>
               {starredLoading ? (
-                <div className="animate-pulse h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-2" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[...Array(4)].map((_, i) => <RecipeCard.Skeleton key={i} />)}
+                </div>
               ) : starredRecipes.length === 0 ? (
                 <div className="text-gray-500 dark:text-gray-400">no starred recipes</div>
               ) : (

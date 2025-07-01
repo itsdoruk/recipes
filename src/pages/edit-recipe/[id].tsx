@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@supabase/auth-helpers-react';
+import FormSkeleton from '@/components/FormSkeleton';
 
 const CUISINE_TYPES = [
   'italian',
@@ -227,11 +228,7 @@ export default function EditRecipePage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="">{String('loading...')}</p>
-      </div>
-    );
+    return <FormSkeleton />;
   }
 
   if (error || !recipe) {

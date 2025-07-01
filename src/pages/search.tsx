@@ -5,6 +5,7 @@ import { getBrowserClient } from '@/lib/supabase/browserClient';
 import { searchRecipes } from '@/lib/spoonacular';
 import RecipeCard from '@/components/RecipeCard';
 import useSWR from 'swr';
+import SearchSkeleton from '@/components/SearchSkeleton';
 
 interface SpoonacularRecipe {
   id: number;
@@ -148,11 +149,7 @@ export default function SearchPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="">searching...</p>
-      </div>
-    );
+    return <SearchSkeleton />;
   }
 
   if (error) {

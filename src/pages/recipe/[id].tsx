@@ -23,6 +23,7 @@ import { useUser } from '@/lib/hooks/useUser';
 import { useStarredRecipes } from '@/hooks/useStarredRecipes';
 import RecipeCard from '@/components/RecipeCard';
 import { formatDistanceToNow } from 'date-fns';
+import RecipePageSkeleton from '@/components/RecipePageSkeleton';
 
 function hasUserId(recipe: any): recipe is { user_id: string } {
   return recipe && typeof recipe.user_id === 'string';
@@ -74,6 +75,7 @@ interface Recipe {
   extendedIngredients?: Array<{
     original: string;
   }>;
+  recipe_type: string;
   [key: string]: any; // Allow additional properties
 }
 
@@ -118,7 +120,7 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [recipeType, setRecipeType] = useState<'user' | 'ai' | 'spoonacular'>(
-    recipe?.id.toString().startsWith('spoonacular-') ? 'spoonacular' : 'user'
+    recipe?.recipe_type === 'ai' ? 'ai' : recipe?.recipe_type === 'spoonacular' ? 'spoonacular' : 'user'
   );
   const [ownerProfile, setOwnerProfile] = useState<any>(null);
   const [ownerProfileLoading, setOwnerProfileLoading] = useState(true);
@@ -162,11 +164,7 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
   }, [recipe?.user_id]);
 
   if (isProfileLoading || ownerProfileLoading) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <p className="">loading...</p>
-      </div>
-    );
+    return <RecipePageSkeleton />;
   }
 
   if (error || !recipe) {
@@ -382,20 +380,16 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
             </div>
           )}
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 h-16 px-4 border-t border-outline bg-transparent">
             <StarButton
               recipeId={recipe.id.toString()}
               recipeType={recipeType}
-              isStarred={false}
-              onToggle={(isStarred) => {
-                // Handle star toggle
-                console.log('Star toggled:', isStarred);
-              }}
             />
             {recipeType === 'user' && (
               <ReportButton
                 recipeId={recipe.id.toString()}
                 recipeType="user"
+                className="p-1 flex items-center justify-center hover:opacity-80 transition-opacity"
               />
             )}
             <ShareButton
@@ -405,6 +399,8 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
               url={typeof window !== 'undefined' ? window.location.href : ''}
               title={recipe.title}
               text={recipe.description}
+              className="p-1 flex items-center justify-center hover:opacity-80 transition-opacity"
+              iconOnly={true}
             />
           </div>
 

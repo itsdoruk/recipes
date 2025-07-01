@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { useUser } from '@supabase/auth-helpers-react';
 import { getSupabaseClient } from '@/lib/supabase';
 import Image from "next/image";
+import FormSkeleton from '@/components/FormSkeleton';
 
 const CUISINE_TYPES = [
   'italian', 'mexican', 'asian', 'american', 'mediterranean',
@@ -207,6 +208,10 @@ export default function CreateRecipePage() {
       setIsSubmitting(false);
     }
   };
+
+  if (isSubmitting) {
+    return <FormSkeleton />;
+  }
 
   if (!user) {
     return (

@@ -6,6 +6,7 @@ import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useState, useEffect } from 'react';
 import ReportModal from './ReportModal';
 import { Database } from '@/types/supabase';
+import UserCardSkeleton from './UserCardSkeleton';
 
 interface UserCardProps {
   user: {
@@ -16,7 +17,7 @@ interface UserCardProps {
   };
 }
 
-export default function UserCard({ user }: UserCardProps) {
+function UserCard({ user }: UserCardProps) {
   const { user: authUser, isAuthenticated } = useAuth();
   const supabase = useSupabaseClient<Database>();
   const currentUser = authUser || null;
@@ -105,4 +106,8 @@ export default function UserCard({ user }: UserCardProps) {
       />
     </>
   );
-} 
+}
+
+const UserCardExport = UserCard as any;
+UserCardExport.Skeleton = UserCardSkeleton;
+export default UserCardExport; 

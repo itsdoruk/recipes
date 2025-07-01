@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { signIn, signUp, signInWithOtp, verifyOtp, signInWithGoogle } from '@/lib/auth-utils';
 import { useAuth } from '@/lib/hooks/useAuth';
+import LoginSkeleton from '@/components/LoginSkeleton';
 
 type AuthMode = 'signin' | 'signup' | 'magic';
 
@@ -154,14 +155,7 @@ export default function Login() {
 
   // If still loading, return a loading state
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="text-center">
-          <p className="mb-4">Loading...</p>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white mx-auto"></div>
-        </div>
-      </div>
-    );
+    return <LoginSkeleton />;
   }
 
   // If already authenticated, don't show the login form

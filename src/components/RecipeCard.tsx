@@ -16,6 +16,7 @@ import { getBrowserClient } from '@/lib/supabase/browserClient';
 import ReportButton from './ReportButton';
 import { Recipe } from '@/types';
 import type { RecipeType } from '@/types';
+import RecipeCardSkeleton from './RecipeCardSkeleton';
 
 interface Profile {
   username: string | null;
@@ -300,11 +301,6 @@ function RecipeCardContent({
           <StarButton
             recipeId={id}
             recipeType={recipeType}
-            isStarred={false}
-            onToggle={(isStarred) => {
-              // Handle star toggle
-              console.log('Star toggled:', isStarred);
-            }}
           />
           <ShareButton
             recipeId={id}
@@ -313,11 +309,13 @@ function RecipeCardContent({
             className="p-1 flex items-center justify-center hover:opacity-80 transition-opacity"
             iconOnly={true}
           />
-          <ReportButton
-            recipeId={id}
-            recipeType={recipeType}
-            className="p-1 flex items-center justify-center hover:opacity-80 transition-opacity"
-          />
+          {recipeType === 'user' && (
+            <ReportButton
+              recipeId={id}
+              recipeType={recipeType}
+              className="p-1 flex items-center justify-center hover:opacity-80 transition-opacity"
+            />
+          )}
         </div>
       </div>
       {isShareDialogOpen && hasValidId && (
@@ -334,5 +332,6 @@ function RecipeCardContent({
 }
 
 // Main component that uses React.memo to prevent unnecessary re-renders
-const RecipeCard = React.memo(RecipeCardContent);
+const RecipeCard = React.memo(RecipeCardContent) as any;
+RecipeCard.Skeleton = RecipeCardSkeleton;
 export default RecipeCard;

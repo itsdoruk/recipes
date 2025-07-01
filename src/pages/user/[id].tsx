@@ -22,6 +22,7 @@ import { parse as parseCookie } from 'cookie';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useProfile } from '@/hooks/useProfile';
 import { useFollowNotifications } from '@/hooks/useNotifications';
+import ProfileSkeleton from '@/components/ProfileSkeleton';
 
 // UUID validation regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -386,9 +387,7 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
       </Head>
       <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-gray-500 dark:text-gray-400">Loading...</p>
-          </div>
+          <ProfileSkeleton />
         ) : error ? (
           <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
             <p className="text-red-500">{error}</p>
@@ -533,11 +532,15 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
                     <p className="text-gray-500 dark:text-gray-400">no recipes yet</p>
                   )
                 ) : (
-                  <div className="text-gray-500 dark:text-gray-400">loading recipes...</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[...Array(4)].map((_, i) => <RecipeCard.Skeleton key={i} />)}
+                  </div>
                 )
               ) : (
                 starredLoading ? (
-                  <div className="text-gray-500 dark:text-gray-400">loading starred recipes...</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[...Array(4)].map((_, i) => <RecipeCard.Skeleton key={i} />)}
+                  </div>
                 ) : starredDetails.length === 0 || starredDetails.filter(r => !r.error).length === 0 ? (
                   <p className="text-gray-500 dark:text-gray-400">no starred recipes yet</p>
                 ) : (

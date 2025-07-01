@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { getSupabaseClient } from '@/lib/supabase';
+import AuthCallbackSkeleton from '@/components/AuthCallbackSkeleton';
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -55,19 +56,7 @@ export default function AuthCallback() {
   }, [router.isReady, router.query]);
 
   if (isLoading) {
-    return (
-      <>
-        <Head>
-          <title>Completing sign in | [recipes]</title>
-        </Head>
-        <div className="flex justify-center items-center h-screen">
-          <div className="text-center">
-            <p className="mb-4">completing sign in...</p>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white mx-auto"></div>
-          </div>
-        </div>
-      </>
-    );
+    return <AuthCallbackSkeleton />;
   }
 
   if (error) {

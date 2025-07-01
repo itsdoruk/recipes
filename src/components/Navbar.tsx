@@ -12,6 +12,7 @@ import { useWarningBanner } from '@/hooks/useWarningBanner';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { getNotificationText, getNotificationPath } from '@/hooks/useNotifications';
 import { useFollowNotifications } from '@/hooks/useNotifications';
+import NotificationListSkeleton from './NotificationListSkeleton';
 
 export const NAVBAR_HEIGHT = 80; // px, matches h-20 in Tailwind for mobile, adjust if needed
 export const WARNING_BANNER_HEIGHT = 32; // px, for the warning banner
@@ -46,6 +47,8 @@ export default function Navbar() {
   const { warnings, shouldShowBanner, dismissBanner } = useWarningBanner();
   const supabaseClient = getBrowserClient();
   const { sendFollowNotification } = useFollowNotifications();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
 
   // Set CSS variable for warning banner visibility
   useEffect(() => {
@@ -90,6 +93,8 @@ export default function Navbar() {
         setUnreadCount(formattedNotifications.filter((n: Notification) => !n.read).length);
       } catch (error) {
         console.error('Error fetching notifications:', error);
+      } finally {
+        setNotificationsLoading(false);
       }
     };
 
@@ -206,6 +211,31 @@ export default function Navbar() {
     console.log('[Follow Request] Follow requests are no longer supported - all accounts are public');
   };
 
+  // Prevent background scroll when mobile menu is open
+  useEffect(() => {
+    if (isMenuOpen) {
+      document.body.classList.add('overflow-hidden');
+    } else {
+      document.body.classList.remove('overflow-hidden');
+    }
+    return () => {
+      document.body.classList.remove('overflow-hidden');
+    };
+  }, [isMenuOpen]);
+
+  // Close menu on ESC
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMenuOpen(false);
+    };
+    if (isMenuOpen) {
+      window.addEventListener('keydown', handleEsc);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [isMenuOpen]);
+
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-outline shadow-md" style={{ background: "var(--background)", color: "var(--foreground)" }}>
@@ -303,58 +333,64 @@ export default function Navbar() {
                     
                     {/* Notification Dropdown */}
                     {showNotifications && (
-                      <div
-                        className="absolute right-0 mt-2 w-80 border border-outline shadow-lg z-50 rounded-xl max-h-96 overflow-y-auto"
-                        style={{ background: "var(--background)", color: "var(--foreground)" }}
-                      >
-                        <div className="px-4 py-3 border-b border-outline flex justify-between items-center">
-                          <h3 className="font-medium">notifications</h3>
-                          {unreadCount > 0 && (
-                            <button
-                              onClick={markAllNotificationsAsRead}
-                              className="text-sm text-blue-500 hover:opacity-80 transition-opacity"
-                            >
-                              mark all read
-                            </button>
-                          )}
-                        </div>
-                        <div className="py-2">
-                          {notifications.length === 0 ? (
-                            <div className="px-4 py-8 text-center text-gray-500">
-                              no notifications
+                      <div className="absolute right-0 mt-2 z-50">
+                        {notificationsLoading ? (
+                          <NotificationListSkeleton />
+                        ) : (
+                          <div
+                            className="absolute right-0 mt-2 w-80 border border-outline shadow-lg z-50 rounded-xl max-h-96 overflow-y-auto"
+                            style={{ background: "var(--background)", color: "var(--foreground)" }}
+                          >
+                            <div className="px-4 py-3 border-b border-outline flex justify-between items-center">
+                              <h3 className="font-medium">notifications</h3>
+                              {unreadCount > 0 && (
+                                <button
+                                  onClick={markAllNotificationsAsRead}
+                                  className="text-sm text-blue-500 hover:opacity-80 transition-opacity"
+                                >
+                                  mark all read
+                                </button>
+                              )}
                             </div>
-                          ) : (
-                            notifications.map((notification) => (
-                              <div 
-                                key={notification.id} 
-                                className={`relative w-full px-4 py-3 text-left hover:opacity-80 transition-opacity border-b border-outline last:border-b-0 ${!notification.read ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
-                                style={{ cursor: notification.type === 'follow_request' ? 'default' : 'pointer' }}
-                                onClick={() => handleNotificationClick(notification)}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                                    <Avatar
-                                      avatar_url={notification.actor_avatar_url}
-                                      username={notification.actor_username || 'User'}
-                                      size={32}
-                                    />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium">
-                                      {getNotificationDisplayText(notification)}
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      {new Date(notification.created_at).toLocaleDateString()}
-                                    </p>
-                                  </div>
-                                  {!notification.read && (
-                                    <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2"></div>
-                                  )}
+                            <div className="py-2">
+                              {notifications.length === 0 ? (
+                                <div className="px-4 py-8 text-center text-gray-500">
+                                  no notifications
                                 </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
+                              ) : (
+                                notifications.map((notification) => (
+                                  <div 
+                                    key={notification.id} 
+                                    className={`relative w-full px-4 py-3 text-left hover:opacity-80 transition-opacity border-b border-outline last:border-b-0 ${!notification.read ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
+                                    style={{ cursor: notification.type === 'follow_request' ? 'default' : 'pointer' }}
+                                    onClick={() => handleNotificationClick(notification)}
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                                        <Avatar
+                                          avatar_url={notification.actor_avatar_url}
+                                          username={notification.actor_username || 'User'}
+                                          size={32}
+                                        />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium">
+                                          {getNotificationDisplayText(notification)}
+                                        </p>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                          {new Date(notification.created_at).toLocaleDateString()}
+                                        </p>
+                                      </div>
+                                      {!notification.read && (
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2"></div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -435,48 +471,67 @@ export default function Navbar() {
 
           {/* Mobile Menu */}
           {isMenuOpen && (
-            <div className="md:hidden py-4 border-t border-outline">
-              <div className="flex flex-col gap-4">
-                <Link href="/home" className="hover:opacity-80 transition-opacity">
-                  recipes
-                </Link>
-                <Link href="/discover" className="hover:opacity-80 transition-opacity">
-                  discover
-                </Link>
-                <Link href="/timer" className="hover:opacity-80 transition-opacity">
-                  timer
-                </Link>
-                {isAuthenticated ? (
-                  <>
-                    <Link href="/create" className="hover:opacity-80 transition-opacity">
-                      create
-                    </Link>
-                    <Link href="/messages" className="hover:opacity-80 transition-opacity">
-                      messages
-                    </Link>
-                    <Link href={`/user/${user?.id}`} className="hover:opacity-80 transition-opacity">
-                      profile
-                    </Link>
-                    <Link href="/account" className="hover:opacity-80 transition-opacity">
-                      account settings
-                    </Link>
-                    <Link href="/settings" className="hover:opacity-80 transition-opacity">
-                      app settings
-                    </Link>
-                    <button
-                      onClick={handleSignOut}
-                      className="text-left text-red-500 hover:opacity-80 transition-opacity"
-                    >
-                      sign out
-                    </button>
-                  </>
-                ) : (
-                  <Link href="/login" className="hover:opacity-80 transition-opacity">
-                    sign in
+            <>
+              {/* Backdrop */}
+              <div
+                className="fixed inset-0 z-40 bg-black bg-opacity-40 transition-opacity duration-200"
+                onClick={() => setIsMenuOpen(false)}
+                aria-label="Close menu"
+              />
+              {/* Menu */}
+              <div
+                ref={menuRef}
+                className="fixed top-0 left-0 right-0 z-50 md:hidden py-4 border-t border-outline bg-[var(--background)] animate-slide-down"
+                style={{ animation: 'slideDown 0.2s cubic-bezier(0.4,0,0.2,1)' }}
+              >
+                <div className="flex flex-col gap-4 px-4">
+                  <Link href="/home" className="py-3 text-lg hover:opacity-80 transition-opacity" onClick={() => setIsMenuOpen(false)}>
+                    recipes
                   </Link>
-                )}
+                  <Link href="/discover" className="py-3 text-lg hover:opacity-80 transition-opacity" onClick={() => setIsMenuOpen(false)}>
+                    discover
+                  </Link>
+                  <Link href="/timer" className="py-3 text-lg hover:opacity-80 transition-opacity" onClick={() => setIsMenuOpen(false)}>
+                    timer
+                  </Link>
+                  {isAuthenticated ? (
+                    <>
+                      <Link href="/create" className="py-3 text-lg hover:opacity-80 transition-opacity" onClick={() => setIsMenuOpen(false)}>
+                        create
+                      </Link>
+                      <Link href="/messages" className="py-3 text-lg hover:opacity-80 transition-opacity" onClick={() => setIsMenuOpen(false)}>
+                        messages
+                      </Link>
+                      <Link href={`/user/${user?.id}`} className="py-3 text-lg hover:opacity-80 transition-opacity" onClick={() => setIsMenuOpen(false)}>
+                        profile
+                      </Link>
+                      <Link href="/account" className="py-3 text-lg hover:opacity-80 transition-opacity" onClick={() => setIsMenuOpen(false)}>
+                        account settings
+                      </Link>
+                      <Link href="/settings" className="py-3 text-lg hover:opacity-80 transition-opacity" onClick={() => setIsMenuOpen(false)}>
+                        app settings
+                      </Link>
+                      <button
+                        onClick={() => { setIsMenuOpen(false); handleSignOut(); }}
+                        className="py-3 text-lg text-left text-red-500 hover:opacity-80 transition-opacity"
+                      >
+                        sign out
+                      </button>
+                    </>
+                  ) : (
+                    <Link href="/login" className="py-3 text-lg hover:opacity-80 transition-opacity" onClick={() => setIsMenuOpen(false)}>
+                      sign in
+                    </Link>
+                  )}
+                </div>
               </div>
-            </div>
+              <style jsx global>{`
+                @keyframes slideDown {
+                  0% { transform: translateY(-30px); opacity: 0; }
+                  100% { transform: translateY(0); opacity: 1; }
+                }
+              `}</style>
+            </>
           )}
         </div>
       </nav>

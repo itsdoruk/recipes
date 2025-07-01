@@ -151,15 +151,7 @@ export default function DiscoverPage() {
   const fetchRecipes = async () => {
     try {
       setIsLoading(true);
-      // First, get blocked users
-      if (user) {
-        const { data: blockedData } = await supabase
-          .from('blocked_users')
-          .select('blocked_user_id')
-          .eq('user_id', user.id);
-        setBlockedUsers(blockedData?.map((b: BlockedUser) => b.blocked_user_id) || []);
-      }
-
+      
       // Then fetch recipes
       let query = supabase
         .from('recipes')
@@ -198,14 +190,37 @@ export default function DiscoverPage() {
     }
   };
 
+  // Fetch blocked users separately
   useEffect(() => {
-    // Fetch recipes on initial load and when preferences change
-    fetchRecipes();
+    if (!user) return;
+    
+    const fetchBlockedUsers = async () => {
+      try {
+        const { data: blockedData } = await supabase
+          .from('blocked_users')
+          .select('blocked_user_id')
+          .eq('user_id', user.id);
+        setBlockedUsers(blockedData?.map((b: BlockedUser) => b.blocked_user_id) || []);
+      } catch (error) {
+        console.error('Error fetching blocked users:', error);
+      }
+    };
+    
+    fetchBlockedUsers();
+  }, [user]);
+
+  useEffect(() => {
+    // Fetch recipes when user, blockedUsers, or preferences change
+    if (user) {
+      fetchRecipes();
+    }
   }, [user, blockedUsers, preferences]);
 
   useEffect(() => {
     // Only fetch AI recipes when preferences change
-    fetchAiRecipes();
+    if (user) {
+      fetchAiRecipes();
+    }
   }, [preferences, user]);
 
   const fetchAiRecipes = async () => {
@@ -365,16 +380,20 @@ export default function DiscoverPage() {
   };
 
   const handleNext = () => {
-    if (currentStep === 3) {
-      setCurrentStep(prev => prev + 1);
-    } else {
-      setCurrentStep(prev => prev + 1);
-    }
+    setCurrentStep(prev => prev + 1);
   };
 
   const handleBack = () => {
     setCurrentStep(prev => prev - 1);
   };
+
+  if (isLoading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <p className="text-center">loading...</p>
+      </div>
+    );
+  }
 
   return (
     <>

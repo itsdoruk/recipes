@@ -20,7 +20,7 @@ export default function FollowingPage() {
   const { id } = router.query; // Get the user ID from the query parameters
   const user = useUser();
   const [following, setFollowing] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,8 +55,8 @@ export default function FollowingPage() {
     
     // Set a timeout to prevent infinite loading
     timeoutRef.current = setTimeout(() => {
-      if (loading) {
-        setLoading(false);
+      if (isLoading) {
+        setIsLoading(false);
         setError("Loading timed out. Please try refreshing the page.");
       }
     }, 10000); // 10 seconds timeout
@@ -123,7 +123,7 @@ export default function FollowingPage() {
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
         }
-        setLoading(false);
+        setIsLoading(false);
       }
     };
     
@@ -133,7 +133,7 @@ export default function FollowingPage() {
   }, [user, id]);
 
   // Show optimized loading state
-  if (!authChecked || (loading && (id || user))) {
+  if (!authChecked || (isLoading && (id || user))) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
@@ -181,7 +181,11 @@ export default function FollowingPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {following.length > 0 ? (
+              {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[...Array(4)].map((_, i) => <UserCard.Skeleton key={i} />)}
+                </div>
+              ) : following.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {following.map((profile) => (
                     <UserCard key={profile.user_id} user={profile} />

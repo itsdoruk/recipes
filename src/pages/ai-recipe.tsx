@@ -222,8 +222,8 @@ export default function AIRecipe() {
         {/* AI RECIPES LIST */}
         <div className="mt-8">
           {aiLoading ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500 dark:text-gray-400">Loading AI recipes...</p>
+            <div className="grid grid-cols-1 gap-6">
+              {[...Array(3)].map((_, i) => <RecipeCard.Skeleton key={i} />)}
             </div>
           ) : filteredRecipes.length === 0 ? (
             <div className="text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-lg">
