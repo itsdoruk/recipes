@@ -1,10 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/daily-recipes",
-      "schedule": "0 2 * * *"
-    }
-  ],
   "functions": {
     "src/pages/api/**/*.ts": {
       "maxDuration": 300
