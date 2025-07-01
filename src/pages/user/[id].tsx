@@ -367,6 +367,18 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
     }
   }, [isOwnerClient, profile, recipes.length, starredRecipes.length]);
 
+  // Attach username fallback for starredDetails
+  useEffect(() => {
+    if (!profile) return;
+    if (starredDetails && starredDetails.length > 0) {
+      setStarredDetails(prev => prev.map(recipe =>
+        recipe && !recipe.username && recipe.user_id
+          ? { ...recipe, username: profile.username || '[recipes] user' }
+          : recipe
+      ));
+    }
+  }, [profile, starredDetails.length]);
+
   return (
     <>
       <Head>
@@ -473,56 +485,64 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
               </Link>
             </div>
 
-            <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-              <div className="flex gap-4 mb-4">
-                <button
-                  onClick={() => setActiveTab('recipes')}
-                  className={`text-lg ${activeTab === 'recipes' ? 'text-accent dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
-                >
-                  recipes
-                </button>
-                <button
-                  onClick={() => setActiveTab('starred')}
-                  className={`text-lg ${activeTab === 'starred' ? 'text-accent dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
-                >
-                  starred
-                </button>
-              </div>
+            <div className="flex gap-4 pt-8 border-t border-outline">
+              <button
+                className={`text-lg ${activeTab === 'recipes' ? 'text-accent dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
+                onClick={() => setActiveTab('recipes')}
+                aria-pressed={activeTab === 'recipes'}
+                tabIndex={0}
+              >
+                recipes
+              </button>
+              <button
+                className={`text-lg ${activeTab === 'starred' ? 'text-accent dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
+                onClick={() => setActiveTab('starred')}
+                aria-pressed={activeTab === 'starred'}
+                tabIndex={0}
+              >
+                starred
+              </button>
+            </div>
 
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
               {activeTab === 'recipes' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {recipes.length > 0 ? (
-                    recipes.map((recipe) => (
-                      <div key={recipe.id} className="relative">
-                        <div className="dark:text-white">
-                          <RecipeCard
-                            id={recipe.id}
-                            title={recipe.title}
-                            description={recipe.description}
-                            image_url={recipe.image_url}
-                            user_id={recipe.user_id}
-                            created_at={recipe.created_at}
-                            cuisine_type={recipe.cuisine_type}
-                            cooking_time={recipe.cooking_time}
-                            diet_type={recipe.diet_type}
-                            recipeType={recipe.recipe_type === 'ai' ? 'ai' : recipe.recipe_type === 'spoonacular' ? 'spoonacular' : 'user'}
-                            username={recipe.username}
-                          />
+                recipes ? (
+                  recipes.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {recipes.map((recipe) => (
+                        <div key={recipe.id} className="relative">
+                          <div className="dark:text-white">
+                            <RecipeCard
+                              id={recipe.id}
+                              title={recipe.title}
+                              description={recipe.description}
+                              image_url={recipe.image_url}
+                              user_id={recipe.user_id}
+                              created_at={recipe.created_at}
+                              cuisine_type={recipe.cuisine_type}
+                              cooking_time={recipe.cooking_time}
+                              diet_type={recipe.diet_type}
+                              recipeType={recipe.recipe_type === 'ai' ? 'ai' : recipe.recipe_type === 'spoonacular' ? 'spoonacular' : 'user'}
+                              username={recipe.username || (profile?.username || '[recipes] user')}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      ))}
+                    </div>
                   ) : (
                     <p className="text-gray-500 dark:text-gray-400">no recipes yet</p>
-                  )}
-                </div>
+                  )
+                ) : (
+                  <div className="text-gray-500 dark:text-gray-400">loading recipes...</div>
+                )
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {starredLoading ? (
-                    <div>Loading starred recipes...</div>
-                  ) : starredDetails.length === 0 || starredDetails.filter(r => !r.error).length === 0 ? (
-                    <p className="text-gray-500 dark:text-gray-400">no starred recipes yet</p>
-                  ) : (
-                    starredDetails
+                starredLoading ? (
+                  <div className="text-gray-500 dark:text-gray-400">loading starred recipes...</div>
+                ) : starredDetails.length === 0 || starredDetails.filter(r => !r.error).length === 0 ? (
+                  <p className="text-gray-500 dark:text-gray-400">no starred recipes yet</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {starredDetails
                       .filter(recipe => !recipe.error)
                       .map(recipe => (
                         <div key={recipe.id} className="relative">
@@ -538,13 +558,13 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
                               cooking_time={recipe.cooking_time}
                               diet_type={recipe.diet_type}
                               recipeType={recipe.recipe_type === 'ai' ? 'ai' : recipe.recipe_type === 'spoonacular' ? 'spoonacular' : 'user'}
-                              username={recipe.username}
+                              username={recipe.username || (profile?.username || '[recipes] user')}
                             />
                           </div>
                         </div>
-                      ))
-                  )}
-                </div>
+                      ))}
+                  </div>
+                )
               )}
             </div>
           </div>

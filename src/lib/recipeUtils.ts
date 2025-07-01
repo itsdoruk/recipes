@@ -331,9 +331,9 @@ export const getAIRecipes = async (): Promise<{ recipes: any[]; error: Error | n
     return { recipes: recipes || [], error: null };
   } catch (error) {
     console.error('Error in getAIRecipes:', error);
-    return {
-      recipes: [],
-      error: error instanceof Error ? error : new Error('Failed to fetch AI recipes')
+    return { 
+      recipes: [], 
+      error: error instanceof Error ? error : new Error('Failed to fetch AI recipes') 
     };
   }
 };

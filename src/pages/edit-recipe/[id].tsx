@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { supabase } from '@/lib/supabase';
@@ -71,6 +71,10 @@ export default function EditRecipePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!id || !user) return;
@@ -210,6 +214,18 @@ export default function EditRecipePage() {
     }
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
@@ -242,225 +258,229 @@ export default function EditRecipePage() {
         <title>edit recipe | [recipes]</title>
       </Head>
 
-      <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-        <div className="space-y-8">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl">edit recipe</h1>
-          </div>
-
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        <div className="rounded-2xl p-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+          <h1 className="text-3xl mb-8 lowercase">edit recipe</h1>
           <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="title" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                  recipe name
-                </label>
+            {/* Image Upload */}
+            <div>
+              <label className="block mb-2 text-[var(--foreground)] lowercase">image</label>
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                    disabled={isSaving}
+                  >
+                    upload image
+                  </button>
+                  <input
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    className="flex-1 px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                    placeholder="or paste image url"
+                    disabled={isSaving}
+                  />
+                </div>
                 <input
-                  type="text"
-                  id="title"
-                  value={recipe.title}
-                  onChange={(e) => setRecipe({ ...recipe, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                  required
-                  placeholder="enter recipe name"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
                 />
+                {(imagePreview || imageUrl || recipe.image_url) && (
+                  <div className="relative w-full h-48">
+                    <img
+                      src={imagePreview || imageUrl || recipe.image_url || ''}
+                      alt="recipe preview"
+                      className="object-cover rounded-xl w-full h-full"
+                    />
+                  </div>
+                )}
               </div>
-
+            </div>
+            {/* Title */}
+            <div>
+              <label className="block mb-2 text-[var(--foreground)] lowercase">title</label>
+              <input
+                type="text"
+                value={recipe.title}
+                onChange={e => setRecipe({ ...recipe, title: e.target.value })}
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                maxLength={100}
+                required
+                disabled={isSaving}
+              />
+            </div>
+            {/* Description */}
+            <div>
+              <label className="block mb-2 text-[var(--foreground)] lowercase">description</label>
+              <textarea
+                value={recipe.description}
+                onChange={e => setRecipe({ ...recipe, description: e.target.value })}
+                rows={3}
+                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                maxLength={2000}
+                required
+                disabled={isSaving}
+              />
+            </div>
+            {/* Cuisine & Diet */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label htmlFor="description" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                  recipe description
-                </label>
-                <textarea
-                  id="description"
-                  value={recipe.description}
-                  onChange={(e) => setRecipe({ ...recipe, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                  rows={4}
-                  required
-                  placeholder="describe your recipe"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="image_url" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                  image url
-                </label>
-                <input
-                  type="url"
-                  id="image_url"
-                  value={recipe.image_url || ''}
-                  onChange={(e) => setRecipe({ ...recipe, image_url: e.target.value })}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                  placeholder="paste image url"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="ingredients" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                  ingredients
-                </label>
-                <textarea
-                  id="ingredients"
-                  value={recipe.ingredients.join('\n')}
-                  onChange={(e) => {
-                    const lines = e.target.value.split('\n');
-                    setRecipe({ ...recipe, ingredients: lines });
-                  }}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                  rows={4}
-                  required
-                  placeholder="list ingredients (one per line)"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="instructions" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                  instructions
-                </label>
-                <textarea
-                  id="instructions"
-                  value={recipe.instructions.join('\n')}
-                  onChange={(e) => {
-                    const lines = e.target.value.split('\n');
-                    setRecipe({ ...recipe, instructions: lines });
-                  }}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                  rows={4}
-                  required
-                  placeholder="list steps (one per line)"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <label className="block mb-2 text-[var(--foreground)] lowercase">cuisine type</label>
                 <select
-                  id="cuisine_type"
                   value={recipe.cuisine_type || ''}
-                  onChange={(e) => setRecipe({ ...recipe, cuisine_type: e.target.value })}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
+                  onChange={e => setRecipe({ ...recipe, cuisine_type: e.target.value })}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSaving}
                 >
                   <option value="">select cuisine</option>
-                  {CUISINE_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
+                  {CUISINE_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
-
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    id="cooking_time"
-                    value={recipe.cooking_time?.split(' ')[0] || ''}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
-                      const unit = recipe.cooking_time?.split(' ')[1] || 'mins';
-                      if (val) {
-                        setRecipe({ ...recipe, cooking_time: `${val} ${unit}` });
-                      } else {
-                        setRecipe({ ...recipe, cooking_time: '' });
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                    min="0"
-                    placeholder="cooking time"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                  />
-                  <select
-                    id="cooking_time_unit"
-                    value={recipe.cooking_time?.split(' ')[1] || 'mins'}
-                    onChange={(e) => {
-                      const value = recipe.cooking_time?.split(' ')[0] || '';
-                      if (value) {
-                        setRecipe({ ...recipe, cooking_time: `${value} ${e.target.value}` });
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                  >
-                    <option value="seconds">seconds</option>
-                    <option value="mins">minutes</option>
-                    <option value="days">days</option>
-                  </select>
-                </div>
-
+              </div>
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">diet type</label>
                 <select
-                  id="diet_type"
                   value={recipe.diet_type || ''}
-                  onChange={(e) => setRecipe({ ...recipe, diet_type: e.target.value })}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
+                  onChange={e => setRecipe({ ...recipe, diet_type: e.target.value })}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSaving}
                 >
                   <option value="">select diet</option>
-                  {DIET_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
+                  {DIET_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
               </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label htmlFor="calories" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                    calories
-                  </label>
-                  <input
-                    type="text"
-                    id="calories"
-                    value={recipe.calories === null || recipe.calories === 'unknown' ? '' : recipe.calories}
-                    onChange={(e) => setRecipe({ ...recipe, calories: e.target.value || 'unknown' })}
-                    className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                    placeholder="e.g. 400"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="protein" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                    protein (g)
-                  </label>
-                  <input
-                    type="text"
-                    id="protein"
-                    value={recipe.protein === null || recipe.protein === 'unknown' ? '' : recipe.protein}
-                    onChange={(e) => setRecipe({ ...recipe, protein: e.target.value || 'unknown' })}
-                    className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                    placeholder="e.g. 30"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="fat" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                    fat (g)
-                  </label>
-                  <input
-                    type="text"
-                    id="fat"
-                    value={recipe.fat === null || recipe.fat === 'unknown' ? '' : recipe.fat}
-                    onChange={(e) => setRecipe({ ...recipe, fat: e.target.value || 'unknown' })}
-                    className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                    placeholder="e.g. 10"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="carbohydrates" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                    carbs (g)
-                  </label>
-                  <input
-                    type="text"
-                    id="carbohydrates"
-                    value={recipe.carbohydrates === null || recipe.carbohydrates === 'unknown' ? '' : recipe.carbohydrates}
-                    onChange={(e) => setRecipe({ ...recipe, carbohydrates: e.target.value || 'unknown' })}
-                    className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                    placeholder="e.g. 50"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  type="submit"
+            </div>
+            {/* Cooking Time */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">cooking time</label>
+                <input
+                  type="number"
+                  value={recipe.cooking_time?.split(' ')[0] || ''}
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^0-9]/g, '');
+                    const unit = recipe.cooking_time?.split(' ')[1] || 'mins';
+                    if (val) {
+                      setRecipe({ ...recipe, cooking_time: `${val} ${unit}` });
+                    } else {
+                      setRecipe({ ...recipe, cooking_time: '' });
+                    }
+                  }}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  min={1}
                   disabled={isSaving}
-                  className="px-3 py-2 border border-outline hover:opacity-80 transition-opacity disabled:opacity-50 rounded-xl"
-                >
-                  {isSaving ? 'saving...' : 'save'}
-                </button>
+                />
               </div>
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">unit</label>
+                <select
+                  value={recipe.cooking_time?.split(' ')[1] || 'mins'}
+                  onChange={e => {
+                    const value = recipe.cooking_time?.split(' ')[0] || '';
+                    if (value) {
+                      setRecipe({ ...recipe, cooking_time: `${value} ${e.target.value}` });
+                    }
+                  }}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSaving}
+                >
+                  <option value="mins">mins</option>
+                  <option value="seconds">seconds</option>
+                  <option value="days">days</option>
+                </select>
+              </div>
+            </div>
+            {/* Ingredients */}
+            <div>
+              <label className="block mb-2 text-[var(--foreground)] lowercase">ingredients (one per line)</label>
+              <textarea
+                value={recipe.ingredients.join('\n')}
+                onChange={e => setRecipe({ ...recipe, ingredients: e.target.value.split('\n') })}
+                rows={4}
+                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                required
+                disabled={isSaving}
+              />
+            </div>
+            {/* Instructions */}
+            <div>
+              <label className="block mb-2 text-[var(--foreground)] lowercase">instructions (one per line)</label>
+              <textarea
+                value={recipe.instructions.join('\n')}
+                onChange={e => setRecipe({ ...recipe, instructions: e.target.value.split('\n') })}
+                rows={4}
+                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                required
+                disabled={isSaving}
+              />
+            </div>
+            {/* Nutrition */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">calories</label>
+                <input
+                  type="text"
+                  value={recipe.calories === null || recipe.calories === 'unknown' ? '' : recipe.calories}
+                  onChange={e => setRecipe({ ...recipe, calories: e.target.value || 'unknown' })}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSaving}
+                />
+              </div>
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">protein</label>
+                <input
+                  type="text"
+                  value={recipe.protein === null || recipe.protein === 'unknown' ? '' : recipe.protein}
+                  onChange={e => setRecipe({ ...recipe, protein: e.target.value || 'unknown' })}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSaving}
+                />
+              </div>
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">fat</label>
+                <input
+                  type="text"
+                  value={recipe.fat === null || recipe.fat === 'unknown' ? '' : recipe.fat}
+                  onChange={e => setRecipe({ ...recipe, fat: e.target.value || 'unknown' })}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSaving}
+                />
+              </div>
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">carbohydrates</label>
+                <input
+                  type="text"
+                  value={recipe.carbohydrates === null || recipe.carbohydrates === 'unknown' ? '' : recipe.carbohydrates}
+                  onChange={e => setRecipe({ ...recipe, carbohydrates: e.target.value || 'unknown' })}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSaving}
+                />
+              </div>
+            </div>
+            {/* Error Message */}
+            {error && (
+              <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
+                <p className="text-red-500">{error}</p>
+              </div>
+            )}
+            {/* Submit Button */}
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-3 border border-outline bg-[var(--background)] text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? 'saving...' : 'save changes'}
+              </button>
             </div>
           </form>
         </div>

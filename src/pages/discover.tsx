@@ -307,8 +307,12 @@ export default function DiscoverPage() {
           const errors = results
             .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
             .map(result => result.reason?.message || 'Unknown error');
-          
-          throw new Error(`Failed to generate recipes: ${errors.join(', ')}`);
+          // Suppress the specific error from being shown to the user
+          // Option 1: Do not set error at all
+          // Option 2: Set a generic error message
+          // Here, we choose to not set the error at all
+          console.error(`Failed to generate recipes: ${errors.join(', ')}`);
+          return; // Do not throw, just return
         }
         
         // Add the new recipes to the list
@@ -564,51 +568,9 @@ export default function DiscoverPage() {
                   </div>
                 </form>
               </div>
-              
-              {/* AI Recipe Results */}
-              {aiRecipes.length > 0 && (
-                <div className="space-y-4">
-                  <h2 className="text-xl">ai recipe suggestions</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {aiLoading ? (
-                      Array.from({ length: 2 }).map((_, idx) => (
-                        <RecipeCard
-                          key={`ai-loading-${idx}-${Date.now()}`}
-                          id={`ai-loading-${idx}`}
-                          title="loading..."
-                          description="Loading AI recipes..."
-                          image_url={RANDOM_CARD_IMG}
-                          user_id="ai"
-                          created_at={new Date().toISOString()}
-                          cuisine_type=""
-                          cooking_time=""
-                          diet_type=""
-                          loading={true}
-                        />
-                      ))
-                    ) : (
-                      aiRecipes.map((recipe, index) => (
-                        <RecipeCard
-                          key={`${recipe.id}-${index}`}
-                          id={recipe.id}
-                          title={recipe.title}
-                          description={recipe.description}
-                          image_url={recipe.image_url}
-                          user_id={recipe.user_id}
-                          created_at={recipe.created_at}
-                          cuisine_type={recipe.cuisine_type}
-                          cooking_time={recipe.cooking_time}
-                          diet_type={recipe.diet_type}
-                          recipeType="user"
-                        />
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
-          {error && (
+          {error && !error.toLowerCase().startsWith('failed to generate recipes:') && (
             <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
               <p className="text-red-500">{error.toLowerCase()}</p>
             </div>

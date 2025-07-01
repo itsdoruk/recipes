@@ -221,256 +221,216 @@ export default function CreateRecipePage() {
       <Head>
         <title>create recipe | [recipes]</title>
       </Head>
-      <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-        <div className="space-y-8">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl">create recipe</h1>
-          </div>
-
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        <div className="rounded-2xl p-8" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+          <h1 className="text-3xl mb-8 lowercase">create recipe</h1>
           <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="title" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                  recipe name
-                </label>
-                <input
-                  type="text"
-                  id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                  required
-                  placeholder="enter recipe name"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="description" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                  recipe description
-                </label>
-                <textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                  rows={4}
-                  required
-                  placeholder="describe your recipe"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                  recipe image
-                </label>
-                <div className="space-y-4">
-                  <div className="flex gap-4">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-2 border border-outline hover:opacity-80 transition-opacity rounded-xl"
-                    >
-                      upload image
-                    </button>
-                    <input
-                      type="url"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                      placeholder="or paste image url"
-                    />
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
-                  {(imagePreview || imageUrl) && (
-                    <div className="relative w-full h-48">
-                      <Image
-                        src={imagePreview || imageUrl}
-                        alt="recipe preview"
-                        fill
-                        className="object-cover rounded"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="ingredients" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                  ingredients
-                </label>
-                <textarea
-                  id="ingredients"
-                  value={ingredients}
-                  onChange={(e) => setIngredients(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Backspace' && e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0) {
-                      e.preventDefault();
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                  rows={4}
-                  required
-                  placeholder="list ingredients (one per line)"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="instructions" className="block text-sm text-gray-500 dark:text-gray-400 mb-2 rounded-xl">
-                  instructions
-                </label>
-                <textarea
-                  id="instructions"
-                  value={instructions}
-                  onChange={(e) => setInstructions(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Backspace' && e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0) {
-                      e.preventDefault();
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                  rows={4}
-                  required
-                  placeholder="list steps (one per line)"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <select
-                  id="cuisine_type"
-                  value={cuisineType}
-                  onChange={(e) => setCuisineType(e.target.value)}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                >
-                  <option value="">select cuisine</option>
-                  {CUISINE_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    id="cooking_time_value"
-                    value={cookingTimeValue}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
-                      setCookingTimeValue(val);
-                    }}
-                    className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                    min="0"
-                    placeholder="cooking time"
-                    required
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    autoComplete="off"
-                  />
-                  <select
-                    id="cooking_time_unit"
-                    value={cookingTimeUnit}
-                    onChange={(e) => setCookingTimeUnit(e.target.value)}
-                    className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
+            {/* Image Upload */}
+            <div>
+              <label className="block mb-2 text-[var(--foreground)] lowercase">image</label>
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                    disabled={isSubmitting}
                   >
-                    <option value="seconds">seconds</option>
-                    <option value="mins">minutes</option>
-                    <option value="days">days</option>
-                  </select>
+                    upload image
+                  </button>
+                  <input
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    className="flex-1 px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                    placeholder="or paste image url"
+                    disabled={isSubmitting}
+                  />
                 </div>
-
-                <select
-                  id="diet_type"
-                  value={dietType}
-                  onChange={(e) => setDietType(e.target.value)}
-                  className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                >
-                  <option value="">select diet</option>
-                  {DIET_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <h2 className="text-xl mb-4">nutrition facts</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <label htmlFor="calories" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
-                      calories
-                    </label>
-                    <input
-                      type="text"
-                      id="calories"
-                      value={calories}
-                      onChange={(e) => setCalories(e.target.value)}
-                      className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                      placeholder="enter calories"
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+                {(imagePreview || imageUrl) && (
+                  <div className="relative w-full h-48">
+                    <Image
+                      src={imagePreview || imageUrl}
+                      alt="recipe preview"
+                      fill
+                      className="object-cover rounded-xl"
                     />
                   </div>
-                  <div>
-                    <label htmlFor="protein" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
-                      protein
-                    </label>
-                    <input
-                      type="text"
-                      id="protein"
-                      value={protein}
-                      onChange={(e) => setProtein(e.target.value)}
-                        className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                        placeholder="enter protein"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="fat" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
-                      fat
-                    </label>
-                    <input
-                      type="text"
-                      id="fat"
-                      value={fat}
-                      onChange={(e) => setFat(e.target.value)}
-                      className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                      placeholder="enter fat"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="carbohydrates" className="block text-sm text-gray-500 dark:text-gray-400 mb-2">
-                      carbohydrates
-                    </label>
-                    <input
-                      type="text"
-                      id="carbohydrates"
-                      value={carbohydrates}
-                      onChange={(e) => setCarbohydrates(e.target.value)}
-                      className="w-full px-3 py-2 border border-outline bg-transparent font-normal text-base leading-normal rounded-xl"
-                      placeholder="enter carbohydrates"
-                    />
-                  </div>
-                </div>
+                )}
               </div>
             </div>
-
+            {/* Title */}
+            <div>
+              <label className="block mb-2 text-[var(--foreground)] lowercase">title</label>
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                maxLength={100}
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+            {/* Description */}
+            <div>
+              <label className="block mb-2 text-[var(--foreground)] lowercase">description</label>
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                rows={3}
+                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                maxLength={2000}
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+            {/* Cuisine & Diet */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">cuisine type</label>
+                <select
+                  value={cuisineType}
+                  onChange={e => setCuisineType(e.target.value)}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSubmitting}
+                >
+                  <option value="">select cuisine</option>
+                  {CUISINE_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">diet type</label>
+                <select
+                  value={dietType}
+                  onChange={e => setDietType(e.target.value)}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSubmitting}
+                >
+                  <option value="">select diet</option>
+                  {DIET_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {/* Cooking Time */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">cooking time</label>
+                <input
+                  type="number"
+                  value={cookingTimeValue}
+                  onChange={e => setCookingTimeValue(e.target.value)}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  min={1}
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">unit</label>
+                <select
+                  value={cookingTimeUnit}
+                  onChange={e => setCookingTimeUnit(e.target.value)}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSubmitting}
+                >
+                  <option value="mins">mins</option>
+                  <option value="seconds">seconds</option>
+                  <option value="days">days</option>
+                </select>
+              </div>
+            </div>
+            {/* Ingredients */}
+            <div>
+              <label className="block mb-2 text-[var(--foreground)] lowercase">ingredients (one per line)</label>
+              <textarea
+                value={ingredients}
+                onChange={e => setIngredients(e.target.value)}
+                rows={4}
+                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+            {/* Instructions */}
+            <div>
+              <label className="block mb-2 text-[var(--foreground)] lowercase">instructions (one per line)</label>
+              <textarea
+                value={instructions}
+                onChange={e => setInstructions(e.target.value)}
+                rows={4}
+                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+            {/* Nutrition */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">calories</label>
+                <input
+                  type="text"
+                  value={calories}
+                  onChange={e => setCalories(e.target.value)}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">protein</label>
+                <input
+                  type="text"
+                  value={protein}
+                  onChange={e => setProtein(e.target.value)}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">fat</label>
+                <input
+                  type="text"
+                  value={fat}
+                  onChange={e => setFat(e.target.value)}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <label className="block mb-2 text-[var(--foreground)] lowercase">carbohydrates</label>
+                <input
+                  type="text"
+                  value={carbohydrates}
+                  onChange={e => setCarbohydrates(e.target.value)}
+                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  disabled={isSubmitting}
+                />
+              </div>
+            </div>
+            {/* Error Message */}
             {error && (
-              <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl mb-4">
+              <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
                 <p className="text-red-500">{error}</p>
               </div>
             )}
-
+            {/* Submit Button */}
             <div className="flex justify-end">
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-3 py-2 border border-outline hover:opacity-80 transition-opacity disabled:opacity-50 rounded-xl"
+                className="px-6 py-3 border border-outline bg-[var(--background)] text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'saving...' : 'save recipe'}
+                {isSubmitting ? 'creating...' : 'create recipe'}
               </button>
             </div>
           </form>
