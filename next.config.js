@@ -14,11 +14,6 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     return config;
   },
-  // Disable static optimization for pages that use getServerSideProps
-  experimental: {
-    // This ensures that pages using getServerSideProps are not statically optimized
-    isrMemoryCacheSize: 0,
-  },
 };
 
 module.exports = nextConfig;

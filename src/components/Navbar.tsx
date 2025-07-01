@@ -258,6 +258,9 @@ export default function Navbar() {
                 </Link>
                 {isAuthenticated && (
                   <>
+                    <Link href="/shopping-list" className="hover:opacity-80 transition-opacity">
+                      shopping list
+                    </Link>
                     <Link href="/create" className="hover:opacity-80 transition-opacity">
                       create
                     </Link>
@@ -429,6 +432,14 @@ export default function Navbar() {
                           profile
                         </Link>
                         <Link
+                          href="/shopping-list"
+                          className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
+                          style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}
+                          onClick={() => setShowSettings(false)}
+                        >
+                          shopping list
+                        </Link>
+                        <Link
                           href="/account"
                           className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
                           style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}
@@ -496,6 +507,9 @@ export default function Navbar() {
                   </Link>
                   {isAuthenticated ? (
                     <>
+                      <Link href="/shopping-list" className="py-3 text-lg hover:opacity-80 transition-opacity" onClick={() => setIsMenuOpen(false)}>
+                        shopping list
+                      </Link>
                       <Link href="/create" className="py-3 text-lg hover:opacity-80 transition-opacity" onClick={() => setIsMenuOpen(false)}>
                         create
                       </Link>
