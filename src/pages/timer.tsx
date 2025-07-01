@@ -7,6 +7,7 @@ export default function TimerPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [inputHours, setInputHours] = useState('');
   const [inputMinutes, setInputMinutes] = useState('');
+  const [inputSeconds, setInputSeconds] = useState('');
   const [initialTime, setInitialTime] = useState(0);
   const [audioError, setAudioError] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -54,7 +55,8 @@ export default function TimerPage() {
   const handleStart = () => {
     const hours = parseInt(inputHours) || 0;
     const minutes = parseInt(inputMinutes) || 0;
-    const totalSeconds = (hours * 3600) + (minutes * 60);
+    const seconds = parseInt(inputSeconds) || 0;
+    const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
     
     if (totalSeconds > 0) {
       setInitialTime(totalSeconds);
@@ -62,6 +64,7 @@ export default function TimerPage() {
       setIsRunning(true);
       setInputHours('');
       setInputMinutes('');
+      setInputSeconds('');
     }
   };
 
@@ -75,6 +78,7 @@ export default function TimerPage() {
     setInitialTime(0);
     setInputHours('');
     setInputMinutes('');
+    setInputSeconds('');
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -139,7 +143,7 @@ export default function TimerPage() {
             </div>
             
             <div className="flex flex-col items-center space-y-4 w-full max-w-xs">
-              <div className="flex space-x-4 w-full">
+              <div className="flex space-x-2 w-full">
                 <input
                   type="number"
                   value={inputHours}
@@ -157,12 +161,23 @@ export default function TimerPage() {
                   className="w-full px-3 py-2 border border-outline bg-[var(--background)] text-[var(--foreground)] rounded-lg"
                   disabled={isRunning}
                   min="0"
+                  max="59"
+                />
+                <input
+                  type="number"
+                  value={inputSeconds}
+                  onChange={(e) => setInputSeconds(e.target.value)}
+                  placeholder="seconds"
+                  className="w-full px-3 py-2 border border-outline bg-[var(--background)] text-[var(--foreground)] rounded-lg"
+                  disabled={isRunning}
+                  min="0"
+                  max="59"
                 />
               </div>
               <div className="flex flex-wrap justify-center gap-2 w-full">
                 <button
                   onClick={handleStart}
-                  disabled={isRunning || (!inputHours && !inputMinutes)}
+                  disabled={isRunning || (!inputHours && !inputMinutes && !inputSeconds)}
                   className="flex-1 min-w-[100px] px-4 py-2 border border-outline bg-[var(--background)] text-[var(--foreground)] hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
                 >
                   start

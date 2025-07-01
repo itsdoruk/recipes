@@ -39,7 +39,6 @@ interface BlockedUser {
 interface FormData {
   username: string;
   bio: string;
-  is_private: boolean;
   show_email: boolean;
   dietary_restrictions: string[];
   cooking_skill_level: string;
@@ -54,7 +53,6 @@ export default function AccountPage() {
   const [form, setForm] = useState<FormData>({
     username: '',
     bio: '',
-    is_private: false,
     show_email: false,
     dietary_restrictions: [],
     cooking_skill_level: ''
@@ -111,7 +109,6 @@ export default function AccountPage() {
       setForm({
         username: userProfile.username || '',
         bio: userProfile.bio || '',
-        is_private: userProfile.is_private || false,
         show_email: userProfile.show_email || false,
         dietary_restrictions: userProfile.dietary_restrictions || [],
         cooking_skill_level: userProfile.cooking_skill_level || ''
@@ -164,7 +161,6 @@ export default function AccountPage() {
         .update({
           username: form.username,
           bio: form.bio,
-          is_private: form.is_private,
           show_email: form.show_email,
           dietary_restrictions: form.dietary_restrictions,
           cooking_skill_level: form.cooking_skill_level,
@@ -316,7 +312,7 @@ export default function AccountPage() {
               />
             </div>
             <div>
-              <label className="block mb-2 font-semibold" style={{ color: 'var(--foreground)', textTransform: 'lowercase' }}>username {form.is_private && '🔒'}</label>
+              <label className="block mb-2 font-semibold" style={{ color: 'var(--foreground)', textTransform: 'lowercase' }}>username</label>
               <input
                 type="text"
                 value={form.username}
@@ -359,15 +355,6 @@ export default function AccountPage() {
             </div>
             <div className="space-y-4">
               <h2 className="text-xl" style={{ color: 'var(--foreground)', textTransform: 'lowercase' }}>privacy</h2>
-              <div className="flex items-center justify-between">
-                <label className="font-semibold" style={{ color: 'var(--foreground)', textTransform: 'lowercase' }}>private profile</label>
-                <input
-                  type="checkbox"
-                  checked={form.is_private}
-                  onChange={(e) => setForm(prev => ({ ...prev, is_private: e.target.checked }))}
-                  className="w-4 h-4-600 bg-gray-100 border-gray-300 rounded focus:ring-gray-500 dark:focus:ring-gray-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
               <div className="flex items-center justify-between">
                 <label className="font-semibold" style={{ color: 'var(--foreground)', textTransform: 'lowercase' }}>show email</label>
                 <input

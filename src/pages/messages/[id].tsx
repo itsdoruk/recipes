@@ -9,11 +9,17 @@ import MessageRecipeCard from '@/components/MessageRecipeCard';
 import ReportButton from '@/components/ReportButton';
 import { Message, Conversation, ExtendedConversation } from '@/types/supabase';
 import Avatar from '@/components/Avatar';
+import { useUser } from '@supabase/auth-helpers-react';
+import dynamic from 'next/dynamic';
+import Head from 'next/head';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { useMessageNotifications } from '@/hooks/useNotifications';
 
 export default function MessagePage() {
   const router = useRouter();
   const { id } = router.query;
-  const { session, user, loading: sessionLoading } = useAuth();
+  const user = useUser();
+  const { session, loading: sessionLoading } = useAuth();
   const { profile, isLoading: profileLoading } = useProfile();
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversation, setConversation] = useState<ExtendedConversation | null>(null);
@@ -26,6 +32,7 @@ export default function MessagePage() {
   const [sendError, setSendError] = useState<string | null>(null);
   const subscriptionRef = useRef<any>(null);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { sendMessageNotification } = useMessageNotifications();
 
   // Initialize Supabase client on the client side
   useEffect(() => {
@@ -473,6 +480,17 @@ export default function MessagePage() {
         
         setMessages(prev => [...prev, sentMessage]);
         scrollToBottom();
+        
+        // Send notification to the other user in the conversation
+        if (conversation) {
+          const recipientId = conversation.user1_id === user.id ? conversation.user2_id : conversation.user1_id;
+          await sendMessageNotification(
+            recipientId,
+            user.id,
+            id as string,
+            newMessage.trim().substring(0, 50) // Message preview
+          );
+        }
       }
       
       setNewMessage('');
@@ -520,6 +538,17 @@ export default function MessagePage() {
         console.log('Adding recipe message to local state:', sentMessage);
         setMessages(prev => [...prev, sentMessage]);
         scrollToBottom();
+        
+        // Send notification to the other user in the conversation
+        if (conversation) {
+          const recipientId = conversation.user1_id === user.id ? conversation.user2_id : conversation.user1_id;
+          await sendMessageNotification(
+            recipientId,
+            user.id,
+            id as string,
+            newMessage.trim().substring(0, 50) // Message preview
+          );
+        }
       }
       
       setNewMessage(''); // Clear the input field

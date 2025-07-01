@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/router';
-import { useAuth } from '@/lib/hooks/useAuth';
+import { useUser } from '@supabase/auth-helpers-react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Head from 'next/head';
@@ -20,6 +20,8 @@ import { getSession } from '@/lib/auth-utils';
 import { useStarredRecipes } from '@/hooks/useStarredRecipes';
 import { parse as parseCookie } from 'cookie';
 import { getSupabaseClient } from '@/lib/supabase';
+import { useProfile } from '@/hooks/useProfile';
+import { useFollowNotifications } from '@/hooks/useNotifications';
 
 // UUID validation regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,7 +46,6 @@ interface Profile {
   username: string | null;
   avatar_url: string | null;
   bio: string | null;
-  is_private: boolean;
   show_email: boolean;
   banned: boolean;
   ban_type: 'temporary' | 'permanent' | 'warning' | null;
@@ -85,7 +86,9 @@ export const config = {
 
 export default function UserProfile({ initialProfile, initialRecipes, initialStarredRecipes, isPrivateBlocked }: UserProfileProps) {
   const router = useRouter();
-  const { user: clientUser, loading: clientLoading } = useAuth();
+  const { id } = router.query;
+  const clientUser = useUser();
+  const { profile: currentUserProfile } = useProfile();
   const [profile, setProfile] = useState<Profile | null>(initialProfile);
   const [recipes, setRecipes] = useState(
     initialRecipes.map(recipe => ({
@@ -111,6 +114,8 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
   const { starredRecipes: starredRaw, isLoading: starredLoading } = useStarredRecipes(profile?.user_id);
   const [starredDetails, setStarredDetails] = useState<any[]>([]);
   const [showReportModal, setShowReportModal] = useState(false);
+  const supabase = getSupabaseClient();
+  const { sendFollowNotification } = useFollowNotifications();
 
   // Client-side owner check
   const isOwnerClient = clientUser && profile && clientUser.id === profile.user_id;
@@ -185,6 +190,14 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
 
         if (error) throw error;
         setIsFollowing(true);
+
+        // Send regular follow notification (all accounts are public now)
+        try {
+          await sendFollowNotification(profile.user_id, clientUser.id);
+        } catch (notificationError) {
+          console.error('Error sending follow notification:', notificationError);
+          // Don't fail the follow action if notification fails
+        }
       }
     } catch (error) {
       console.error('Error toggling follow:', error);
@@ -376,7 +389,7 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
               </div>
               <div>
                 <h1 className="text-2xl dark:text-white">
-                  {profile.username || '[recipes] user'} {profile.is_private && '🔒'}
+                  {profile.username || '[recipes] user'}
                 </h1>
                 {profile.bio && <p className="text-gray-500 dark:text-gray-400">{profile.bio}</p>}
                 {(profile.dietary_restrictions && profile.dietary_restrictions.length > 0) && (
@@ -460,31 +473,58 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
               </Link>
             </div>
 
-            {isPrivateBlocked && !isOwnerClient ? (
-              <div className="p-4 border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl">
-                <p className="text-yellow-500">This profile is private. Follow to see their recipes.</p>
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+              <div className="flex gap-4 mb-4">
+                <button
+                  onClick={() => setActiveTab('recipes')}
+                  className={`text-lg ${activeTab === 'recipes' ? 'text-accent dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
+                >
+                  recipes
+                </button>
+                <button
+                  onClick={() => setActiveTab('starred')}
+                  className={`text-lg ${activeTab === 'starred' ? 'text-accent dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
+                >
+                  starred
+                </button>
               </div>
-            ) : (
-              <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-                <div className="flex gap-4 mb-4">
-                  <button
-                    onClick={() => setActiveTab('recipes')}
-                    className={`text-lg ${activeTab === 'recipes' ? 'text-accent dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
-                  >
-                    recipes
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('starred')}
-                    className={`text-lg ${activeTab === 'starred' ? 'text-accent dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
-                  >
-                    starred
-                  </button>
-                </div>
 
-                {activeTab === 'recipes' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {recipes.length > 0 ? (
-                      recipes.map((recipe) => (
+              {activeTab === 'recipes' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {recipes.length > 0 ? (
+                    recipes.map((recipe) => (
+                      <div key={recipe.id} className="relative">
+                        <div className="dark:text-white">
+                          <RecipeCard
+                            id={recipe.id}
+                            title={recipe.title}
+                            description={recipe.description}
+                            image_url={recipe.image_url}
+                            user_id={recipe.user_id}
+                            created_at={recipe.created_at}
+                            cuisine_type={recipe.cuisine_type}
+                            cooking_time={recipe.cooking_time}
+                            diet_type={recipe.diet_type}
+                            recipeType={recipe.recipe_type === 'ai' ? 'ai' : recipe.recipe_type === 'spoonacular' ? 'spoonacular' : 'user'}
+                            username={recipe.username}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 dark:text-gray-400">no recipes yet</p>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {starredLoading ? (
+                    <div>Loading starred recipes...</div>
+                  ) : starredDetails.length === 0 || starredDetails.filter(r => !r.error).length === 0 ? (
+                    <p className="text-gray-500 dark:text-gray-400">no starred recipes yet</p>
+                  ) : (
+                    starredDetails
+                      .filter(recipe => !recipe.error)
+                      .map(recipe => (
                         <div key={recipe.id} className="relative">
                           <div className="dark:text-white">
                             <RecipeCard
@@ -503,43 +543,10 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
                           </div>
                         </div>
                       ))
-                    ) : (
-                      <p className="text-gray-500 dark:text-gray-400">no recipes yet</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {starredLoading ? (
-                      <div>Loading starred recipes...</div>
-                    ) : starredDetails.length === 0 || starredDetails.filter(r => !r.error).length === 0 ? (
-                      <p className="text-gray-500 dark:text-gray-400">no starred recipes yet</p>
-                    ) : (
-                      starredDetails
-                        .filter(recipe => !recipe.error)
-                        .map(recipe => (
-                          <div key={recipe.id} className="relative">
-                            <div className="dark:text-white">
-                              <RecipeCard
-                                id={recipe.id}
-                                title={recipe.title}
-                                description={recipe.description}
-                                image_url={recipe.image_url}
-                                user_id={recipe.user_id}
-                                created_at={recipe.created_at}
-                                cuisine_type={recipe.cuisine_type}
-                                cooking_time={recipe.cooking_time}
-                                diet_type={recipe.diet_type}
-                                recipeType={recipe.recipe_type === 'ai' ? 'ai' : recipe.recipe_type === 'spoonacular' ? 'spoonacular' : 'user'}
-                                username={recipe.username}
-                              />
-                            </div>
-                          </div>
-                        ))
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
@@ -655,44 +662,8 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       following_count: followingCount || 0
     };
 
-    // Get the current user from the session using Supabase
-    const { data: { session } } = await supabase.auth.getSession();
-    const currentUserId = session?.user?.id;
-
-    // Debug logging for session and profile user id
-    console.log('[Profile Debug] currentUserId:', currentUserId, 'profile.user_id:', profile.user_id);
-
-    // Check if the profile is private and if the current user is allowed to view it
-    let isPrivateBlocked = false;
-    if (profile.is_private) {
-      if ((currentUserId && profile.user_id) && (String(currentUserId).trim() === String(profile.user_id).trim())) {
-        isPrivateBlocked = false; // Owner always allowed
-      } else {
-        // Check if the current user is a follower
-        const { data: followData, error: followError } = await supabase
-          .from('follows')
-          .select('*')
-          .eq('follower_id', currentUserId)
-          .eq('following_id', profile.user_id)
-          .maybeSingle();
-
-        if (followError || !followData) {
-          isPrivateBlocked = true;
-        }
-      }
-    }
-
-    // If the profile is private and the user is not allowed, return isPrivateBlocked: true
-    if (isPrivateBlocked) {
-      return {
-        props: {
-          initialProfile: updatedProfile,
-          initialRecipes: [],
-          initialStarredRecipes: [],
-          isPrivateBlocked: true
-        },
-      };
-    }
+    // All profiles are now public, so no need to check privacy settings
+    console.log('[SSR Debug] Profile is public, allowing access');
 
     // Fetch user's recipes
     const { data: recipes, error: recipesError } = await supabase

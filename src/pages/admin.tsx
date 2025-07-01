@@ -41,7 +41,6 @@ type ProfileData = {
   created_at?: string;
   updated_at?: string;
   bio?: string;
-  is_private?: boolean;
   show_email?: boolean;
   dietary_restrictions?: string[] | null;
   cooking_skill_level?: string | null;
@@ -946,12 +945,11 @@ export default function AdminPanel() {
   // Add a helper function to convert ProfileData to Profile
   const profileDataToProfile = (data: ProfileData): Profile => {
     return {
-      id: data.user_id,
+      id: data.id || data.user_id,
       user_id: data.user_id,
       username: data.username || null,
       avatar_url: data.avatar_url || null,
       bio: data.bio || null,
-      is_private: data.is_private || false,
       email: data.email || null,
       full_name: data.full_name || null,
       is_admin: data.is_admin || false,
@@ -1498,7 +1496,6 @@ export default function AdminPanel() {
               full_name: selectedUser.full_name ?? '',
               avatar_url: selectedUser.avatar_url ?? '',
               bio: selectedUser.bio ?? '',
-              is_private: selectedUser.is_private ?? false,
               show_email: selectedUser.show_email ?? false,
               is_admin: selectedUser.is_admin ?? false,
               warnings: selectedUser.warnings ?? 0,

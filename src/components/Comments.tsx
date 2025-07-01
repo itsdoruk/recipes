@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@supabase/auth-helpers-react';
-import { supabase } from '@/lib/supabase';
+import { getBrowserClient } from '@/lib/supabase/browserClient';
 import Avatar from './Avatar';
 import { useProfile } from '@/hooks/useProfile';
 import ReportButton from './ReportButton';
+import { marked } from 'marked';
+import { useCommentNotifications } from '@/hooks/useNotifications';
 
 interface Comment {
   id: string;
@@ -20,6 +22,14 @@ interface CommentsProps {
   recipeId: string;
 }
 
+// Markdown formatting functions
+const insertMarkdown = (text: string, start: number, end: number, before: string, after: string = '') => {
+  const beforeText = text.substring(0, start);
+  const selectedText = text.substring(start, end);
+  const afterText = text.substring(end);
+  return beforeText + before + selectedText + after + afterText;
+};
+
 export default function Comments({ recipeId }: CommentsProps) {
   const user = useUser();
   const { profile: currentUserProfile } = useProfile();
@@ -29,6 +39,12 @@ export default function Comments({ recipeId }: CommentsProps) {
   const [error, setError] = useState<string | null>(null);
   const [editingComment, setEditingComment] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
+  const supabase = getBrowserClient();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { sendCommentNotification } = useCommentNotifications();
 
   const fetchComments = async () => {
     try {
@@ -73,6 +89,29 @@ export default function Comments({ recipeId }: CommentsProps) {
         });
 
       if (error) throw error;
+
+      // Send notification to recipe owner (if not commenting on own recipe)
+      try {
+        // Get recipe owner ID
+        const { data: recipeData } = await supabase
+          .from('recipes')
+          .select('user_id, title')
+          .eq('id', recipeId)
+          .single();
+
+        if (recipeData && recipeData.user_id !== user.id) {
+          await sendCommentNotification(
+            recipeData.user_id,
+            user.id,
+            recipeId,
+            recipeType as 'user' | 'spoonacular' | 'ai',
+            recipeData.title
+          );
+        }
+      } catch (notificationError) {
+        console.error('Error sending comment notification:', notificationError);
+        // Don't fail the comment submission if notification fails
+      }
 
       setNewComment('');
       fetchComments();
@@ -128,6 +167,178 @@ export default function Comments({ recipeId }: CommentsProps) {
     setEditContent(comment.content);
   };
 
+  // Markdown formatting functions
+  const formatText = (format: string, textarea: HTMLTextAreaElement | null, setContent: (value: string) => void) => {
+    if (!textarea) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const currentText = textarea.value;
+    
+    let newText = '';
+    switch (format) {
+      case 'bold':
+        newText = insertMarkdown(currentText, start, end, '**', '**');
+        break;
+      case 'italic':
+        newText = insertMarkdown(currentText, start, end, '*', '*');
+        break;
+      case 'code':
+        newText = insertMarkdown(currentText, start, end, '`', '`');
+        break;
+      case 'link':
+        const url = prompt('Enter URL:');
+        if (url) {
+          newText = insertMarkdown(currentText, start, end, `[${currentText.substring(start, end) || 'link text'}](${url})`);
+        } else {
+          return;
+        }
+        break;
+      case 'image':
+        const imageUrl = prompt('Enter image URL:');
+        if (imageUrl) {
+          const altText = prompt('Enter alt text (optional):') || 'image';
+          newText = insertMarkdown(currentText, start, end, `![${altText}](${imageUrl})`);
+        } else {
+          return;
+        }
+        break;
+      case 'list':
+        newText = insertMarkdown(currentText, start, end, '- ');
+        break;
+      case 'quote':
+        newText = insertMarkdown(currentText, start, end, '> ');
+        break;
+    }
+    
+    setContent(newText);
+    
+    // Set cursor position after formatting
+    setTimeout(() => {
+      textarea.focus();
+      if (format === 'link' || format === 'image') {
+        textarea.setSelectionRange(start, start);
+      } else {
+        const newStart = start + (format === 'bold' || format === 'italic' || format === 'code' ? 2 : 0);
+        const newEnd = end + (format === 'bold' || format === 'italic' || format === 'code' ? 2 : 0);
+        textarea.setSelectionRange(newStart, newEnd);
+      }
+    }, 0);
+  };
+
+  const handleImageUpload = async (file: File) => {
+    if (!user) return;
+    
+    setImageUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `comment-images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('recipe-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('recipe-images')
+        .getPublicUrl(filePath);
+
+      // Insert image markdown at cursor position
+      const textarea = textareaRef.current;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const currentText = textarea.value;
+        const newText = currentText.substring(0, start) + `![image](${publicUrl})` + currentText.substring(start);
+        setNewComment(newText);
+        
+        // Set cursor after the image markdown
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start + `![image](${publicUrl})`.length, start + `![image](${publicUrl})`.length);
+        }, 0);
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setError('failed to upload image');
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const MarkdownToolbar = ({ textarea, setContent }: { textarea: HTMLTextAreaElement | null, setContent: (value: string) => void }) => (
+    <div className="flex flex-wrap gap-2 mb-2 p-3 border border-outline rounded-lg bg-transparent">
+      <button
+        type="button"
+        onClick={() => formatText('bold', textarea, setContent)}
+        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm font-bold"
+        title="Bold"
+      >
+        B
+      </button>
+      <button
+        type="button"
+        onClick={() => formatText('italic', textarea, setContent)}
+        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm italic"
+        title="Italic"
+      >
+        I
+      </button>
+      <button
+        type="button"
+        onClick={() => formatText('code', textarea, setContent)}
+        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm font-mono"
+        title="Code"
+      >
+        {'</>'}
+      </button>
+      <div className="w-px h-8 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+      <button
+        type="button"
+        onClick={() => formatText('link', textarea, setContent)}
+        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm"
+        title="Link"
+      >
+        🔗
+      </button>
+      <button
+        type="button"
+        onClick={() => formatText('image', textarea, setContent)}
+        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm"
+        title="Image URL"
+      >
+        🖼️
+      </button>
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm disabled:opacity-50"
+        title="Upload Image"
+        disabled={imageUploading}
+      >
+        {imageUploading ? '⏳' : '📤'}
+      </button>
+      <div className="w-px h-8 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+      <button
+        type="button"
+        onClick={() => formatText('list', textarea, setContent)}
+        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm"
+        title="list"
+      >
+        • list
+      </button>
+      <button
+        type="button"
+        onClick={() => formatText('quote', textarea, setContent)}
+        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm"
+        title="quote"
+      >
+        " quote
+      </button>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl">comments</h2>
@@ -142,10 +353,12 @@ export default function Comments({ recipeId }: CommentsProps) {
               <div className="mb-2">
                 <span className="font-medium">{currentUserProfile?.username}</span>
               </div>
+              <MarkdownToolbar textarea={textareaRef.current} setContent={setNewComment} />
               <textarea
+                ref={textareaRef}
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder="write a comment..."
+                placeholder="write a comment... (supports markdown formatting)"
                 className="w-full min-h-[100px] px-3 py-2 border border-outline bg-transparent focus:outline-none rounded-xl"
               />
               <button
@@ -210,7 +423,9 @@ export default function Comments({ recipeId }: CommentsProps) {
                 </div>
                 {editingComment === comment.id ? (
                   <div className="mt-2 space-y-2">
+                    <MarkdownToolbar textarea={editTextareaRef.current} setContent={setEditContent} />
                     <textarea
+                      ref={editTextareaRef}
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
                       className="w-full px-3 py-2 border border-outline bg-transparent focus:outline-none rounded-xl"
@@ -234,13 +449,31 @@ export default function Comments({ recipeId }: CommentsProps) {
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-1 text-sm">{comment.content}</p>
+                  <div 
+                    className="mt-1 text-sm prose prose-sm max-w-none prose-invert"
+                    dangerouslySetInnerHTML={{ __html: marked(comment.content) }}
+                  />
                 )}
               </div>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Hidden file input for image upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            handleImageUpload(file);
+          }
+          e.target.value = ''; // Reset input
+        }}
+        className="hidden"
+      />
     </div>
   );
 } 

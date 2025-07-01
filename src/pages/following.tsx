@@ -13,7 +13,6 @@ interface Profile {
   username: string | null;
   avatar_url: string | null;
   bio: string | null;
-  is_private: boolean;
 }
 
 export default function FollowingPage() {

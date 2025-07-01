@@ -17,7 +17,6 @@ export interface Database {
           full_name: string | null
           avatar_url: string | null
           bio: string | null
-          is_private: boolean
           show_email: boolean
           is_admin: boolean
           warnings: number
@@ -40,7 +39,6 @@ export interface Database {
           full_name?: string | null
           avatar_url?: string | null
           bio?: string | null
-          is_private?: boolean
           show_email?: boolean
           is_admin?: boolean
           warnings?: number
@@ -63,7 +61,6 @@ export interface Database {
           full_name?: string | null
           avatar_url?: string | null
           bio?: string | null
-          is_private?: boolean
           show_email?: boolean
           is_admin?: boolean
           warnings?: number
@@ -193,7 +190,6 @@ export interface Report {
   reported_username: string | null;
   reported_avatar_url: string | null;
   reported_bio: string | null;
-  reported_is_private: boolean;
   reported_show_email: boolean;
   reported_is_admin: boolean;
   reported_full_name: string | null;
@@ -228,7 +224,6 @@ export interface Profile {
   full_name: string | null;
   avatar_url: string | null;
   bio: string | null;
-  is_private: boolean;
   show_email: boolean;
   is_admin: boolean;
   warnings: number;

@@ -3,6 +3,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { getSupabaseClient } from '@/lib/supabase';
 import Modal from './Modal';
 import Avatar from './Avatar';
+import { useMessageNotifications } from '@/hooks/useNotifications';
 
 interface ShareDialogProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export default function ShareDialog({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const { sendRecipeShareNotification } = useMessageNotifications();
 
   // Search for users when the search term changes
   useEffect(() => {
@@ -145,27 +147,15 @@ export default function ShareDialog({
 
       // Create a notification for the recipe share
       console.log('Creating notification for recipe share');
-      const { error: notificationError } = await getSupabaseClient()
-        .from('notifications')
-        .insert({
-          user_id: selectedUser, // recipient
-          type: 'recipe_share',
-          actor_id: user.id, // sender
-          created_at: new Date().toISOString(),
-          read: false,
-          metadata: {
-            recipe_id: recipeId,
-            recipe_title: recipeTitle,
-            recipe_type: recipeType || 'user',
-            message: message || null,
-            conversation_id: conversationId
-          }
-        });
-        
-      if (notificationError) {
-        console.error('Error creating notification:', notificationError);
-        throw notificationError;
-      }
+      await sendRecipeShareNotification(
+        selectedUser, // recipient
+        user.id, // sender
+        recipeId,
+        recipeType,
+        recipeTitle,
+        conversationId,
+        message
+      );
       
       console.log('Successfully created notification for recipe share');
       
