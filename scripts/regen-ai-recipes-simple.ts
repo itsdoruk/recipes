@@ -95,8 +95,13 @@ async function generateAIRecipeFromTheMealDB() {
     const instructions = meal.strInstructions
       ? meal.strInstructions
           .split(/\.\s+/)
+<<<<<<< Updated upstream
           .map(step => step.trim())
           .filter(step => step.length > 10)
+=======
+          .map((step: string) => step.trim())
+          .filter((step: string) => step.length > 10)
+>>>>>>> Stashed changes
       : ['Mix all ingredients together.', 'Cook until done.', 'Serve hot.'];
 
     // Guess diet type from ingredients
