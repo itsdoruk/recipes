@@ -1,0 +1,17 @@
+{
+  "crons": [
+    {
+      "path": "/api/daily-recipes",
+      "schedule": "0 2 * * *"
+    }
+  ],
+  "functions": {
+    "src/pages/api/**/*.ts": {
+      "maxDuration": 300
+    }
+  },
+  "env": {
+    "NEXT_PUBLIC_SUPABASE_URL": "@next_public_supabase_url",
+    "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key"
+  }
+} 

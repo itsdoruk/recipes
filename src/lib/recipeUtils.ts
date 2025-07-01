@@ -314,119 +314,26 @@ export const getAIRecipes = async (): Promise<{ recipes: any[]; error: Error | n
       throw new Error('Failed to initialize Supabase client');
     }
 
-    // First, check how many AI recipes we already have
-    const { data: existingRecipes, error: countError } = await supabase
-      .from('recipes')
-      .select('id, title')
-      .eq('recipe_type', 'ai');
-
-    if (countError) {
-      console.error('Error checking existing AI recipes:', countError);
-      throw countError;
-    }
-
-    // If we already have 15 recipes, return them
-    if (existingRecipes && existingRecipes.length >= 15) {
-      const { data: recipes, error: fetchError } = await supabase
-        .from('recipes')
-        .select('*')
-        .eq('recipe_type', 'ai')
-        .order('created_at', { ascending: false })
-        .limit(15);
-
-      if (fetchError) {
-        console.error('Error fetching existing AI recipes:', fetchError);
-        throw fetchError;
-      }
-
-      return { recipes: recipes || [], error: null };
-    }
-
-    // Calculate how many new recipes we need
-    const neededRecipes = 15 - (existingRecipes?.length || 0);
-    if (neededRecipes <= 0) {
-      return { recipes: existingRecipes || [], error: null };
-    }
-
-    // Fetch new recipes from TheMealDB
-    const fetches = Array.from({ length: neededRecipes }).map(() =>
-      fetch('https://www.themealdb.com/api/json/v1/1/random.php').then(res => res.json())
-    );
-    const results = await Promise.all(fetches);
-
-    // Flatten and map to our recipe format
-    const allMeals = results.flatMap(data => data.meals || []);
-    const seenTitles = new Set(
-      (existingRecipes || []).map((r: { title?: string }) => r.title?.toLowerCase().trim()).filter(Boolean)
-    );
-
-    const newRecipes = allMeals
-      .filter(meal => meal && meal.strMeal && !seenTitles.has(meal.strMeal.toLowerCase().trim()))
-      .map(meal => {
-        seenTitles.add(meal.strMeal.toLowerCase().trim());
-        // Extract ingredients
-        const ingredients = Object.keys(meal)
-          .filter(k => k.startsWith('strIngredient') && meal[k])
-          .map(k => meal[k]);
-        const instructions = meal.strInstructions
-          ? meal.strInstructions.split(/\r?\n|\.\s+/).filter(Boolean)
-          : [];
-        const diet_type = guessDietType(ingredients);
-        const { label: cooking_time, value: cooking_time_value } = guessCookingTime(instructions);
-        const recipeId = generateRecipeId('ai');
-        
-        // Generate a proper description
-        const cuisine = meal.strArea?.toLowerCase() || 'unknown';
-        const description = `A delicious ${cuisine} ${diet_type === 'vegetarian' ? 'vegetarian' : ''} recipe that takes ${cooking_time} to prepare. This ${meal.strMeal.toLowerCase()} combines ${ingredients.slice(0, 3).join(', ')}${ingredients.length > 3 ? ' and more' : ''} to create a flavorful dish perfect for any occasion.`;
-
-        return {
-          id: recipeId,
-          title: meal.strMeal,
-          description,
-          image_url: meal.strMealThumb,
-          user_id: '00000000-0000-0000-0000-000000000000',
-          created_at: new Date().toISOString(),
-          ingredients,
-          instructions,
-          cuisine_type: cuisine,
-          diet_type,
-          cooking_time,
-          cooking_time_value,
-          recipe_type: 'ai'
-        };
-      });
-
-    // Save new recipes to database
-    if (newRecipes.length > 0) {
-      const { error: insertError } = await supabase
-        .from('recipes')
-        .insert(newRecipes);
-
-      if (insertError) {
-        console.error('Error saving new AI recipes:', insertError);
-        throw insertError;
-      }
-    }
-
-    // Fetch all AI recipes after saving
-    const { data: allRecipes, error: fetchError } = await supabase
+    // Only fetch AI recipes from Supabase on the client.
+    // If you need to regenerate, trigger it from the server (e.g., /api/regen-ai-recipes or admin panel).
+    const { data: recipes, error } = await supabase
       .from('recipes')
       .select('*')
       .eq('recipe_type', 'ai')
       .order('created_at', { ascending: false })
       .limit(15);
 
-    if (fetchError) {
-      console.error('Error fetching all AI recipes:', fetchError);
-      throw fetchError;
+    if (error) {
+      console.error('Error fetching AI recipes:', error);
+      throw error;
     }
 
-    return { recipes: allRecipes || [], error: null };
+    return { recipes: recipes || [], error: null };
   } catch (error) {
     console.error('Error in getAIRecipes:', error);
-    return { 
-      recipes: [], 
-      error: error instanceof Error ? error : new Error('Failed to fetch AI recipes') 
+    return {
+      recipes: [],
+      error: error instanceof Error ? error : new Error('Failed to fetch AI recipes')
     };
   }
 };
