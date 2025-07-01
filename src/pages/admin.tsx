@@ -43,6 +43,8 @@ type ProfileData = {
   bio?: string;
   is_private?: boolean;
   show_email?: boolean;
+  dietary_restrictions?: string[] | null;
+  cooking_skill_level?: string | null;
 };
 
 type ProfileUpdate = Partial<ProfileData>;
@@ -962,7 +964,9 @@ export default function AdminPanel() {
       ban_count: data.ban_count || 0,
       created_at: data.created_at || new Date().toISOString(),
       updated_at: data.updated_at || new Date().toISOString(),
-      show_email: data.show_email || false
+      show_email: data.show_email || false,
+      dietary_restrictions: null,
+      cooking_skill_level: null
     };
   };
 
@@ -1506,7 +1510,9 @@ export default function AdminPanel() {
               ban_count: selectedUser.ban_count ?? 0,
               created_at: selectedUser.created_at ?? new Date().toISOString(),
               updated_at: selectedUser.updated_at ?? new Date().toISOString(),
-              email: selectedUser.email ?? null
+              email: selectedUser.email ?? null,
+              dietary_restrictions: null,
+              cooking_skill_level: null
             }}
             warnings={userWarnings}
             activity={userActivity}
