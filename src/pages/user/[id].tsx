@@ -92,13 +92,13 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
   const { profile: currentUserProfile } = useProfile();
   const [profile, setProfile] = useState<Profile | null>(initialProfile);
   const [recipes, setRecipes] = useState(
-    initialRecipes.map(recipe => ({
+    (initialRecipes || []).map(recipe => ({
       ...recipe,
       username: initialProfile?.username || '[recipes] user',
     }))
   );
   const [starredRecipes, setStarredRecipes] = useState(
-    initialStarredRecipes.map(recipe => ({
+    (initialStarredRecipes || []).map(recipe => ({
       ...recipe,
       username: recipe.recipe_type === 'user' ? initialProfile?.username || '[recipes] user' : undefined,
     }))
@@ -773,26 +773,18 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
       // Sort starred recipes by created_at in descending order
       starredRecipes.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-      return {
-        props: {
-          initialProfile: updatedProfile,
-          initialRecipes: recipes || [],
-          initialStarredRecipes: starredRecipes,
-          isPrivateBlocked: false
-        },
-      };
     } else {
       console.error('Error fetching starred recipes from starred_recipes table:', starredRowsError);
-      return {
-        props: {
-          initialProfile: updatedProfile,
-          initialRecipes: recipes || [],
-          initialStarredRecipes: [],
-          isPrivateBlocked: false
-        },
-      };
     }
+
+    return {
+      props: {
+        initialProfile: updatedProfile,
+        initialRecipes: recipes || [],
+        initialStarredRecipes: starredRecipes || [],
+        isPrivateBlocked: false
+      },
+    };
   } catch (error) {
     console.error('Error in getServerSideProps:', error);
     return {
