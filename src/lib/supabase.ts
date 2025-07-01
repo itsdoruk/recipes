@@ -37,26 +37,6 @@ export const getSupabaseClient = () => {
         },
       },
     });
-
-    // Add error handling for realtime connection
-    const channel = supabaseInstance.channel('system');
-    
-    channel
-      .on('system', { event: 'disconnected' }, () => {
-        console.warn('Supabase realtime disconnected');
-      })
-      .on('system', { event: 'connected' }, () => {
-        console.log('Supabase realtime connected');
-      })
-      .subscribe((status: 'SUBSCRIBED' | 'CLOSED' | 'CHANNEL_ERROR') => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to realtime updates');
-        } else if (status === 'CLOSED') {
-          console.warn('Realtime subscription closed');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Realtime channel error');
-        }
-      });
   }
 
   return supabaseInstance;

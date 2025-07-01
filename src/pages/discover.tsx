@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { useUser } from '@supabase/auth-helpers-react';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getBrowserClient } from '@/lib/supabase/browserClient';
 import Link from 'next/link';
 import Image from 'next/image';
 import { marked } from 'marked';
@@ -98,7 +98,7 @@ const DEFAULT_IMAGE = '/cuisine/default.jpg';
 export default function DiscoverPage() {
   const router = useRouter();
   const user = useUser();
-  const supabase = getSupabaseClient();
+  const supabase = getBrowserClient();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -564,30 +564,6 @@ export default function DiscoverPage() {
                   </div>
                 </form>
               </div>
-              
-              {/* Recipe Results */}
-              {recipes.length > 0 && (
-                <div className="space-y-4">
-                  <h2 className="text-xl">matching recipes</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {recipes.map((recipe) => (
-                      <RecipeCard
-                        key={recipe.id}
-                        id={recipe.id}
-                        title={recipe.title}
-                        description={recipe.description}
-                        image_url={recipe.image_url}
-                        user_id={recipe.user_id}
-                        created_at={recipe.created_at}
-                        cuisine_type={recipe.cuisine_type}
-                        cooking_time={recipe.cooking_time}
-                        diet_type={recipe.diet_type}
-                        recipeType="user"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
               
               {/* AI Recipe Results */}
               {aiRecipes.length > 0 && (

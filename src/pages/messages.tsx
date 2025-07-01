@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { getSupabaseClient } from '@/lib/supabase';
+import { getBrowserClient } from '@/lib/supabase/browserClient';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import Image from 'next/image';
 import Link from 'next/link';
 import Head from 'next/head';
@@ -46,7 +47,7 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [supabase, setSupabase] = useState(() => getSupabaseClient());
+  const [supabase, setSupabase] = useState(() => getBrowserClient());
   const [animateIn, setAnimateIn] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const conversationsChannelRef = useRef<any>(null);
@@ -56,7 +57,7 @@ export default function MessagesPage() {
   useEffect(() => {
     const initSupabase = async () => {
       try {
-        setSupabase(getSupabaseClient());
+        setSupabase(getBrowserClient());
       } catch (error) {
         console.error('Error initializing Supabase:', error);
       }
@@ -427,12 +428,12 @@ export default function MessagesPage() {
               </button>
             </div>
             {searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-transparent rounded-xl shadow-lg border border-outline overflow-hidden z-10">
+              <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--background)] border border-outline rounded-xl shadow-lg overflow-hidden z-10">
                 {searchResults.map((user) => (
                   <button
                     key={user.user_id}
                     onClick={() => startConversation(user.user_id)}
-                    className="w-full px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors"
+                    className="w-full px-4 py-3 bg-[var(--background)] hover:bg-gray-100 dark:hover:bg-gray-800 border-b border-outline last:border-b-0 flex items-center gap-3 transition-colors"
                   >
                     <div className="flex-shrink-0">
                       <Avatar
