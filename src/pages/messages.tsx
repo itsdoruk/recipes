@@ -173,22 +173,29 @@ export default function MessagesPage() {
       
       // Combine both sets of conversations
       const combinedConversations = [...(conversationsAsUser || []), ...(conversationsAsOtherUser || [])];
-      
       // Sort by last_message_at (most recent first)
       combinedConversations.sort((a, b) => {
         const dateA = new Date(a.last_message_at || 0);
         const dateB = new Date(b.last_message_at || 0);
         return dateB.getTime() - dateA.getTime();
       });
-      
-      if (!combinedConversations || combinedConversations.length === 0) {
+      // Deduplicate by user pair (sorted), keeping only the most recent
+      const uniqueMap = new Map();
+      for (const conv of combinedConversations) {
+        const pairKey = [conv.user_id, conv.other_user_id].sort().join('-');
+        if (!uniqueMap.has(pairKey)) {
+          uniqueMap.set(pairKey, conv);
+        }
+      }
+      const dedupedConversations = Array.from(uniqueMap.values());
+      if (!dedupedConversations || dedupedConversations.length === 0) {
         setConversations([]);
         setLoading(false);
         return;
       }
       
       // Get all conversation IDs to fetch notifications
-      const conversationIds = combinedConversations.map(conv => conv.id);
+      const conversationIds = dedupedConversations.map(conv => conv.id);
       console.log('Conversation IDs for notification lookup:', conversationIds);
       
       // Fetch message notifications for the current user
@@ -211,7 +218,7 @@ export default function MessagesPage() {
       }, {});
       
       // Collect all user IDs that need profile data
-      const userIds = combinedConversations.map((conv: any) => {
+      const userIds = dedupedConversations.map((conv: any) => {
         // If current user is the initiator, we need the other user's profile
         // If current user is the recipient, we need the initiator's profile
         return conv.user_id === user?.id ? conv.other_user_id : conv.user_id;
@@ -232,7 +239,7 @@ export default function MessagesPage() {
       }, {});
       
       // Format the conversations with user info
-      let formattedConversations: FormattedConversation[] = combinedConversations.map((conv: any) => {
+      let formattedConversations: FormattedConversation[] = dedupedConversations.map((conv: any) => {
         // Determine which user is the "other" user in this conversation
         const otherUserId = conv.user_id === user?.id ? conv.other_user_id : conv.user_id;
         

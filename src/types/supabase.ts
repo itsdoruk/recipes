@@ -30,6 +30,8 @@ export interface Database {
           created_at: string
           updated_at: string
           email: string | null
+          dietary_restrictions: string[] | null
+          cooking_skill_level: string | null
         }
         Insert: {
           id?: string
@@ -51,6 +53,8 @@ export interface Database {
           created_at?: string
           updated_at?: string
           email?: string | null
+          dietary_restrictions?: string[] | null
+          cooking_skill_level?: string | null
         }
         Update: {
           id?: string
@@ -72,6 +76,8 @@ export interface Database {
           created_at?: string
           updated_at?: string
           email?: string | null
+          dietary_restrictions?: string[] | null
+          cooking_skill_level?: string | null
         }
       }
       recipes: {
@@ -237,6 +243,8 @@ export interface Profile {
   email: string | null;
   followers_count?: number;
   following_count?: number;
+  dietary_restrictions: string[] | null;
+  cooking_skill_level: string | null;
 }
 
 export interface Message {

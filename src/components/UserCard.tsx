@@ -1,9 +1,11 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useState, useEffect } from 'react';
 import ReportModal from './ReportModal';
+import { Database } from '@/types/supabase';
 
 interface UserCardProps {
   user: {
@@ -15,9 +17,9 @@ interface UserCardProps {
 }
 
 export default function UserCard({ user }: UserCardProps) {
-  const session = useSession();
-  const supabase = useSupabaseClient();
-  const currentUser = session?.user || null;
+  const { user: authUser, isAuthenticated } = useAuth();
+  const supabase = useSupabaseClient<Database>();
+  const currentUser = authUser || null;
   const [isBlocked, setIsBlocked] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 

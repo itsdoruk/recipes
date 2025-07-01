@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
+import { Database } from '@/types/supabase';
 
 interface ReportButtonProps {
   recipeId: string;
@@ -12,9 +14,8 @@ interface ReportButtonProps {
 }
 
 export default function ReportButton({ recipeId, recipeType, onReportSubmitted, className, showOnlyModal = false, openOnMount = false, isUserProfileReport = false }: ReportButtonProps) {
-  const session = useSession();
-  const supabase = useSupabaseClient();
-  const user = session?.user;
+  const { user, isAuthenticated } = useAuth();
+  const supabase = useSupabaseClient<Database>();
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');

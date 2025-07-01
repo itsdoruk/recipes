@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useTheme } from 'next-themes';
 import Image from 'next/image';
 import { useRef } from 'react';
@@ -9,13 +9,14 @@ import Avatar from './Avatar';
 import { useProfile } from '@/hooks/useProfile';
 import { getBrowserClient } from '@/lib/supabase/browserClient';
 import { useWarningBanner } from '@/hooks/useWarningBanner';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 export const NAVBAR_HEIGHT = 80; // px, matches h-20 in Tailwind for mobile, adjust if needed
 export const WARNING_BANNER_HEIGHT = 32; // px, for the warning banner
 
 export default function Navbar() {
   const router = useRouter();
-  const session = useSession();
+  const { user, isAuthenticated } = useAuth();
   const supabase = useSupabaseClient();
   const { theme, setTheme } = useTheme();
   const [showSettings, setShowSettings] = useState(false);
@@ -89,7 +90,7 @@ export default function Navbar() {
                 <Link href="/timer" className="hover:opacity-80 transition-opacity">
                   timer
                 </Link>
-                {session && (
+                {isAuthenticated && (
                   <>
                     <Link href="/create" className="hover:opacity-80 transition-opacity">
                       create
@@ -135,7 +136,7 @@ export default function Navbar() {
 
             {/* Desktop User Menu */}
             <div className="hidden md:flex items-center gap-4">
-              {session ? (
+              {isAuthenticated ? (
                 <>
                   <div className="relative">
                     <button
@@ -163,7 +164,7 @@ export default function Navbar() {
                           </p>
                         </div>
                         <Link
-                          href={`/user/${session.user.id}`}
+                          href={`/user/${user?.id}`}
                           className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
                           style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}
                           onClick={() => setShowSettings(false)}
@@ -201,8 +202,11 @@ export default function Navbar() {
                   </div>
                 </>
               ) : (
-                <Link href="/login" className="hover:opacity-80 transition-opacity">
-                  login
+                <Link
+                  href="/login"
+                  className="hover:opacity-80 transition-opacity"
+                >
+                  sign in
                 </Link>
               )}
             </div>
@@ -210,99 +214,67 @@ export default function Navbar() {
 
           {/* Mobile Menu */}
           {isMenuOpen && (
-            <div className="md:hidden border-t border-outline py-4">
+            <div className="md:hidden py-4 border-t border-outline">
               <div className="flex flex-col gap-4">
-                <Link
-                  href="/discover"
-                  className="hover:opacity-80 transition-opacity"
-                  onClick={() => setIsMenuOpen(false)}
-                >
+                <Link href="/discover" className="hover:opacity-80 transition-opacity">
                   discover
                 </Link>
-                <Link
-                  href="/timer"
-                  className="hover:opacity-80 transition-opacity"
-                  onClick={() => setIsMenuOpen(false)}
-                >
+                <Link href="/timer" className="hover:opacity-80 transition-opacity">
                   timer
                 </Link>
-                {session && (
+                {isAuthenticated ? (
                   <>
-                    <Link
-                      href="/create"
-                      className="hover:opacity-80 transition-opacity"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
+                    <Link href="/create" className="hover:opacity-80 transition-opacity">
                       create
                     </Link>
-                    <Link
-                      href="/messages"
-                      className="hover:opacity-80 transition-opacity"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
+                    <Link href="/messages" className="hover:opacity-80 transition-opacity">
                       messages
                     </Link>
-                    <div className="flex items-center gap-4">
-                      <Link
-                        href={`/user/${session.user.id}`}
-                        className="hover:opacity-80 transition-opacity"
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        profile
-                      </Link>
-                      <Link
-                        href="/account"
-                        className="hover:opacity-80 transition-opacity"
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        account
-                      </Link>
-                      <Link
-                        href="/settings"
-                        className="hover:opacity-80 transition-opacity"
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        settings
-                      </Link>
-                      <button
-                        onClick={() => {
-                          setIsMenuOpen(false);
-                          handleSignOut();
-                        }}
-                        className="text-red-500 hover:opacity-80 transition-opacity"
-                      >
-                        sign out
-                      </button>
-                    </div>
+                    <Link href={`/user/${user?.id}`} className="hover:opacity-80 transition-opacity">
+                      profile
+                    </Link>
+                    <Link href="/account" className="hover:opacity-80 transition-opacity">
+                      account settings
+                    </Link>
+                    <Link href="/settings" className="hover:opacity-80 transition-opacity">
+                      app settings
+                    </Link>
+                    <button
+                      onClick={handleSignOut}
+                      className="text-left text-red-500 hover:opacity-80 transition-opacity"
+                    >
+                      sign out
+                    </button>
                   </>
+                ) : (
+                  <Link href="/login" className="hover:opacity-80 transition-opacity">
+                    sign in
+                  </Link>
                 )}
               </div>
             </div>
           )}
         </div>
       </nav>
-      
-      {/* Warning Banner - Separate from navbar */}
+
+      {/* Warning Banner */}
       {shouldShowBanner && (
         <div 
-          className="fixed left-0 right-0 w-full bg-yellow-200 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100 text-center shadow-md z-40 flex items-center justify-center"
+          className="fixed top-16 left-0 right-0 z-40 px-4 py-2 text-sm text-center"
           style={{ 
-            top: `${NAVBAR_HEIGHT}px`,
-            minHeight: `${WARNING_BANNER_HEIGHT}px`,
+            background: 'var(--warning-bg, #fef3c7)', 
+            color: 'var(--warning-text, #92400e)',
+            borderBottom: '1px solid var(--warning-border, #f59e0b)'
           }}
         >
-          <div className="py-2 px-4 flex items-center justify-between max-w-7xl w-full">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">⚠️</span>
-              <span>You have {warnings} warning{warnings > 1 ? 's' : ''} on your account. Please follow the community guidelines.</span>
-            </div>
-            <button 
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <span>You have {warnings} warning{warnings > 1 ? 's' : ''} on your account. Please follow the community guidelines.</span>
+            <button
               onClick={dismissBanner}
-              className="text-yellow-900 dark:text-yellow-100 hover:opacity-80 transition-opacity"
-              aria-label="Dismiss warning"
+              className="ml-4 hover:opacity-80 transition-opacity"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>

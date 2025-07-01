@@ -18,6 +18,8 @@ import { createPagesServerClient } from '@supabase/auth-helpers-nextjs';
 import { supabase } from '@/lib/supabase';
 import { getSession } from '@/lib/auth-utils';
 import { useStarredRecipes } from '@/hooks/useStarredRecipes';
+import { parse as parseCookie } from 'cookie';
+import { getSupabaseClient } from '@/lib/supabase';
 
 // UUID validation regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -53,6 +55,8 @@ interface Profile {
   warnings: number;
   followers_count?: number;
   following_count?: number;
+  dietary_restrictions: string[] | null;
+  cooking_skill_level: string | null;
 }
 
 interface StarredRecipe {
@@ -81,7 +85,7 @@ export const config = {
 
 export default function UserProfile({ initialProfile, initialRecipes, initialStarredRecipes, isPrivateBlocked }: UserProfileProps) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user: clientUser, loading: clientLoading } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(initialProfile);
   const [recipes, setRecipes] = useState(
     initialRecipes.map(recipe => ({
@@ -108,15 +112,18 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
   const [starredDetails, setStarredDetails] = useState<any[]>([]);
   const [showReportModal, setShowReportModal] = useState(false);
 
+  // Client-side owner check
+  const isOwnerClient = clientUser && profile && clientUser.id === profile.user_id;
+
   useEffect(() => {
     const checkFollowStatus = async () => {
-      if (!user || !profile) return;
+      if (!clientUser || !profile) return;
 
       try {
         const { data, error } = await supabase
           .from('follows')
           .select('*')
-          .eq('follower_id', user.id)
+          .eq('follower_id', clientUser.id)
           .eq('following_id', profile.user_id)
           .maybeSingle();
 
@@ -128,17 +135,17 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
     };
 
     checkFollowStatus();
-  }, [user, profile]);
+  }, [clientUser, profile]);
 
   useEffect(() => {
     const checkBlockStatus = async () => {
-      if (!user || !profile) return;
+      if (!clientUser || !profile) return;
 
       try {
         const { data, error } = await supabase
           .from('blocked_users')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', clientUser.id)
           .eq('blocked_user_id', profile.user_id)
           .maybeSingle();
 
@@ -150,10 +157,10 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
     };
 
     checkBlockStatus();
-  }, [user, profile]);
+  }, [clientUser, profile]);
 
   const handleFollow = async () => {
-    if (!user || !profile) return;
+    if (!clientUser || !profile) return;
     setIsLoading(true);
 
     try {
@@ -161,7 +168,7 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
         const { error } = await supabase
           .from('follows')
           .delete()
-          .eq('follower_id', user.id)
+          .eq('follower_id', clientUser.id)
           .eq('following_id', profile.user_id);
 
         if (error) throw error;
@@ -171,7 +178,7 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
           .from('follows')
           .insert([
             {
-              follower_id: user.id,
+              follower_id: clientUser.id,
               following_id: profile.user_id,
             },
           ]);
@@ -188,7 +195,7 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
   };
 
   const handleBlock = async () => {
-    if (!user || !profile) return;
+    if (!clientUser || !profile) return;
     setIsBlocking(true);
 
     try {
@@ -196,7 +203,7 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
         const { error } = await supabase
           .from('blocked_users')
           .delete()
-          .eq('user_id', user.id)
+          .eq('user_id', clientUser.id)
           .eq('blocked_user_id', profile.user_id);
 
         if (error) throw error;
@@ -206,13 +213,13 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
           .from('follows')
           .delete()
           .eq('follower_id', profile.user_id)
-          .eq('following_id', user.id);
+          .eq('following_id', clientUser.id);
       } else {
         const { error } = await supabase
           .from('blocked_users')
           .insert([
             {
-              user_id: user.id,
+              user_id: clientUser.id,
               blocked_user_id: profile.user_id,
             },
           ]);
@@ -264,8 +271,88 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
 
   // Update the recipes section to use starredRecipes state
   const displayedRecipes = useMemo(() => {
-    return activeTab === 'recipes' ? recipes : starredRecipes;
-  }, [activeTab, recipes, starredRecipes]);
+    return activeTab === 'recipes' ? recipes : starredDetails;
+  }, [activeTab, recipes, starredDetails]);
+
+  // Client-side fallback fetch for recipes and starred recipes if owner and SSR arrays are empty
+  useEffect(() => {
+    if (
+      isOwnerClient &&
+      profile &&
+      recipes.length === 0 &&
+      starredRecipes.length === 0
+    ) {
+      const supabase = getSupabaseClient();
+      const fetchData = async () => {
+        // Fetch recipes
+        const { data: userRecipes } = await supabase
+          .from('recipes')
+          .select('*')
+          .eq('user_id', profile.user_id)
+          .order('created_at', { ascending: false });
+
+        // Fetch starred recipes
+        const { data: starredRows } = await supabase
+          .from('starred_recipes')
+          .select('*')
+          .eq('user_id', profile.user_id);
+
+        let starredRecipesList = [];
+        if (starredRows && starredRows.length > 0) {
+          // Separate recipe IDs by type
+          const userRecipeIds = starredRows.filter((r: any) => r.recipe_type === 'user').map((r: any) => r.recipe_id);
+          const spoonacularRecipeIds = starredRows.filter((r: any) => r.recipe_type === 'spoonacular').map((r: any) => r.recipe_id);
+          const aiRecipeIds = starredRows.filter((r: any) => r.recipe_type === 'ai').map((r: any) => r.recipe_id);
+
+          // Fetch user recipes in one query
+          if (userRecipeIds.length > 0) {
+            const { data: userStarred } = await supabase
+              .from('recipes')
+              .select('*')
+              .in('id', userRecipeIds);
+            if (userStarred) {
+              starredRecipesList.push(...userStarred.map((r: any) => ({ ...r, recipe_type: 'user' })));
+            }
+          }
+
+          // Fetch spoonacular recipes in one query
+          if (spoonacularRecipeIds.length > 0) {
+            const { data: spoonacularStarred } = await supabase
+              .from('spoonacular_recipes')
+              .select('*')
+              .in('id', spoonacularRecipeIds);
+            if (spoonacularStarred) {
+              starredRecipesList.push(...spoonacularStarred.map((r: any) => ({ ...r, recipe_type: 'spoonacular' })));
+            }
+          }
+
+          // Fetch AI recipes one by one (API)
+          for (const recipeId of aiRecipeIds) {
+            try {
+              const res = await fetch(`/api/recipes/${recipeId}`);
+              if (res.ok) {
+                const data = await res.json();
+                starredRecipesList.push({
+                  ...data,
+                  recipe_type: 'ai',
+                  user_id: data.user_id || profile.user_id
+                });
+              }
+            } catch (error) {
+              // Ignore errors for individual AI recipes
+            }
+          }
+
+          // Sort starred recipes by created_at in descending order
+          starredRecipesList.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        }
+
+        setRecipes(userRecipes || []);
+        setStarredRecipes(starredRecipesList);
+      };
+      fetchData();
+    }
+  }, [isOwnerClient, profile, recipes.length, starredRecipes.length]);
 
   return (
     <>
@@ -292,8 +379,24 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
                   {profile.username || '[recipes] user'} {profile.is_private && '🔒'}
                 </h1>
                 {profile.bio && <p className="text-gray-500 dark:text-gray-400">{profile.bio}</p>}
+                {(profile.dietary_restrictions && profile.dietary_restrictions.length > 0) && (
+                  <div className="mt-2">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">dietary restrictions: </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-300">
+                      {profile.dietary_restrictions.join(', ')}
+                    </span>
+                  </div>
+                )}
+                {profile.cooking_skill_level && (
+                  <div className="mt-1">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">cooking skill: </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-300">
+                      {profile.cooking_skill_level}
+                    </span>
+                  </div>
+                )}
               </div>
-              {user && user.id !== profile.user_id && (
+              {clientUser && clientUser.id !== profile.user_id && (
                 <div className="relative flex items-center gap-2" ref={dropdownRef}>
                   <button
                     onClick={handleFollow}
@@ -357,7 +460,7 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
               </Link>
             </div>
 
-            {isPrivateBlocked ? (
+            {isPrivateBlocked && !isOwnerClient ? (
               <div className="p-4 border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl">
                 <p className="text-yellow-500">This profile is private. Follow to see their recipes.</p>
               </div>
@@ -497,6 +600,7 @@ export default function UserProfile({ initialProfile, initialRecipes, initialSta
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   try {
+    // Use the context object directly for SSR session extraction
     const supabase = createPagesServerClient(context);
     const { id } = context.params as { id: string };
 
@@ -551,18 +655,17 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       following_count: followingCount || 0
     };
 
-    // Get the current user from the session using the helper
-    const { req } = context;
-    const cookies = {
-      get: (name: string) => req.cookies?.[name],
-    };
-    const sessionResult = await getSession(cookies);
-    const currentUserId = sessionResult.user?.id;
+    // Get the current user from the session using Supabase
+    const { data: { session } } = await supabase.auth.getSession();
+    const currentUserId = session?.user?.id;
+
+    // Debug logging for session and profile user id
+    console.log('[Profile Debug] currentUserId:', currentUserId, 'profile.user_id:', profile.user_id);
 
     // Check if the profile is private and if the current user is allowed to view it
     let isPrivateBlocked = false;
     if (profile.is_private) {
-      if (currentUserId === profile.user_id) {
+      if ((currentUserId && profile.user_id) && (String(currentUserId).trim() === String(profile.user_id).trim())) {
         isPrivateBlocked = false; // Owner always allowed
       } else {
         // Check if the current user is a follower
@@ -625,9 +728,9 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     let starredRecipes: Recipe[] = [];
     if (!starredRowsError && starredRows) {
       // Separate recipe IDs by type
-      const userRecipeIds = starredRows.filter(r => r.recipe_type === 'user').map(r => r.recipe_id);
-      const spoonacularRecipeIds = starredRows.filter(r => r.recipe_type === 'spoonacular').map(r => r.recipe_id);
-      const aiRecipeIds = starredRows.filter(r => r.recipe_type === 'ai').map(r => r.recipe_id);
+      const userRecipeIds = starredRows.filter((r: any) => r.recipe_type === 'user').map((r: any) => r.recipe_id);
+      const spoonacularRecipeIds = starredRows.filter((r: any) => r.recipe_type === 'spoonacular').map((r: any) => r.recipe_id);
+      const aiRecipeIds = starredRows.filter((r: any) => r.recipe_type === 'ai').map((r: any) => r.recipe_id);
 
       // Fetch user recipes in one query
       if (userRecipeIds.length > 0) {
@@ -638,7 +741,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         if (userRecipesError) {
           console.error('Error fetching user starred recipes:', userRecipesError);
         } else if (userRecipes) {
-          starredRecipes.push(...userRecipes.map(r => ({ ...r, recipe_type: 'user' })));
+          starredRecipes.push(...userRecipes.map((r: any) => ({ ...r, recipe_type: 'user' })));
         }
       }
 
@@ -651,7 +754,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         if (spoonacularRecipesError) {
           console.error('Error fetching spoonacular starred recipes:', spoonacularRecipesError);
         } else if (spoonacularRecipes) {
-          starredRecipes.push(...spoonacularRecipes.map(r => ({ ...r, recipe_type: 'spoonacular' })));
+          starredRecipes.push(...spoonacularRecipes.map((r: any) => ({ ...r, recipe_type: 'spoonacular' })));
         }
       }
 
@@ -675,7 +778,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       }
 
       // Sort starred recipes by created_at in descending order
-      starredRecipes.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      starredRecipes.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       return {
         props: {

@@ -71,6 +71,7 @@ export const useAuth = () => {
       try {
         setLoading(true);
         
+        // Check for existing session but don't auto-login from stored credentials
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -82,13 +83,13 @@ export const useAuth = () => {
         }
         
         if (initialSession) {
-          console.debug('[Auth] Initial session found');
+          console.debug('[Auth] Initial session found - user is logged in');
           if (mounted) {
             setSession(initialSession);
             setUser(initialSession.user);
           }
         } else {
-          console.debug('[Auth] No initial session found');
+          console.debug('[Auth] No initial session found - user is logged out');
           if (mounted) {
             setSession(null);
             setUser(null);

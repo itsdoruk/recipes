@@ -13,6 +13,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { Database } from '@/types/supabase';
 import { useStarredRecipes } from '@/hooks/useStarredRecipes';
 import RecipeCard from '@/components/RecipeCard';
+import { unlinkGoogleAccount } from '@/lib/auth-utils';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
@@ -40,6 +41,8 @@ interface FormData {
   bio: string;
   is_private: boolean;
   show_email: boolean;
+  dietary_restrictions: string[];
+  cooking_skill_level: string;
 }
 
 export default function AccountPage() {
@@ -52,7 +55,9 @@ export default function AccountPage() {
     username: '',
     bio: '',
     is_private: false,
-    show_email: false
+    show_email: false,
+    dietary_restrictions: [],
+    cooking_skill_level: ''
   });
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,12 +71,19 @@ export default function AccountPage() {
   const [selectedUser, setSelectedUser] = useState<BlockedUser | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showUnlinkGoogleModal, setShowUnlinkGoogleModal] = useState(false);
+  const [isUnlinkingGoogle, setIsUnlinkingGoogle] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
   const MAX_RETRIES = 3;
-  const INITIAL_RETRY_DELAY = 1000; // 1 second
+  const INITIAL_RETRIES_DELAY = 1000; // 1 second
   const { starredRecipes, isLoading: starredLoading } = useStarredRecipes();
   const [starredDetails, setStarredDetails] = useState<any[]>([]);
+
+  // Check if user has Google account linked
+  const hasGoogleAccount = session?.user?.identities?.some(
+    (identity: any) => identity.provider === 'google'
+  );
 
   // Clear timeout on unmount
   useEffect(() => {
@@ -100,7 +112,9 @@ export default function AccountPage() {
         username: userProfile.username || '',
         bio: userProfile.bio || '',
         is_private: userProfile.is_private || false,
-        show_email: userProfile.show_email || false
+        show_email: userProfile.show_email || false,
+        dietary_restrictions: userProfile.dietary_restrictions || [],
+        cooking_skill_level: userProfile.cooking_skill_level || ''
       });
       setAvatarUrl(userProfile.avatar_url || null);
     }
@@ -152,6 +166,8 @@ export default function AccountPage() {
           bio: form.bio,
           is_private: form.is_private,
           show_email: form.show_email,
+          dietary_restrictions: form.dietary_restrictions,
+          cooking_skill_level: form.cooking_skill_level,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', session.user.id);
@@ -238,6 +254,29 @@ export default function AccountPage() {
     }
   };
 
+  const handleUnlinkGoogle = async () => {
+    setIsUnlinkingGoogle(true);
+    setError(null);
+
+    try {
+      const { error } = await unlinkGoogleAccount();
+      if (error) {
+        throw error;
+      }
+      
+      setSuccess('Google account successfully unlinked');
+      setShowUnlinkGoogleModal(false);
+      
+      // Refresh the session to update the user data
+      router.reload();
+    } catch (err: any) {
+      console.error('Error unlinking Google account:', err);
+      setError(err.message || 'Failed to unlink Google account');
+    } finally {
+      setIsUnlinkingGoogle(false);
+    }
+  };
+
   if (loading || sessionLoading || profileLoading) {
     return (
       <div className="flex justify-center items-center min-h-[40vh]">
@@ -293,6 +332,30 @@ export default function AccountPage() {
                 rows={4}
                 className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
               />
+            </div>
+            <div>
+              <label className="block mb-2 font-semibold" style={{ color: 'var(--foreground)', textTransform: 'lowercase' }}>dietary restrictions</label>
+              <input
+                type="text"
+                value={form.dietary_restrictions.join(', ')}
+                onChange={e => setForm(prev => ({ ...prev, dietary_restrictions: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                placeholder="e.g. vegetarian, gluten-free, dairy-free"
+              />
+            </div>
+            <div>
+              <label className="block mb-2 font-semibold" style={{ color: 'var(--foreground)', textTransform: 'lowercase' }}>cooking skill level</label>
+              <select
+                value={form.cooking_skill_level}
+                onChange={(e) => setForm(prev => ({ ...prev, cooking_skill_level: e.target.value }))}
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+              >
+                <option value="">select skill level</option>
+                <option value="beginner">beginner</option>
+                <option value="intermediate">intermediate</option>
+                <option value="advanced">advanced</option>
+                <option value="expert">expert</option>
+              </select>
             </div>
             <div className="space-y-4">
               <h2 className="text-xl" style={{ color: 'var(--foreground)', textTransform: 'lowercase' }}>privacy</h2>
@@ -391,6 +454,16 @@ export default function AccountPage() {
                 change email
               </button>
 
+              {hasGoogleAccount && (
+                <button
+                  onClick={() => setShowUnlinkGoogleModal(true)}
+                  className="w-full px-4 py-3 border border-orange-200 dark:border-orange-800 bg-transparent hover:opacity-80 transition-opacity rounded-xl text-left"
+                  style={{ color: 'var(--warning)' }}
+                >
+                  remove google account
+                </button>
+              )}
+
               <button
                 onClick={() => router.push('/account/delete')}
                 className="w-full px-4 py-3 border border-red-200 dark:border-red-800 bg-transparent hover:opacity-80 transition-opacity rounded-xl text-left"
@@ -458,6 +531,41 @@ export default function AccountPage() {
               style={{ color: 'var(--accent)', background: 'var(--background)' }}
             >
               unblock
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Unlink Google Modal */}
+      <Modal
+        isOpen={showUnlinkGoogleModal}
+        onRequestClose={() => setShowUnlinkGoogleModal(false)}
+        contentLabel="Unlink Google Account"
+        className="fixed inset-0 flex items-center justify-center z-50"
+        overlayClassName="fixed inset-0 bg-black/50"
+        ariaHideApp={false}
+      >
+        <div className="p-8 shadow-2xl max-w-lg w-full border rounded-xl" style={{ background: 'var(--background)', borderColor: 'var(--outline)', color: 'var(--foreground)' }}>
+          <h2 className="text-2xl font-bold mb-4">unlink google account</h2>
+          <p className="mb-6">
+            are you sure you want to remove your google account integration? you will still be able to sign in with your email and password.
+          </p>
+          <div className="flex justify-end gap-4">
+            <button
+              onClick={() => setShowUnlinkGoogleModal(false)}
+              className="px-3 py-2 border border-outline hover:opacity-80 transition-opacity rounded-lg"
+              style={{ color: 'var(--foreground)', background: 'var(--background)' }}
+              disabled={isUnlinkingGoogle}
+            >
+              cancel
+            </button>
+            <button
+              onClick={handleUnlinkGoogle}
+              className="px-3 py-2 border border-orange-200 dark:border-orange-800 hover:opacity-80 transition-opacity rounded-lg"
+              style={{ color: 'var(--warning)', background: 'var(--background)' }}
+              disabled={isUnlinkingGoogle}
+            >
+              {isUnlinkingGoogle ? 'removing...' : 'remove'}
             </button>
           </div>
         </div>

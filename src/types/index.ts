@@ -86,6 +86,10 @@ export interface Recipe {
     ban_reason?: string | null;
     last_ban_date?: string | null;
     ban_count?: number;
+    followers_count?: number;
+    following_count?: number;
+    dietary_restrictions?: string[] | null;
+    cooking_skill_level?: string | null;
   }
 
 export type RecipeType = 'ai' | 'spoonacular' | 'user';

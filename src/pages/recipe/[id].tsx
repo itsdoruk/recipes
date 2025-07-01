@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getRecipeById } from '../../lib/spoonacular';
@@ -18,6 +18,11 @@ import { parseRecipeId, isValidRecipeId } from '@/lib/recipeIdUtils';
 import { RANDOM_CARD_IMG } from '@/lib/constants';
 import { generateRecipeId } from '@/lib/recipeIdUtils';
 import { fetchProfileById } from '@/lib/api/profile';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useUser } from '@/lib/hooks/useUser';
+import { useStarredRecipes } from '@/hooks/useStarredRecipes';
+import RecipeCard from '@/components/RecipeCard';
+import { formatDistanceToNow } from 'date-fns';
 
 function hasUserId(recipe: any): recipe is { user_id: string } {
   return recipe && typeof recipe.user_id === 'string';
@@ -102,11 +107,15 @@ function stripBoldTags(text: string) {
 
 export default function RecipePage({ recipe, lastUpdated, error: serverError }: RecipePageProps) {
   const router = useRouter();
-  const session = useSession();
+  const { user, isAuthenticated } = useAuth();
   const supabase = useSupabaseClient();
-  const user = session?.user || null;
   const { profile, isLoading: isProfileLoading } = useProfile();
+  const recipeUser = useUser();
+  const { starredRecipes, toggleStar } = useStarredRecipes();
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(serverError || null);
+  const [isStarred, setIsStarred] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [recipeType, setRecipeType] = useState<'user' | 'ai' | 'spoonacular'>(
     recipe?.id.toString().startsWith('spoonacular-') ? 'spoonacular' : 'user'

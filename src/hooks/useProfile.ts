@@ -95,7 +95,9 @@ export function useProfile() {
               warnings: 0,
               is_admin: false,
               created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
+              dietary_restrictions: [],
+              cooking_skill_level: null
             })
             .select()
             .single();

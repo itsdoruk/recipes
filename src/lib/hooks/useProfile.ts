@@ -44,7 +44,9 @@ export function useProfile() {
                 show_email: false,
                 banned: false,
                 ban_count: 0,
-                warnings: 0
+                warnings: 0,
+                dietary_restrictions: [],
+                cooking_skill_level: null
               })
               .select()
               .single();

@@ -181,7 +181,9 @@ export async function ensureProfile(userId: string): Promise<void> {
           ban_count: 0,
           warnings: 0,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          dietary_restrictions: [],
+          cooking_skill_level: null
         });
 
       if (createError) {
@@ -429,6 +431,68 @@ export async function verifyOtp(email: string, token: string): Promise<{ error: 
     return { error: null };
   } catch (error) {
     console.error('Error in verifyOtp:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function signInWithGoogle(redirectTo?: string): Promise<{ error: Error | null }> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Debug: Log the current origin
+    console.log('Current origin:', window.location.origin);
+    
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        // Let Supabase handle the redirect automatically
+        // This will use the default Supabase callback URL
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+
+    if (error) {
+      console.error('Error signing in with Google:', error);
+      return { error };
+    }
+
+    if (!data.url) {
+      console.error('No URL returned from Google OAuth');
+      return { error: new Error('No URL returned from Google OAuth') };
+    }
+
+    // Debug: Log the Google OAuth URL
+    console.log('Google OAuth URL:', data.url);
+
+    // Redirect to Google's OAuth page
+    window.location.href = data.url;
+    return { error: null };
+  } catch (error) {
+    console.error('Error in signInWithGoogle:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function unlinkGoogleAccount(): Promise<{ error: Error | null }> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    const { error } = await supabase.auth.unlinkIdentity({
+      provider: 'google',
+    });
+
+    if (error) {
+      console.error('Error unlinking Google account:', error);
+      return { error };
+    }
+
+    console.log('Successfully unlinked Google account');
+    return { error: null };
+  } catch (error) {
+    console.error('Error in unlinkGoogleAccount:', error);
     return { error: error as Error };
   }
 } 

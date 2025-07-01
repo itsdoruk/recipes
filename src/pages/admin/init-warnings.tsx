@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useProfile } from '@/hooks/useProfile';
 import Head from 'next/head';
 
 export default function InitWarnings() {
   const router = useRouter();
-  const session = useSession();
+  const { user, isAuthenticated } = useAuth();
   const supabase = useSupabaseClient();
   const { profile, isLoading } = useProfile();
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
