@@ -35,12 +35,12 @@ export default function StarButton({ recipeId, recipeType, isStarred: initialIsS
     <button
       onClick={handleToggle}
       disabled={isLoading || isPending(recipeId, recipeType)}
-      className="p-2 hover:opacity-80 transition-opacity"
+      className="p-2 transition-all duration-300 hover:scale-125 hover:opacity-80 active:scale-95"
       aria-label={isStarred(recipeId, recipeType) ? 'Remove from starred' : 'Add to starred'}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        className={`h-6 w-6 ${isStarred(recipeId, recipeType) ? 'fill-white' : 'fill-none'}`}
+        className={`h-6 w-6 transition-colors duration-200 ${isStarred(recipeId, recipeType) ? 'fill-yellow-400 text-yellow-400' : 'fill-none text-gray-400 hover:text-yellow-400'}`}
         viewBox="0 0 24 24"
         stroke="currentColor"
         strokeWidth={1.5}

@@ -15,7 +15,7 @@ export default function Avatar({ avatar_url, username, alt, size = 48, className
   if (!avatar_url || imageError) {
     return (
       <div
-        className={`flex items-center justify-center rounded-full aspect-square bg-gray-200 text-gray-800 dark:bg-gray-900 dark:text-gray-200 font-bold select-none ${className}`}
+        className={`flex items-center justify-center rounded-full aspect-square bg-gray-200 text-gray-800 dark:bg-gray-900 dark:text-gray-200 font-bold select-none transition-transform duration-300 hover:scale-125 ${className}`}
         style={{ width: size, height: size, fontSize: size * 0.5 }}
       >
         {username?.[0]?.toUpperCase() || 'A'}
@@ -29,7 +29,7 @@ export default function Avatar({ avatar_url, username, alt, size = 48, className
       alt={alt || username || 'user avatar'}
       width={size}
       height={size}
-      className={`object-cover rounded-full aspect-square bg-gray-200 text-gray-800 dark:bg-gray-900 dark:text-gray-200 ${className}`}
+      className={`object-cover rounded-full aspect-square bg-gray-200 text-gray-800 dark:bg-gray-900 dark:text-gray-200 transition-transform duration-300 hover:scale-125 ${className}`}
       style={{ width: size, height: size }}
       onError={() => setImageError(true)}
       unoptimized={true}

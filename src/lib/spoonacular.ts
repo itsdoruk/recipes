@@ -76,6 +76,28 @@ async function fetchFromSpoonacular(endpoint: string, params: Record<string, str
   return response.json();
 }
 
+// Extract nutrition data from Spoonacular API response
+function extractNutritionFromSpoonacular(nutrition: any): { calories: string; protein: string; fat: string; carbohydrates: string } {
+  if (!nutrition?.nutrients) {
+    return { calories: 'unknown', protein: 'unknown', fat: 'unknown', carbohydrates: 'unknown' };
+  }
+
+  const nutrients = nutrition.nutrients;
+  
+  // Find the required nutrients
+  const calories = nutrients.find((n: any) => n.name === 'Calories');
+  const protein = nutrients.find((n: any) => n.name === 'Protein');
+  const fat = nutrients.find((n: any) => n.name === 'Fat');
+  const carbohydrates = nutrients.find((n: any) => n.name === 'Carbohydrates');
+
+  return {
+    calories: calories ? `${Math.round(calories.amount)} ${calories.unit}` : 'unknown',
+    protein: protein ? `${Math.round(protein.amount)} ${protein.unit}` : 'unknown',
+    fat: fat ? `${Math.round(fat.amount)} ${fat.unit}` : 'unknown',
+    carbohydrates: carbohydrates ? `${Math.round(carbohydrates.amount)} ${carbohydrates.unit}` : 'unknown'
+  };
+}
+
 // Get recipe by ID
 export async function getRecipeById(id: string): Promise<Recipe | null> {
   try {
@@ -172,7 +194,7 @@ export async function searchRecipes(query: string, options: SearchOptions = {}):
             title: existingRecipe.title,
             image: existingRecipe.image_url || '',
             summary: stripHtmlTags(existingRecipe.description),
-            nutrition: null
+            nutrition: existingRecipe.nutrition || extractNutritionFromSpoonacular(recipe.nutrition)
           });
           continue;
         }
@@ -195,7 +217,8 @@ export async function searchRecipes(query: string, options: SearchOptions = {}):
           recipe_type: 'spoonacular',
           spoonacular_id: recipe.id.toString(),
           ingredients: recipe.extendedIngredients?.map((ing: any) => ing.original) || [],
-          instructions: recipe.analyzedInstructions?.[0]?.steps?.map((step: any) => stripHtmlTags(step.step)) || []
+          instructions: recipe.analyzedInstructions?.[0]?.steps?.map((step: any) => stripHtmlTags(step.step)) || [],
+          nutrition: extractNutritionFromSpoonacular(recipe.nutrition)
         };
 
         // Insert the recipe
@@ -254,7 +277,8 @@ export async function getPopularRecipes(): Promise<Recipe[]> {
   const data = await fetchFromSpoonacular('complexSearch', {
     number: '6',
     sort: 'random',
-    addRecipeInformation: 'true'
+    addRecipeInformation: 'true',
+    addRecipeNutrition: 'true'
   });
 
   if (!data?.results) return [];
@@ -263,32 +287,93 @@ export async function getPopularRecipes(): Promise<Recipe[]> {
   const recipes: Recipe[] = [];
 
   for (const recipe of data.results) {
-    // Generate a new UUID for this recipe
-    const recipeId = generateRecipeId('spoonacular', recipe.id.toString());
+    try {
+      // Check if we already have this recipe in our database
+      const { data: existingRecipe } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('recipe_type', 'spoonacular')
+        .eq('spoonacular_id', recipe.id.toString())
+        .maybeSingle();
 
-    // Store the mapping
-    const { error: mappingError } = await supabase
-      .from('spoonacular_mappings')
-      .upsert({
-        recipe_id: recipeId,
+      if (existingRecipe) {
+        // If recipe exists, use it
+        recipes.push({
+          ...recipe,
+          id: existingRecipe.id,
+          dateAdded: existingRecipe.created_at,
+          title: existingRecipe.title,
+          image: existingRecipe.image_url || '',
+          summary: stripHtmlTags(existingRecipe.description),
+          nutrition: existingRecipe.nutrition || extractNutritionFromSpoonacular(recipe.nutrition)
+        });
+        continue;
+      }
+
+      // Generate a new UUID for this recipe
+      const recipeId = generateRecipeId('spoonacular', recipe.id.toString());
+
+      // Create the recipe entry
+      const recipeData = {
+        id: recipeId,
+        title: recipe.title || 'Untitled Recipe',
+        description: stripHtmlTags(recipe.summary || recipe.instructions || 'No description available'),
+        image_url: recipe.image || '',
+        user_id: SPOONACULAR_USER_ID,
+        created_at: new Date().toISOString(),
+        cuisine_type: recipe.cuisines?.[0] || null,
+        cooking_time: recipe.readyInMinutes ? `${recipe.readyInMinutes} mins` : null,
+        diet_type: recipe.diets?.[0] || null,
+        cooking_time_value: recipe.readyInMinutes,
+        recipe_type: 'spoonacular',
         spoonacular_id: recipe.id.toString(),
-        created_at: new Date().toISOString()
-      });
+        ingredients: recipe.extendedIngredients?.map((ing: any) => ing.original) || [],
+        instructions: recipe.analyzedInstructions?.[0]?.steps?.map((step: any) => stripHtmlTags(step.step)) || [],
+        nutrition: extractNutritionFromSpoonacular(recipe.nutrition)
+      };
 
-    if (mappingError) {
-      console.error('Error storing Spoonacular mapping:', mappingError);
+      // Insert the recipe
+      const { error: insertError } = await supabase
+        .from('recipes')
+        .insert(recipeData);
+
+      if (insertError) {
+        console.error('Error inserting Spoonacular recipe:', insertError);
+        continue;
+      }
+
+      // Store the mapping
+      const { error: mappingError } = await supabase
+        .from('spoonacular_mappings')
+        .upsert({
+          recipe_id: recipeId,
+          spoonacular_id: recipe.id.toString(),
+          created_at: new Date().toISOString()
+        });
+
+      if (mappingError) {
+        console.error('Error storing Spoonacular mapping:', mappingError);
+        // If mapping fails, we should probably delete the recipe to maintain consistency
+        await supabase
+          .from('recipes')
+          .delete()
+          .eq('id', recipeId);
+        continue;
+      }
+
+      recipes.push({
+        ...recipe,
+        id: recipeId,
+        dateAdded: recipeData.created_at,
+        title: recipeData.title,
+        image: recipeData.image_url,
+        summary: recipeData.description,
+        nutrition: recipeData.nutrition
+      });
+    } catch (error) {
+      console.error('Error processing Spoonacular recipe:', error);
       continue;
     }
-
-    recipes.push({
-      ...recipe,
-      id: recipeId,
-      dateAdded: new Date().toISOString(),
-      title: recipe.title || 'Untitled Recipe',
-      image: recipe.image || '',
-      summary: stripHtmlTags(recipe.summary || recipe.instructions || 'No description available'),
-      nutrition: recipe.nutrition || null
-    });
   }
 
   return recipes;

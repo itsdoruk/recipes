@@ -180,7 +180,7 @@ export default function ReportButton({ recipeId, recipeType, onReportSubmitted, 
         <button
           onClick={handleOpenModal}
           aria-label="report"
-          className={`p-2 hover:opacity-80 transition-opacity ${className || ''}`}
+          className={`p-2 transition-all duration-300 hover:scale-125 hover:opacity-80 active:scale-95 ${className || ''}`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -190,7 +190,7 @@ export default function ReportButton({ recipeId, recipeType, onReportSubmitted, 
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="w-5 h-5 text-red-500"
+            className="w-5 h-5 text-red-500 hover:text-red-600 transition-colors duration-200"
           >
             <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
             <line x1="4" y1="15" x2="4" y2="21" />

@@ -223,10 +223,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Handle single recipe requests
   if (req.method === 'GET' && id) {
     try {
-      console.log('Fetching recipe with ID:', id);
+      console.log('[API] Fetching recipe with ID:', id);
 
       // First, try to fetch from Supabase for user recipes
-      console.log('Querying Supabase for recipe:', id);
+      console.log('[API] Querying Supabase for recipe:', id);
       const { data: recipe, error } = await supabase
         .from('recipes')
         .select('*')
@@ -234,21 +234,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .maybeSingle();
 
       if (error) {
-        console.error('Error fetching recipe from Supabase:', error);
+        console.error('[API] Error fetching recipe from Supabase:', error);
         return res.status(500).json({ message: 'Failed to fetch recipe from database' });
       }
 
       if (recipe) {
-        console.log('Found recipe in Supabase:', recipe);
+        console.log('[API] Found recipe in Supabase:', {
+          id: recipe.id,
+          title: recipe.title,
+          recipe_type: recipe.recipe_type
+        });
         return res.status(200).json(recipe);
       }
+
+      console.log('[API] Recipe not found in Supabase, checking if it\'s a Spoonacular ID...');
 
       // If not found in Supabase, check if it's a Spoonacular ID
       if (id.toString().startsWith('spoonacular-')) {
         const recipeId = id.toString().replace('spoonacular-', '');
+        console.log('[API] Processing Spoonacular ID:', recipeId);
+        
         const spoonacularRecipe = await getRecipeById(recipeId);
         if (!spoonacularRecipe) {
-          console.log('Spoonacular recipe not found');
+          console.log('[API] Spoonacular recipe not found');
           return res.status(404).json({ message: 'Recipe not found' });
         }
 
@@ -261,7 +269,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .maybeSingle();
 
         if (existingRecipe) {
-          console.log('Found existing Spoonacular recipe in database:', existingRecipe);
+          console.log('[API] Found existing Spoonacular recipe in database:', existingRecipe);
           return res.status(200).json(existingRecipe);
         }
 
@@ -290,11 +298,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .single();
 
         if (insertError) {
-          console.error('Error inserting Spoonacular recipe:', insertError);
+          console.error('[API] Error inserting Spoonacular recipe:', insertError);
           return res.status(500).json({ message: 'Failed to store recipe' });
         }
 
-        console.log('Successfully stored Spoonacular recipe:', newRecipe);
+        console.log('[API] Successfully stored Spoonacular recipe:', newRecipe);
         return res.status(200).json(newRecipe);
       }
 
@@ -307,14 +315,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .maybeSingle();
 
       if (aiRecipe) {
+        console.log('[API] Found AI recipe:', aiRecipe);
         return res.status(200).json(aiRecipe);
       }
 
       // If we get here, the recipe was not found
-      console.log('Recipe not found in any source');
+      console.log('[API] Recipe not found in any source');
       return res.status(404).json({ message: 'Recipe not found' });
     } catch (error) {
-      console.error('Error in recipe fetch handler:', error);
+      console.error('[API] Error in recipe fetch handler:', error);
       return res.status(500).json({ message: 'Failed to fetch recipe' });
     }
   }

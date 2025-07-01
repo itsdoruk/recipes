@@ -272,7 +272,7 @@ export default function Comments({ recipeId }: CommentsProps) {
       <button
         type="button"
         onClick={() => formatText('bold', textarea, setContent)}
-        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm font-bold"
+        className="px-3 py-2 border border-outline bg-transparent transition-all duration-300 hover:scale-110 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-600 rounded-lg text-sm font-bold"
         title="Bold"
       >
         B
@@ -280,7 +280,7 @@ export default function Comments({ recipeId }: CommentsProps) {
       <button
         type="button"
         onClick={() => formatText('italic', textarea, setContent)}
-        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm italic"
+        className="px-3 py-2 border border-outline bg-transparent transition-all duration-300 hover:scale-110 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-600 rounded-lg text-sm italic"
         title="Italic"
       >
         I
@@ -288,7 +288,7 @@ export default function Comments({ recipeId }: CommentsProps) {
       <button
         type="button"
         onClick={() => formatText('code', textarea, setContent)}
-        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm font-mono"
+        className="px-3 py-2 border border-outline bg-transparent transition-all duration-300 hover:scale-110 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-600 rounded-lg text-sm font-mono"
         title="Code"
       >
         {'</>'}
@@ -297,7 +297,7 @@ export default function Comments({ recipeId }: CommentsProps) {
       <button
         type="button"
         onClick={() => formatText('link', textarea, setContent)}
-        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm"
+        className="px-3 py-2 border border-outline bg-transparent transition-all duration-300 hover:scale-110 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700 rounded-lg text-sm"
         title="Link"
       >
         🔗
@@ -305,7 +305,7 @@ export default function Comments({ recipeId }: CommentsProps) {
       <button
         type="button"
         onClick={() => formatText('image', textarea, setContent)}
-        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm"
+        className="px-3 py-2 border border-outline bg-transparent transition-all duration-300 hover:scale-110 hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-300 dark:hover:border-green-700 rounded-lg text-sm"
         title="Image URL"
       >
         🖼️
@@ -313,7 +313,7 @@ export default function Comments({ recipeId }: CommentsProps) {
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
-        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm disabled:opacity-50"
+        className="px-3 py-2 border border-outline bg-transparent transition-all duration-300 hover:scale-110 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-700 rounded-lg text-sm disabled:opacity-50"
         title="Upload Image"
         disabled={imageUploading}
       >
@@ -323,7 +323,7 @@ export default function Comments({ recipeId }: CommentsProps) {
       <button
         type="button"
         onClick={() => formatText('list', textarea, setContent)}
-        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm"
+        className="px-3 py-2 border border-outline bg-transparent transition-all duration-300 hover:scale-110 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-600 rounded-lg text-sm"
         title="list"
       >
         • list
@@ -331,7 +331,7 @@ export default function Comments({ recipeId }: CommentsProps) {
       <button
         type="button"
         onClick={() => formatText('quote', textarea, setContent)}
-        className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg text-sm"
+        className="px-3 py-2 border border-outline bg-transparent transition-all duration-300 hover:scale-110 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-600 rounded-lg text-sm"
         title="quote"
       >
         " quote
@@ -364,7 +364,7 @@ export default function Comments({ recipeId }: CommentsProps) {
               <button
                 type="submit"
                 disabled={isLoading || !newComment.trim()}
-                className="mt-2 px-3 py-2 border border-outline hover:opacity-80 transition-opacity disabled:opacity-50 rounded-xl"
+                className="mt-2 px-3 py-2 border border-outline transition-all duration-300 hover:scale-110 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 rounded-xl"
               >
                 {isLoading ? 'posting...' : 'post comment'}
               </button>
@@ -399,16 +399,16 @@ export default function Comments({ recipeId }: CommentsProps) {
                     {user?.id === comment.user_id && (
                       <button
                         onClick={() => startEditing(comment)}
-                        className="p-2 bg-transparent border-none shadow-none outline-none hover:opacity-80 transition-opacity flex items-center"
+                        className="p-2 bg-transparent border-none shadow-none outline-none transition-all duration-300 hover:scale-125 hover:opacity-80 active:scale-95 flex items-center"
                         aria-label="Edit comment"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M4 13.5V16h2.5l7.06-7.06-2.5-2.5L4 13.5z"/><path d="M14.06 6.94a1.5 1.5 0 0 0 0-2.12l-1.88-1.88a1.5 1.5 0 0 0-2.12 0l-1.06 1.06 4 4 1.06-1.06z"/></svg>
+                        <svg className="w-5 h-5 text-blue-500 hover:text-blue-600 transition-colors duration-200" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M4 13.5V16h2.5l7.06-7.06-2.5-2.5L4 13.5z"/><path d="M14.06 6.94a1.5 1.5 0 0 0 0-2.12l-1.88-1.88a1.5 1.5 0 0 0-2.12 0l-1.06 1.06 4 4 1.06-1.06z"/></svg>
                       </button>
                     )}
                     {(user?.id === comment.user_id || user?.user_metadata?.is_admin) && (
                       <button
                         onClick={() => handleDelete(comment.id)}
-                        className="p-2 bg-transparent border-none shadow-none outline-none text-red-500 hover:opacity-80 transition-opacity flex items-center"
+                        className="p-2 bg-transparent border-none shadow-none outline-none text-red-500 transition-all duration-300 hover:scale-125 hover:opacity-80 hover:text-red-600 active:scale-95 flex items-center"
                         aria-label="Delete comment"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M6 6v8m4-8v8m4-8v8M3 6h14M5 6V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg>
@@ -433,7 +433,7 @@ export default function Comments({ recipeId }: CommentsProps) {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEdit(comment.id)}
-                        className="px-3 py-1 text-sm border border-outline hover:opacity-80 rounded-xl"
+                        className="px-3 py-1 text-sm border border-outline transition-all duration-300 hover:scale-110 hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-300 dark:hover:border-green-700 hover:text-green-600 dark:hover:text-green-400 rounded-xl"
                       >
                         save
                       </button>
@@ -442,7 +442,7 @@ export default function Comments({ recipeId }: CommentsProps) {
                           setEditingComment(null);
                           setEditContent('');
                         }}
-                        className="px-3 py-1 text-sm border border-outline hover:opacity-80 rounded-xl"
+                        className="px-3 py-1 text-sm border border-outline transition-all duration-300 hover:scale-110 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-600 rounded-xl"
                       >
                         cancel
                       </button>

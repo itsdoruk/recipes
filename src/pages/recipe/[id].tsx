@@ -5,7 +5,7 @@ import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getRecipeById } from '../../lib/spoonacular';
-import { getSupabaseClient } from '../../lib/supabase';
+import { getServerClient } from '../../lib/supabase/serverClient';
 import Comments from '../../components/Comments';
 import { GetServerSideProps } from 'next';
 import { marked } from 'marked';
@@ -302,16 +302,28 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
                 { label: 'Carbohydrates', key: 'carbohydrates', spoonacularName: 'Carbohydrates' }
               ].map(({ label, key, spoonacularName }) => {
                 let value = 'N/A';
-                // 1. Try Spoonacular nutrition
-                if (recipe.nutrition?.nutrients) {
-                  const nutrient = recipe.nutrition.nutrients.find(
+                // 1. Try database nutrition format (for all recipe types)
+                if (recipe.nutrition && typeof recipe.nutrition === 'object') {
+                  const nutritionValue = recipe.nutrition[key as keyof typeof recipe.nutrition];
+                  if (nutritionValue && typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
+                    value = nutritionValue;
+                  }
+                }
+                // 2. Try Spoonacular API nutrition format (fallback)
+                else if (
+                  recipe.nutrition &&
+                  typeof recipe.nutrition === 'object' &&
+                  Array.isArray((recipe.nutrition as any).nutrients)
+                ) {
+                  const nutrients = (recipe.nutrition as any).nutrients;
+                  const nutrient = nutrients.find(
                     (n: any) => n.name === spoonacularName
                   );
                   if (nutrient) {
                     value = `${Math.round(nutrient.amount)} ${nutrient.unit}`;
                   }
                 }
-                // 2. Try local recipe nutrition
+                // 3. Try legacy nutrition fields (for backward compatibility)
                 else if (recipe[key as keyof typeof recipe]) {
                   const nutritionValue = recipe[key as keyof typeof recipe];
                   if (typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
@@ -320,7 +332,7 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
                     value = nutritionValue.toString();
                   }
                 }
-                // 3. Fallback: extract from summary or description
+                // 4. Fallback: extract from summary or description
                 else {
                   const fallback = extractNutritionFromText(recipe.summary || recipe.description || '');
                   if (fallback[key as keyof typeof fallback] && fallback[key as keyof typeof fallback] !== 'N/A') {
@@ -419,8 +431,11 @@ export const getServerSideProps: GetServerSideProps = async ({ params, req }) =>
   const { id } = params as { id: string };
 
   try {
+    console.log('[getServerSideProps] Fetching recipe with ID:', id);
+
     // Check if it's a valid UUID
     if (!isValidRecipeId(id)) {
+      console.log('[getServerSideProps] Invalid recipe ID format:', id);
       return {
         notFound: true,
       };
@@ -432,15 +447,26 @@ export const getServerSideProps: GetServerSideProps = async ({ params, req }) =>
     const baseUrl = `${protocol}://${host}`;
 
     // First try to fetch from our database
-    const supabase = getSupabaseClient();
+    const supabase = getServerClient();
+    console.log('[getServerSideProps] Querying Supabase for recipe:', id);
+    
     const { data: recipe, error: dbError } = await supabase
       .from('recipes')
       .select('*')
       .eq('id', id)
       .single();
 
+    if (dbError) {
+      console.error('[getServerSideProps] Database error:', dbError);
+      // Don't return error immediately, try API fallback
+    }
+
     if (recipe) {
-      // If we found the recipe in our database, return it
+      console.log('[getServerSideProps] Found recipe in database:', {
+        id: recipe.id,
+        title: recipe.title,
+        recipe_type: recipe.recipe_type
+      });
       return {
         props: {
           recipe,
@@ -449,10 +475,13 @@ export const getServerSideProps: GetServerSideProps = async ({ params, req }) =>
       };
     }
 
+    console.log('[getServerSideProps] Recipe not found in database, trying API...');
+
     // If not found in database, try the API endpoint
     const response = await fetch(`${baseUrl}/api/recipes/${id}`);
     
     if (!response.ok) {
+      console.log('[getServerSideProps] API returned status:', response.status);
       if (response.status === 404) {
         return {
           notFound: true,
@@ -462,6 +491,11 @@ export const getServerSideProps: GetServerSideProps = async ({ params, req }) =>
     }
 
     const recipeData = await response.json();
+    console.log('[getServerSideProps] Found recipe via API:', {
+      id: recipeData.id,
+      title: recipeData.title,
+      recipe_type: recipeData.recipe_type
+    });
 
     return {
       props: {
@@ -470,7 +504,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params, req }) =>
       },
     };
   } catch (error) {
-    console.error('Error fetching recipe:', error);
+    console.error('[getServerSideProps] Error fetching recipe:', error);
     return {
       props: {
         recipe: null,
