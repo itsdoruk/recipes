@@ -343,7 +343,7 @@ export default function ShoppingList() {
         {type === 'shopping' ? (
           <button
             onClick={() => setNewItemName('milk')}
-            className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg"
+            className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
           >
             add sample item
           </button>
@@ -353,7 +353,7 @@ export default function ShoppingList() {
               setNewNoteTitle('Perfect Pasta Tip');
               setNewNoteContent('Always salt the water generously - it should taste like seawater!');
             }}
-            className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg"
+            className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
           >
             add sample note
           </button>
@@ -388,11 +388,9 @@ export default function ShoppingList() {
             >
               <FaShoppingCart className="inline w-4 h-4 mr-2" />
               shopping list
-              {totalCount > 0 && (
-                <span className="ml-2 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full">
-                  {totalCount}
-                </span>
-              )}
+              <span className={`ml-2 px-2 py-1 text-xs rounded-full ${totalCount > 0 ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'bg-gray-800/40 text-gray-300 dark:bg-gray-700/40 dark:text-gray-500'}`}>
+                {totalCount}
+              </span>
             </button>
             <button
               onClick={() => setActiveTab('notes')}
@@ -402,7 +400,7 @@ export default function ShoppingList() {
             >
               <FaStickyNote className="inline w-4 h-4 mr-2" />
               cooking notes
-              <span className="ml-2 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full">
+              <span className={`ml-2 px-2 py-1 text-xs rounded-full ${cookingNotes.length > 0 ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'bg-gray-800/40 text-gray-300 dark:bg-gray-700/40 dark:text-gray-500'}`}>
                 {cookingNotes.length}
               </span>
             </button>
@@ -414,25 +412,25 @@ export default function ShoppingList() {
               {/* Add New Item Form */}
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold">add new item</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-4 items-end">
                   <input
                     type="text"
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
                     placeholder="item name"
-                    className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <input
                     type="text"
                     value={newItemQuantity}
                     onChange={(e) => setNewItemQuantity(e.target.value)}
                     placeholder="quantity (e.g., 2 lbs)"
-                    className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <select
                     value={newItemCategory}
                     onChange={(e) => setNewItemCategory(e.target.value)}
-                    className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     {CATEGORIES.map(category => (
                       <option key={category} value={category}>{category}</option>
@@ -441,10 +439,10 @@ export default function ShoppingList() {
                   <button
                     onClick={addShoppingItem}
                     disabled={!newItemName.trim()}
-                    className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     aria-label="Add item"
                   >
-                    <FaPlus className="w-5 h-5" />
+                    <FaPlus className="w-5 h-5 m-0" />
                   </button>
                 </div>
                 <textarea
@@ -602,27 +600,30 @@ export default function ShoppingList() {
               {/* Add New Note Form */}
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold">add new note</h2>
-                <input
-                  type="text"
-                  value={newNoteTitle}
-                  onChange={(e) => setNewNoteTitle(e.target.value)}
-                  placeholder="note title"
-                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
+                  <input
+                    type="text"
+                    value={newNoteTitle}
+                    onChange={(e) => setNewNoteTitle(e.target.value)}
+                    placeholder="note title"
+                    className="w-full px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={addCookingNote}
+                    disabled={!newNoteTitle.trim() || !newNoteContent.trim()}
+                    className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    aria-label="Add note"
+                  >
+                    <FaPlus className="w-5 h-5 m-0" />
+                  </button>
+                </div>
                 <textarea
                   value={newNoteContent}
                   onChange={(e) => setNewNoteContent(e.target.value)}
-                  placeholder="write your cooking notes here..."
-                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none mb-3 hover:border-gray-400 dark:hover:border-gray-600 transition-all duration-200"
-                  rows={4}
+                  placeholder="note content"
+                  className="w-full px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  rows={2}
                 />
-                <button
-                  onClick={addCookingNote}
-                  disabled={!newNoteTitle.trim() || !newNoteContent.trim()}
-                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg disabled:opacity-50"
-                >
-                  <FaPlus className="w-4 h-4" />
-                </button>
               </div>
 
               {/* Cooking Notes List */}
@@ -640,34 +641,37 @@ export default function ShoppingList() {
                       >
                         {editingNote === note.id ? (
                           <div className="space-y-3">
-                            <input
-                              type="text"
-                              value={editNoteTitle}
-                              onChange={(e) => setEditNoteTitle(e.target.value)}
-                              className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
+                            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+                              <input
+                                type="text"
+                                value={editNoteTitle}
+                                onChange={(e) => setEditNoteTitle(e.target.value)}
+                                className="w-full px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                              <div className="flex gap-2 items-center">
+                                <button
+                                  onClick={saveEditNote}
+                                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <FaSave className="w-3 h-3" />
+                                  save
+                                </button>
+                                <button
+                                  onClick={cancelEditNote}
+                                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <FaTimes className="w-3 h-3" />
+                                  cancel
+                                </button>
+                              </div>
+                            </div>
                             <textarea
                               value={editNoteContent}
                               onChange={(e) => setEditNoteContent(e.target.value)}
-                              className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                              rows={4}
+                              placeholder="note content"
+                              className="w-full px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                              rows={2}
                             />
-                            <div className="flex gap-2">
-                              <button
-                                onClick={saveEditNote}
-                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <FaSave className="w-3 h-3" />
-                                save
-                              </button>
-                              <button
-                                onClick={cancelEditNote}
-                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <FaTimes className="w-3 h-3" />
-                                cancel
-                              </button>
-                            </div>
                           </div>
                         ) : (
                           <div>
