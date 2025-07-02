@@ -500,13 +500,12 @@ export async function unlinkGoogleAccount(): Promise<{ error: Error | null }> {
 export async function signInWithGithub(redirectTo?: string): Promise<{ error: Error | null }> {
   try {
     const supabase = getSupabaseClient();
-    // Debug: Log the current origin
-    console.log('Current origin:', window.location.origin);
+    // Always use production domain for redirect
+    const prodRedirect = 'https://recipes.dsplash.xyz/auth/callback';
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
-        // Let Supabase handle the redirect automatically
-        // This will use the default Supabase callback URL
+        redirectTo: prodRedirect,
       },
     });
     if (error) {

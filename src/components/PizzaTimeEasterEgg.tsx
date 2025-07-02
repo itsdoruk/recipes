@@ -69,6 +69,7 @@ export default function PizzaTimeEasterEgg() {
 
   useEffect(() => {
     if (!showPizza) return;
+    if (typeof window !== 'undefined') (window as any).pizzaTimeActive = true;
     pizzaTimeEverything();
     // Throttled callback for observer
     const throttled = throttle((mutations: MutationRecord[]) => {
@@ -109,6 +110,7 @@ export default function PizzaTimeEasterEgg() {
         audioRef.current.pause();
         audioRef.current.remove();
       }
+      if (typeof window !== 'undefined') delete (window as any).pizzaTimeActive;
     };
   }, [showPizza]);
 
