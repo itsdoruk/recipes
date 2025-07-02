@@ -9,6 +9,7 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleCallback = async () => {
+      console.log('Auth callback triggered with query:', router.query);
       const { code, error: authError, next } = router.query;
 
       if (authError) {
@@ -18,16 +19,17 @@ export default function AuthCallback() {
       }
 
       if (!code) {
-        console.error('No code provided');
+        console.error('No code provided in query:', router.query);
         setError('No authentication code provided.');
         return;
       }
 
       try {
+        console.log('Exchanging code for session...');
         const supabase = getSupabaseClient();
         
         // Exchange the code for a session
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code as string);
+        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code as string);
         
         if (exchangeError) {
           console.error('Error exchanging code for session:', exchangeError);
@@ -35,8 +37,11 @@ export default function AuthCallback() {
           return;
         }
 
+        console.log('Session exchange successful:', data);
+        
         // Redirect immediately to the intended page or home
         const redirectPath = typeof next === 'string' ? next : '/';
+        console.log('Redirecting to:', redirectPath);
         router.replace(redirectPath);
       } catch (err: any) {
         console.error('Unexpected error during auth callback:', err);
@@ -44,18 +49,41 @@ export default function AuthCallback() {
       }
     };
 
-    // Handle callback immediately when query params are available
-    if (router.query.code || router.query.error) {
+    // Wait for router to be ready before processing
+    if (router.isReady && (router.query.code || router.query.error)) {
       handleCallback();
     }
-  }, [router.query]);
+  }, [router.isReady, router.query]);
 
-  // Show minimal loading state only if we're still waiting for query params
-  if (!router.query.code && !router.query.error) {
+  // Show minimal loading state while waiting for router
+  if (!router.isReady) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
       </div>
+    );
+  }
+
+  // Show error if no auth params and router is ready
+  if (router.isReady && !router.query.code && !router.query.error) {
+    return (
+      <>
+        <Head>
+          <title>Sign in error | [recipes]</title>
+        </Head>
+        <div className="flex justify-center items-center h-screen">
+          <div className="text-center max-w-md mx-auto px-4">
+            <h1 className="text-2xl mb-4">sign in error</h1>
+            <p className="mb-6 text-red-500">No authentication parameters found.</p>
+            <button
+              onClick={() => router.push('/login')}
+              className="px-4 py-2 border border-outline hover:opacity-80 transition-opacity rounded-lg"
+            >
+              try again
+            </button>
+          </div>
+        </div>
+      </>
     );
   }
 
