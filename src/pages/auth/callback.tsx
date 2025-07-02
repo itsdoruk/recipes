@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { getSupabaseClient } from '@/lib/supabase';
-import AuthCallbackSkeleton from '@/components/AuthCallbackSkeleton';
 
 export default function AuthCallback() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -16,14 +14,12 @@ export default function AuthCallback() {
       if (authError) {
         console.error('Auth error:', authError);
         setError('Authentication failed. Please try again.');
-        setIsLoading(false);
         return;
       }
 
       if (!code) {
         console.error('No code provided');
         setError('No authentication code provided.');
-        setIsLoading(false);
         return;
       }
 
@@ -36,27 +32,31 @@ export default function AuthCallback() {
         if (exchangeError) {
           console.error('Error exchanging code for session:', exchangeError);
           setError('Failed to complete authentication. Please try again.');
-          setIsLoading(false);
           return;
         }
 
-        // Redirect to the intended page or home
+        // Redirect immediately to the intended page or home
         const redirectPath = typeof next === 'string' ? next : '/';
-        router.push(redirectPath);
+        router.replace(redirectPath);
       } catch (err: any) {
         console.error('Unexpected error during auth callback:', err);
         setError('An unexpected error occurred. Please try again.');
-        setIsLoading(false);
       }
     };
 
-    if (router.isReady) {
+    // Handle callback immediately when query params are available
+    if (router.query.code || router.query.error) {
       handleCallback();
     }
-  }, [router.isReady, router.query]);
+  }, [router.query]);
 
-  if (isLoading) {
-    return <AuthCallbackSkeleton />;
+  // Show minimal loading state only if we're still waiting for query params
+  if (!router.query.code && !router.query.error) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
+      </div>
+    );
   }
 
   if (error) {
