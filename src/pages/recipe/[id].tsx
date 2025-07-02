@@ -124,6 +124,7 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
   );
   const [ownerProfile, setOwnerProfile] = useState<any>(null);
   const [ownerProfileLoading, setOwnerProfileLoading] = useState(true);
+  const [showNutrition, setShowNutrition] = useState(true);
 
   const handleDelete = async () => {
     if (!recipe || !user || recipe.user_id !== user.id) return;
@@ -162,6 +163,15 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
     }
     loadOwnerProfile();
   }, [recipe?.user_id]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setShowNutrition(localStorage.getItem('app_show_nutrition') !== 'false');
+      const handler = () => setShowNutrition(localStorage.getItem('app_show_nutrition') !== 'false');
+      window.addEventListener('nutrition-visibility-changed', handler);
+      return () => window.removeEventListener('nutrition-visibility-changed', handler);
+    }
+  }, []);
 
   if (isProfileLoading || ownerProfileLoading) {
     return <RecipePageSkeleton />;
@@ -291,89 +301,91 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
             ) : null}
           </div>
 
-          {/* Nutrition Section */}
-          <div>
-            <h2 className="text-xl mb-4 mt-8">nutrition</h2>
-            {recipe.recipe_type === 'spoonacular' &&
-              recipe.nutrition &&
-              Array.isArray(recipe.nutrition.nutrients) ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {recipe.nutrition.nutrients
-                  .filter(
-                    n =>
+          {showNutrition && (
+            <div>
+              <h2 className="text-xl mb-4 mt-8">nutrition</h2>
+              {recipe.recipe_type === 'spoonacular' &&
+                recipe.nutrition &&
+                Array.isArray(recipe.nutrition.nutrients) ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {(recipe.nutrition.nutrients as { name: string; amount: number; unit: string }[])
+                    .filter((n) =>
+                      n.name &&
+                      typeof n.name === 'string' &&
                       n.name.toLowerCase() === 'calories' &&
                       n.amount !== null &&
                       n.amount !== undefined &&
                       String(n.amount).toLowerCase() !== 'n/a' &&
                       String(n.amount).toLowerCase() !== 'unknown'
-                  )
-                  .map(nutrient => (
-                    <div key={nutrient.name} className="text-center">
-                      <div className="text-lg font-bold">
-                        {Math.round(nutrient.amount)} {nutrient.unit}
+                    )
+                    .map((nutrient) => (
+                      <div key={nutrient.name} className="text-center">
+                        <div className="text-lg font-bold">
+                          {Math.round(nutrient.amount)} {nutrient.unit}
+                        </div>
+                        <div className="text-gray-500 dark:text-gray-400 text-sm">
+                          {nutrient.name.toLowerCase()}
+                        </div>
                       </div>
-                      <div className="text-gray-500 dark:text-gray-400 text-sm">
-                        {nutrient.name.toLowerCase()}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  { label: 'Calories', key: 'calories', spoonacularName: 'Calories' },
-                  { label: 'Protein', key: 'protein', spoonacularName: 'Protein' },
-                  { label: 'Fat', key: 'fat', spoonacularName: 'Fat' },
-                  { label: 'Carbohydrates', key: 'carbohydrates', spoonacularName: 'Carbohydrates' }
-                ].map(({ label, key, spoonacularName }) => {
-                  let value = 'N/A';
-                  // 1. Try database nutrition format (for all recipe types)
-                  if (recipe.nutrition && typeof recipe.nutrition === 'object') {
-                    const nutritionValue = recipe.nutrition[key as keyof typeof recipe.nutrition];
-                    if (nutritionValue && typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
-                      value = nutritionValue;
+                    ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { label: 'Calories', key: 'calories', spoonacularName: 'Calories' },
+                    { label: 'Protein', key: 'protein', spoonacularName: 'Protein' },
+                    { label: 'Fat', key: 'fat', spoonacularName: 'Fat' },
+                    { label: 'Carbohydrates', key: 'carbohydrates', spoonacularName: 'Carbohydrates' }
+                  ].map(({ label, key, spoonacularName }) => {
+                    let value = 'N/A';
+                    // 1. Try database nutrition format (for all recipe types)
+                    if (recipe.nutrition && typeof recipe.nutrition === 'object') {
+                      const nutritionValue = recipe.nutrition[key as keyof typeof recipe.nutrition];
+                      if (nutritionValue && typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
+                        value = nutritionValue;
+                      }
                     }
-                  }
-                  // 2. Try Spoonacular API nutrition format (fallback)
-                  else if (
-                    recipe.nutrition &&
-                    typeof recipe.nutrition === 'object' &&
-                    Array.isArray((recipe.nutrition as any).nutrients)
-                  ) {
-                    const nutrients = (recipe.nutrition as any).nutrients;
-                    const nutrient = nutrients.find(
-                      (n: any) => n.name === spoonacularName
+                    // 2. Try Spoonacular API nutrition format (fallback)
+                    else if (
+                      recipe.nutrition &&
+                      typeof recipe.nutrition === 'object' &&
+                      Array.isArray((recipe.nutrition as any).nutrients)
+                    ) {
+                      const nutrients = (recipe.nutrition as any).nutrients as { name: string; amount: number; unit: string }[];
+                      const nutrient = nutrients.find(
+                        (n) => n.name === spoonacularName
+                      );
+                      if (nutrient) {
+                        value = `${Math.round(nutrient.amount)} ${nutrient.unit}`;
+                      }
+                    }
+                    // 3. Try legacy nutrition fields (for backward compatibility)
+                    else if (recipe[key as keyof typeof recipe]) {
+                      const nutritionValue = recipe[key as keyof typeof recipe];
+                      if (typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
+                        value = nutritionValue;
+                      } else if (typeof nutritionValue === 'number') {
+                        value = nutritionValue.toString();
+                      }
+                    }
+                    // 4. Fallback: extract from summary or description
+                    else {
+                      const fallback = extractNutritionFromText(recipe.summary || recipe.description || '');
+                      if (fallback[key as keyof typeof fallback] && fallback[key as keyof typeof fallback] !== 'N/A') {
+                        value = fallback[key as keyof typeof fallback] as string;
+                      }
+                    }
+                    return (
+                      <div key={label} className="text-center">
+                        <div className="text-lg font-bold">{value}</div>
+                        <div className="text-gray-500 dark:text-gray-400 text-sm">{label.toLowerCase()}</div>
+                      </div>
                     );
-                    if (nutrient) {
-                      value = `${Math.round(nutrient.amount)} ${nutrient.unit}`;
-                    }
-                  }
-                  // 3. Try legacy nutrition fields (for backward compatibility)
-                  else if (recipe[key as keyof typeof recipe]) {
-                    const nutritionValue = recipe[key as keyof typeof recipe];
-                    if (typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
-                      value = nutritionValue;
-                    } else if (typeof nutritionValue === 'number') {
-                      value = nutritionValue.toString();
-                    }
-                  }
-                  // 4. Fallback: extract from summary or description
-                  else {
-                    const fallback = extractNutritionFromText(recipe.summary || recipe.description || '');
-                    if (fallback[key as keyof typeof fallback] && fallback[key as keyof typeof fallback] !== 'N/A') {
-                      value = fallback[key as keyof typeof fallback];
-                    }
-                  }
-                  return (
-                    <div key={label} className="text-center">
-                      <div className="text-lg font-bold">{value}</div>
-                      <div className="text-gray-500 dark:text-gray-400 text-sm">{label.toLowerCase()}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {recipe.ingredients && (
             <div>

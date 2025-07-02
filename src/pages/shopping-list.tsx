@@ -73,36 +73,36 @@ export default function ShoppingList() {
     loadData();
   }, [user]);
 
+  // Helper to handle and log errors
+  const handleSupabaseError = (context: string, error: any) => {
+    console.error(`[Supabase] ${context}:`, error);
+    setError('Something went wrong. Please try again.');
+    setTimeout(() => setError(null), 5000);
+  };
+
   const loadData = async () => {
     if (!user) return;
-    
     try {
       setIsLoading(true);
       const supabase = getSupabaseClient();
-      
       // Load shopping items
       const { data: items, error: itemsError } = await supabase
         .from('shopping_items')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-      
-      if (itemsError) throw itemsError;
+      if (itemsError) return handleSupabaseError('fetching shopping_items', itemsError);
       setShoppingItems(items || []);
-      
       // Load cooking notes
       const { data: notes, error: notesError } = await supabase
         .from('cooking_notes')
         .select('*')
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
-      
-      if (notesError) throw notesError;
+      if (notesError) return handleSupabaseError('fetching cooking_notes', notesError);
       setCookingNotes(notes || []);
-      
     } catch (error) {
-      console.error('Error loading data:', error);
-      setError('Failed to load your shopping list and notes');
+      handleSupabaseError('loading data', error);
     } finally {
       setIsLoading(false);
     }
@@ -110,7 +110,6 @@ export default function ShoppingList() {
 
   const addShoppingItem = async () => {
     if (!user || !newItemName.trim()) return;
-    
     try {
       const supabase = getSupabaseClient();
       const { data, error } = await supabase
@@ -125,18 +124,14 @@ export default function ShoppingList() {
         }])
         .select()
         .single();
-      
-      if (error) throw error;
-      
+      if (error) return handleSupabaseError('adding shopping_item', error);
       setShoppingItems(prev => [data, ...prev]);
       setNewItemName('');
       setNewItemQuantity('');
       setNewItemCategory('other');
       setNewItemNotes('');
-      
     } catch (error) {
-      console.error('Error adding item:', error);
-      setError('Failed to add item to shopping list');
+      handleSupabaseError('adding shopping_item', error);
     }
   };
 
@@ -145,21 +140,16 @@ export default function ShoppingList() {
       const supabase = getSupabaseClient();
       const item = shoppingItems.find(i => i.id === itemId);
       if (!item) return;
-      
       const { error } = await supabase
         .from('shopping_items')
         .update({ completed: !item.completed })
         .eq('id', itemId);
-      
-      if (error) throw error;
-      
+      if (error) return handleSupabaseError('toggling item complete', error);
       setShoppingItems(prev => prev.map(item => 
         item.id === itemId ? { ...item, completed: !item.completed } : item
       ));
-      
     } catch (error) {
-      console.error('Error toggling item:', error);
-      setError('Failed to update item');
+      handleSupabaseError('toggling item complete', error);
     }
   };
 
@@ -170,14 +160,10 @@ export default function ShoppingList() {
         .from('shopping_items')
         .delete()
         .eq('id', itemId);
-      
-      if (error) throw error;
-      
+      if (error) return handleSupabaseError('deleting shopping_item', error);
       setShoppingItems(prev => prev.filter(item => item.id !== itemId));
-      
     } catch (error) {
-      console.error('Error deleting item:', error);
-      setError('Failed to delete item');
+      handleSupabaseError('deleting shopping_item', error);
     }
   };
 
@@ -191,7 +177,6 @@ export default function ShoppingList() {
 
   const saveEditItem = async () => {
     if (!editingItem || !editItemName.trim()) return;
-    
     try {
       const supabase = getSupabaseClient();
       const { error } = await supabase
@@ -203,9 +188,7 @@ export default function ShoppingList() {
           notes: editItemNotes.trim()
         })
         .eq('id', editingItem);
-      
-      if (error) throw error;
-      
+      if (error) return handleSupabaseError('updating shopping_item', error);
       setShoppingItems(prev => prev.map(item => 
         item.id === editingItem 
           ? { 
@@ -217,12 +200,9 @@ export default function ShoppingList() {
             }
           : item
       ));
-      
       setEditingItem(null);
-      
     } catch (error) {
-      console.error('Error updating item:', error);
-      setError('Failed to update item');
+      handleSupabaseError('updating shopping_item', error);
     }
   };
 
@@ -232,7 +212,6 @@ export default function ShoppingList() {
 
   const addCookingNote = async () => {
     if (!user || !newNoteTitle.trim() || !newNoteContent.trim()) return;
-    
     try {
       const supabase = getSupabaseClient();
       const { data, error } = await supabase
@@ -244,16 +223,12 @@ export default function ShoppingList() {
         }])
         .select()
         .single();
-      
-      if (error) throw error;
-      
+      if (error) return handleSupabaseError('adding cooking_note', error);
       setCookingNotes(prev => [data, ...prev]);
       setNewNoteTitle('');
       setNewNoteContent('');
-      
     } catch (error) {
-      console.error('Error adding note:', error);
-      setError('Failed to add cooking note');
+      handleSupabaseError('adding cooking_note', error);
     }
   };
 
@@ -264,14 +239,10 @@ export default function ShoppingList() {
         .from('cooking_notes')
         .delete()
         .eq('id', noteId);
-      
-      if (error) throw error;
-      
+      if (error) return handleSupabaseError('deleting cooking_note', error);
       setCookingNotes(prev => prev.filter(note => note.id !== noteId));
-      
     } catch (error) {
-      console.error('Error deleting note:', error);
-      setError('Failed to delete note');
+      handleSupabaseError('deleting cooking_note', error);
     }
   };
 
@@ -283,7 +254,6 @@ export default function ShoppingList() {
 
   const saveEditNote = async () => {
     if (!editingNote || !editNoteTitle.trim() || !editNoteContent.trim()) return;
-    
     try {
       const supabase = getSupabaseClient();
       const { error } = await supabase
@@ -294,9 +264,7 @@ export default function ShoppingList() {
           updated_at: new Date().toISOString()
         })
         .eq('id', editingNote);
-      
-      if (error) throw error;
-      
+      if (error) return handleSupabaseError('updating cooking_note', error);
       setCookingNotes(prev => prev.map(note => 
         note.id === editingNote 
           ? { 
@@ -307,12 +275,9 @@ export default function ShoppingList() {
             }
           : note
       ));
-      
       setEditingNote(null);
-      
     } catch (error) {
-      console.error('Error updating note:', error);
-      setError('Failed to update note');
+      handleSupabaseError('updating cooking_note', error);
     }
   };
 
@@ -322,7 +287,6 @@ export default function ShoppingList() {
 
   const clearCompletedItems = async () => {
     if (!user) return;
-    
     try {
       const supabase = getSupabaseClient();
       const { error } = await supabase
@@ -330,14 +294,10 @@ export default function ShoppingList() {
         .delete()
         .eq('user_id', user.id)
         .eq('completed', true);
-      
-      if (error) throw error;
-      
+      if (error) return handleSupabaseError('clearing completed shopping_items', error);
       setShoppingItems(prev => prev.filter(item => !item.completed));
-      
     } catch (error) {
-      console.error('Error clearing completed items:', error);
-      setError('Failed to clear completed items');
+      handleSupabaseError('clearing completed shopping_items', error);
     }
   };
 
@@ -357,21 +317,9 @@ export default function ShoppingList() {
 
   // Hero Section
   const HeroSection = () => (
-    <div className="mb-8">
-      <div className="flex items-center gap-4">
-        <div className="relative w-16 h-16 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-pink-200 via-yellow-100 to-green-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-          <FaShoppingCart className="w-8 h-8 text-blue-600" />
-        </div>
-        <div>
-          <h1 className="text-2xl dark:text-white font-semibold">
-            shopping list & notes
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            manage your grocery list and keep track of your cooking experiments
-          </p>
-        </div>
-      </div>
-    </div>
+    <div className="flex justify-between items-center">
+    <h1 className="text-2xl">discover</h1>
+  </div>
   );
 
   // Empty State Component
@@ -395,7 +343,7 @@ export default function ShoppingList() {
         {type === 'shopping' ? (
           <button
             onClick={() => setNewItemName('milk')}
-            className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg"
+            className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg"
           >
             add sample item
           </button>
@@ -405,7 +353,7 @@ export default function ShoppingList() {
               setNewNoteTitle('Perfect Pasta Tip');
               setNewNoteContent('Always salt the water generously - it should taste like seawater!');
             }}
-            className="px-3 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg"
+            className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg"
           >
             add sample note
           </button>
@@ -472,19 +420,19 @@ export default function ShoppingList() {
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
                     placeholder="item name"
-                    className="px-3 py-2 border border-outline bg-transparent hover:border-gray-400 dark:hover:border-gray-600 transition-all duration-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <input
                     type="text"
                     value={newItemQuantity}
                     onChange={(e) => setNewItemQuantity(e.target.value)}
                     placeholder="quantity (e.g., 2 lbs)"
-                    className="px-3 py-2 border border-outline bg-transparent hover:border-gray-400 dark:hover:border-gray-600 transition-all duration-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <select
                     value={newItemCategory}
                     onChange={(e) => setNewItemCategory(e.target.value)}
-                    className="px-3 py-2 border border-outline bg-transparent hover:border-gray-400 dark:hover:border-gray-600 transition-all duration-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     {CATEGORIES.map(category => (
                       <option key={category} value={category}>{category}</option>
@@ -493,7 +441,7 @@ export default function ShoppingList() {
                   <button
                     onClick={addShoppingItem}
                     disabled={!newItemName.trim()}
-                    className="w-10 h-10 p-0 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg disabled:opacity-50 flex items-center justify-center"
+                    className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label="Add item"
                   >
                     <FaPlus className="w-5 h-5" />
@@ -503,7 +451,7 @@ export default function ShoppingList() {
                   value={newItemNotes}
                   onChange={(e) => setNewItemNotes(e.target.value)}
                   placeholder="notes (optional)"
-                  className="w-full px-3 py-2 border border-outline bg-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none hover:border-gray-400 dark:hover:border-gray-600 transition-all duration-200"
+                  className="w-full px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows={2}
                 />
               </div>
@@ -515,7 +463,7 @@ export default function ShoppingList() {
                   {completedCount > 0 && (
                     <button
                       onClick={clearCompletedItems}
-                      className="px-3 py-1 text-sm border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg"
+                      className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       clear completed
                     </button>
@@ -542,18 +490,18 @@ export default function ShoppingList() {
                                 type="text"
                                 value={editItemName}
                                 onChange={(e) => setEditItemName(e.target.value)}
-                                className="px-3 py-2 border border-outline bg-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
                               <input
                                 type="text"
                                 value={editItemQuantity}
                                 onChange={(e) => setEditItemQuantity(e.target.value)}
-                                className="px-3 py-2 border border-outline bg-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
                               <select
                                 value={editItemCategory}
                                 onChange={(e) => setEditItemCategory(e.target.value)}
-                                className="px-3 py-2 border border-outline bg-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               >
                                 {CATEGORIES.map(category => (
                                   <option key={category} value={category}>{category}</option>
@@ -563,20 +511,20 @@ export default function ShoppingList() {
                             <textarea
                               value={editItemNotes}
                               onChange={(e) => setEditItemNotes(e.target.value)}
-                              className="w-full px-3 py-2 border border-outline bg-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                              className="w-full px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                               rows={2}
                             />
                             <div className="flex gap-2">
                               <button
                                 onClick={saveEditItem}
-                                className="px-3 py-1 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg flex items-center gap-1"
+                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <FaSave className="w-3 h-3" />
                                 save
                               </button>
                               <button
                                 onClick={cancelEditItem}
-                                className="px-3 py-1 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg flex items-center gap-1"
+                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <FaTimes className="w-3 h-3" />
                                 cancel
@@ -620,7 +568,7 @@ export default function ShoppingList() {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => startEditItem(item)}
-                                className="p-2 bg-transparent border-none shadow-none outline-none transition-all duration-300 hover:scale-125 hover:opacity-80 active:scale-95 flex items-center"
+                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                                 aria-label="Edit item"
                               >
                                 <svg className="w-5 h-5 text-blue-500 hover:text-blue-600 transition-colors duration-200" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
@@ -630,7 +578,7 @@ export default function ShoppingList() {
                               </button>
                               <button
                                 onClick={() => deleteShoppingItem(item.id)}
-                                className="p-2 bg-transparent border-none shadow-none outline-none text-red-500 transition-all duration-300 hover:scale-125 hover:opacity-80 hover:text-red-600 active:scale-95 flex items-center"
+                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                                 aria-label="Delete item"
                               >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
@@ -659,19 +607,19 @@ export default function ShoppingList() {
                   value={newNoteTitle}
                   onChange={(e) => setNewNoteTitle(e.target.value)}
                   placeholder="note title"
-                  className="w-full px-3 py-2 border border-outline bg-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3 hover:border-gray-400 dark:hover:border-gray-600 transition-all duration-200"
+                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 <textarea
                   value={newNoteContent}
                   onChange={(e) => setNewNoteContent(e.target.value)}
                   placeholder="write your cooking notes here..."
-                  className="w-full px-3 py-2 border border-outline bg-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none mb-3 hover:border-gray-400 dark:hover:border-gray-600 transition-all duration-200"
+                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none mb-3 hover:border-gray-400 dark:hover:border-gray-600 transition-all duration-200"
                   rows={4}
                 />
                 <button
                   onClick={addCookingNote}
                   disabled={!newNoteTitle.trim() || !newNoteContent.trim()}
-                  className="p-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg disabled:opacity-50"
+                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg disabled:opacity-50"
                 >
                   <FaPlus className="w-4 h-4" />
                 </button>
@@ -696,25 +644,25 @@ export default function ShoppingList() {
                               type="text"
                               value={editNoteTitle}
                               onChange={(e) => setEditNoteTitle(e.target.value)}
-                              className="w-full px-3 py-2 border border-outline bg-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                             <textarea
                               value={editNoteContent}
                               onChange={(e) => setEditNoteContent(e.target.value)}
-                              className="w-full px-3 py-2 border border-outline bg-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                              className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                               rows={4}
                             />
                             <div className="flex gap-2">
                               <button
                                 onClick={saveEditNote}
-                                className="px-3 py-1 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg flex items-center gap-1"
+                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <FaSave className="w-3 h-3" />
                                 save
                               </button>
                               <button
                                 onClick={cancelEditNote}
-                                className="px-3 py-1 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg flex items-center gap-1"
+                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <FaTimes className="w-3 h-3" />
                                 cancel
@@ -728,7 +676,7 @@ export default function ShoppingList() {
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => startEditNote(note)}
-                                  className="p-2 bg-transparent border-none shadow-none outline-none transition-all duration-300 hover:scale-125 hover:opacity-80 active:scale-95 flex items-center"
+                                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                                   aria-label="Edit note"
                                 >
                                   <svg className="w-5 h-5 text-blue-500 hover:text-blue-600 transition-colors duration-200" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
@@ -738,7 +686,7 @@ export default function ShoppingList() {
                                 </button>
                                 <button
                                   onClick={() => deleteCookingNote(note.id)}
-                                  className="p-2 bg-transparent border-none shadow-none outline-none text-red-500 transition-all duration-300 hover:scale-125 hover:opacity-80 hover:text-red-600 active:scale-95 flex items-center"
+                                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                                   aria-label="Delete note"
                                 >
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">

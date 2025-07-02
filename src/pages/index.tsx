@@ -65,7 +65,7 @@ export default function Index() {
           <div className="mb-8">
             {/* Hero Visual */}
             <div className="mx-auto mb-8 flex items-center justify-center">
-              <svg className="w-32 h-32 text-white drop-shadow-xl" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 48 48">
+              <svg className="w-32 h-32 text-outline dark:text-white drop-shadow-xl" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 48 48">
                 <path d="M14 4v14a4 4 0 0 0 4 4h0a4 4 0 0 0 4-4V4" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M14 24v18a4 4 0 0 0 4 4h0a4 4 0 0 0 4-4V24" strokeLinecap="round" strokeLinejoin="round"/>
                 <rect x="30" y="4" width="4" height="38" rx="2" strokeLinecap="round" strokeLinejoin="round"/>
