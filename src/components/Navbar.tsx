@@ -432,14 +432,6 @@ export default function Navbar() {
                           profile
                         </Link>
                         <Link
-                          href="/shopping-list"
-                          className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
-                          style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}
-                          onClick={() => setShowSettings(false)}
-                        >
-                          shopping list
-                        </Link>
-                        <Link
                           href="/account"
                           className="block px-4 py-2 text-base font-normal hover:opacity-80 transition-opacity"
                           style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}

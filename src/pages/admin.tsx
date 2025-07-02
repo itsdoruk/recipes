@@ -1056,7 +1056,7 @@ export default function AdminPanel() {
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="px-3 py-2 border border-outline bg-transparent rounded-lg hover:opacity-80 transition-opacity disabled:opacity-50"
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
               >
                 {isSaving ? toLower('saving...') : toLower('save changes')}
               </button>
@@ -1118,7 +1118,7 @@ export default function AdminPanel() {
               <select 
                 value={reportStatus}
                 onChange={(e) => setReportStatus(e.target.value as 'under review' | 'resolved' | 'all')}
-                className="px-3 py-2 border border-outline bg-transparent rounded-lg"
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
               >
                 <option value="all">{toLower('all reports')}</option>
                 <option value="under review">{toLower('under review')}</option>
@@ -1287,12 +1287,12 @@ export default function AdminPanel() {
                 type="text"
                 placeholder={toLower('search by username or email...')}
                 onChange={e => debouncedSearch(e.target.value)}
-                className="px-3 py-2 border border-outline bg-transparent rounded-lg"
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
               />
               <select 
                 value={filter}
                 onChange={(e) => setFilter(e.target.value as 'all' | 'banned' | 'warned')}
-                className="px-3 py-2 border border-outline bg-transparent rounded-lg"
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
               >
                 <option value="all">{toLower('all users')}</option>
                 <option value="banned">{toLower('banned users')}</option>
@@ -1441,7 +1441,7 @@ export default function AdminPanel() {
                 type="text"
                 placeholder={toLower('search audit log...')}
                 onChange={e => setAuditSearch(e.target.value)}
-                className="px-3 py-2 border border-outline bg-transparent rounded-lg"
+                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
               />
             </div>
             <div className="space-y-2 max-h-96 overflow-y-auto">

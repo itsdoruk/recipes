@@ -212,14 +212,14 @@ export default function DiscoverPage() {
   useEffect(() => {
     // Fetch recipes when user, blockedUsers, or preferences change
     if (user) {
-      fetchRecipes();
+    fetchRecipes();
     }
   }, [user, blockedUsers, preferences]);
 
   useEffect(() => {
     // Only fetch AI recipes when preferences change
     if (user) {
-      fetchAiRecipes();
+    fetchAiRecipes();
     }
   }, [preferences, user]);
 
@@ -380,7 +380,7 @@ export default function DiscoverPage() {
   };
 
   const handleNext = () => {
-    setCurrentStep(prev => prev + 1);
+      setCurrentStep(prev => prev + 1);
   };
 
   const handleBack = () => {

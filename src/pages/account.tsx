@@ -187,7 +187,7 @@ export default function AccountPage() {
           try {
             const res = await fetch(`/api/recipes/${recipeId}`);
             if (res.ok) {
-              const data = await res.json();
+            const data = await res.json();
               starredRecipesList.push({ ...data, recipe_type: 'ai', user_id: data.user_id || session.user.id });
             }
           } catch (error) {
@@ -197,7 +197,7 @@ export default function AccountPage() {
         // Sort by created_at descending
         starredRecipesList.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setStarredRecipes(starredRecipesList);
-      } catch (e) {
+          } catch (e) {
         setStarredRecipes([]);
       } finally {
         setStarredLoading(false);
@@ -450,7 +450,7 @@ export default function AccountPage() {
                     className="hidden"
                 disabled={isUploading}
                     ref={avatarInputRef}
-                  />
+              />
                   <button
                     type="button"
                     onClick={handleSignOut}
@@ -585,7 +585,7 @@ export default function AccountPage() {
                       </div>
                       <div>
                           <div className="font-medium text-[var(--foreground)]">{blockedUser.username || '[recipes] user'}</div>
-                        </div>
+                      </div>
                     </div>
                     <button
                       onClick={() => {

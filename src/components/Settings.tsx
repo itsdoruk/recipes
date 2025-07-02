@@ -99,7 +99,7 @@ export default function Settings() {
             id="theme"
             value={theme}
             onChange={(e) => setTheme(e.target.value)}
-            className="w-full h-10 px-3 border border-gray-200 dark:border-gray-800 bg-transparent hover:opacity-80 transition-opacity rounded-xl"
+            className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
           >
             <option value="system">system</option>
             <option value="light">light</option>
@@ -131,15 +131,13 @@ export default function Settings() {
                 setShowUnblockModal(false);
                 setSelectedUser(null);
               }}
-              className="px-4 py-2 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
-              style={{ color: 'var(--foreground)', background: 'var(--background)' }}
+              className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
               cancel
             </button>
             <button
               onClick={() => selectedUser && handleUnblock(selectedUser.user_id)}
-              className="px-4 py-2 border border-gray-200 dark:border-gray-800 font-medium cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
-              style={{ color: 'var(--accent)', background: 'var(--background)' }}
+              className="px-6 py-3 border border-outline bg-transparent text-[var(--accent)] hover:opacity-80 transition-opacity rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
               unblock
             </button>

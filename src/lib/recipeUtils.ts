@@ -314,21 +314,34 @@ export const getAIRecipes = async (): Promise<{ recipes: any[]; error: Error | n
       throw new Error('Failed to initialize Supabase client');
     }
 
-    // Only fetch AI recipes from Supabase on the client.
-    // If you need to regenerate, trigger it from the server (e.g., /api/regen-ai-recipes or admin panel).
+    // Fetch more AI recipes to improve deduplication
     const { data: recipes, error } = await supabase
       .from('recipes')
       .select('*')
       .eq('recipe_type', 'ai')
+      .not('image_url', 'is', null)
+      .not('image_url', 'eq', '')
       .order('created_at', { ascending: false })
-      .limit(15);
+      .limit(50);
 
     if (error) {
       console.error('Error fetching AI recipes:', error);
       throw error;
     }
 
-    return { recipes: recipes || [], error: null };
+    // Deduplicate by title (case-insensitive)
+    const seenTitles = new Set();
+    const uniqueRecipes = (recipes || []).filter((recipe: any) => {
+      const title = recipe.title?.toLowerCase().trim();
+      if (!title || seenTitles.has(title)) return false;
+      seenTitles.add(title);
+      return true;
+    });
+
+    // Shuffle and return only the top 15 unique recipes
+    const shuffledRecipes = uniqueRecipes.sort(() => Math.random() - 0.5).slice(0, 15);
+
+    return { recipes: shuffledRecipes, error: null };
   } catch (error) {
     console.error('Error in getAIRecipes:', error);
     return { 
