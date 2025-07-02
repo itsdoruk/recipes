@@ -409,10 +409,6 @@ export default function DiscoverPage() {
         <div className="space-y-8">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl">discover</h1>
-            <div className="flex items-center gap-4">
-              {/* Notification bell and avatar/profile */}
-              {/* Existing avatar/profile code here */}
-            </div>
           </div>
           {currentStep <= 3 ? (
             <div className="space-y-8">

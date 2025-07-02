@@ -6,6 +6,7 @@ import { useProfile } from '@/hooks/useProfile';
 import ReportButton from './ReportButton';
 import { marked } from 'marked';
 import { useCommentNotifications } from '@/hooks/useNotifications';
+import { MdEdit, MdDelete, MdReport } from 'react-icons/md';
 
 interface Comment {
   id: string;
@@ -40,11 +41,41 @@ export default function Comments({ recipeId }: CommentsProps) {
   const [editingComment, setEditingComment] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [imageUploading, setImageUploading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const supabase = getBrowserClient();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { sendCommentNotification } = useCommentNotifications();
+
+  // Check if user is admin
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!user?.id) {
+        setIsAdmin(false);
+        return;
+      }
+      
+      try {
+        const { data: profileData, error } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('user_id', user.id)
+          .single();
+          
+        if (!error && profileData?.is_admin) {
+          setIsAdmin(true);
+        } else {
+          setIsAdmin(false);
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        setIsAdmin(false);
+      }
+    };
+    
+    checkAdminStatus();
+  }, [user?.id, supabase]);
 
   const fetchComments = async () => {
     try {
@@ -125,7 +156,19 @@ export default function Comments({ recipeId }: CommentsProps) {
 
   const handleDelete = async (commentId: string) => {
     if (!user) return;
-    if (!confirm('Are you sure you want to delete this comment?')) return;
+    
+    // Find the comment to check ownership
+    const comment = comments.find(c => c.id === commentId);
+    if (!comment) return;
+    
+    // Only allow deletion if user is comment owner or admin
+    if (comment.user_id !== user.id && !isAdmin) return;
+    
+    const confirmMessage = isAdmin && comment.user_id !== user.id 
+      ? 'Are you sure you want to delete this user\'s comment as an admin?' 
+      : 'Are you sure you want to delete this comment?';
+    
+    if (!confirm(confirmMessage)) return;
 
     try {
       const { error } = await supabase
@@ -135,7 +178,7 @@ export default function Comments({ recipeId }: CommentsProps) {
 
       if (error) throw error;
 
-      fetchComments();
+      window.location.href = '/home';
     } catch (error) {
       console.error('Error deleting comment:', error);
       setError('failed to delete comment');
@@ -364,7 +407,7 @@ export default function Comments({ recipeId }: CommentsProps) {
               <button
                 type="submit"
                 disabled={isLoading || !newComment.trim()}
-                className="mt-2 px-3 py-2 border border-outline transition-all duration-300 hover:scale-110 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 rounded-xl"
+                className="mt-2 px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'posting...' : 'post comment'}
               </button>
@@ -399,25 +442,27 @@ export default function Comments({ recipeId }: CommentsProps) {
                     {user?.id === comment.user_id && (
                       <button
                         onClick={() => startEditing(comment)}
-                        className="p-2 bg-transparent border-none shadow-none outline-none transition-all duration-300 hover:scale-125 hover:opacity-80 active:scale-95 flex items-center"
+                        className="w-10 h-10 flex items-center justify-center bg-transparent text-yellow-500 hover:scale-125 hover:opacity-80 active:scale-95 transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="Edit comment"
+                        title="Edit comment"
                       >
-                        <svg className="w-5 h-5 text-blue-500 hover:text-blue-600 transition-colors duration-200" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M4 13.5V16h2.5l7.06-7.06-2.5-2.5L4 13.5z"/><path d="M14.06 6.94a1.5 1.5 0 0 0 0-2.12l-1.88-1.88a1.5 1.5 0 0 0-2.12 0l-1.06 1.06 4 4 1.06-1.06z"/></svg>
+                        <MdEdit className="w-6 h-6" />
                       </button>
                     )}
-                    {(user?.id === comment.user_id || user?.user_metadata?.is_admin) && (
+                    {(user?.id === comment.user_id || isAdmin) && (
                       <button
                         onClick={() => handleDelete(comment.id)}
-                        className="p-2 bg-transparent border-none shadow-none outline-none text-red-500 transition-all duration-300 hover:scale-125 hover:opacity-80 hover:text-red-600 active:scale-95 flex items-center"
+                        className="w-10 h-10 flex items-center justify-center bg-transparent text-red-500 hover:scale-125 hover:opacity-80 active:scale-95 transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="Delete comment"
+                        title={isAdmin && comment.user_id !== user?.id ? "Delete comment (admin)" : "Delete comment"}
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M6 6v8m4-8v8m4-8v8M3 6h14M5 6V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg>
+                        <MdDelete className="w-6 h-6" />
                       </button>
                     )}
                     <ReportButton
                       recipeId={comment.id}
                       recipeType="message"
-                      className="text-sm px-2 py-1"
+                      className="w-10 h-10 flex items-center justify-center bg-transparent text-yellow-500 hover:scale-125 hover:opacity-80 active:scale-95 transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>

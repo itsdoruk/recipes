@@ -495,7 +495,7 @@ export async function unlinkGoogleAccount(): Promise<{ error: Error | null }> {
     console.error('Error in unlinkGoogleAccount:', error);
     return { error: error as Error };
   }
-}
+} 
 
 export async function signInWithGithub(redirectTo?: string): Promise<{ error: Error | null }> {
   try {

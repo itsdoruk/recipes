@@ -118,6 +118,14 @@ export default function AIRecipe() {
         setAiLoading(true);
         setError(null);
         try {
+          // First regenerate AI recipes to get fresh ones
+          const regenRes = await fetch('/api/regen-ai-recipes', { method: 'POST' });
+          if (!regenRes.ok) {
+            const errData = await regenRes.json();
+            throw new Error(errData.error || 'Failed to refresh AI recipes');
+          }
+          
+          // Then fetch the fresh recipes
           const { recipes, error: fetchError } = await getAIRecipes();
           if (fetchError) {
             throw fetchError;
@@ -135,19 +143,22 @@ export default function AIRecipe() {
   }, [router.query.id]);
 
   // Filtered recipes (ensure lowercase and fallback to 'unknown')
-  const filteredRecipes = aiRecipes.filter(r => {
-    const cuisine = (r.cuisine_type || 'unknown').toLowerCase();
-    const diet = (r.diet_type || 'unknown').toLowerCase();
-    const time = r.cooking_time_value || parseCookingTime(r.cooking_time) || 0;
-    const filterCuisine = filters.cuisine ? filters.cuisine.toLowerCase() : undefined;
-    const filterDiet = filters.diet ? filters.diet.toLowerCase() : undefined;
-    const filterTime = filters.maxReadyTime;
-    return (
-      (!filterCuisine || cuisine === filterCuisine) &&
-      (!filterDiet || diet === filterDiet) &&
-      (!filterTime || (time > 0 && time <= filterTime))
-    );
-  });
+  // Also filter out recipes without images
+  const filteredRecipes = aiRecipes
+    .filter(r => r.image_url && r.image_url.trim() !== '')
+    .filter(r => {
+      const cuisine = (r.cuisine_type || 'unknown').toLowerCase();
+      const diet = (r.diet_type || 'unknown').toLowerCase();
+      const time = r.cooking_time_value || parseCookingTime(r.cooking_time) || 0;
+      const filterCuisine = filters.cuisine ? filters.cuisine.toLowerCase() : undefined;
+      const filterDiet = filters.diet ? filters.diet.toLowerCase() : undefined;
+      const filterTime = filters.maxReadyTime;
+      return (
+        (!filterCuisine || cuisine === filterCuisine) &&
+        (!filterDiet || diet === filterDiet) &&
+        (!filterTime || (time > 0 && time <= filterTime))
+      );
+    });
 
   if (authLoading) {
     return <div className="flex justify-center items-center min-h-screen">loading...</div>;

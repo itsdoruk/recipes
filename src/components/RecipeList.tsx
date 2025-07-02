@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import RecipeCard from './RecipeCard';
 
 interface Recipe {
@@ -25,6 +25,24 @@ interface RecipeListProps {
 
 export default function RecipeList({ recipes, onLike, onComment }: RecipeListProps) {
   const [error, setError] = useState<string | null>(null);
+  const [fontSizeClass, setFontSizeClass] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const updateFontSize = () => {
+        const bodyClass = document.body.className;
+        const match = bodyClass.match(/font-size-(normal|large|xlarge)/);
+        setFontSizeClass(match ? match[0] : '');
+      };
+      updateFontSize();
+      window.addEventListener('storage', updateFontSize);
+      window.addEventListener('resize', updateFontSize);
+      return () => {
+        window.removeEventListener('storage', updateFontSize);
+        window.removeEventListener('resize', updateFontSize);
+      };
+    }
+  }, []);
 
   if (error) {
     return (
@@ -43,7 +61,7 @@ export default function RecipeList({ recipes, onLike, onComment }: RecipeListPro
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div key={fontSizeClass} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {recipes.map((recipe) => (
         <RecipeCard
           key={recipe.id}

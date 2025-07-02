@@ -17,10 +17,10 @@ export default function App({ Component, pageProps }: AppProps) {
       <SessionContextProvider supabaseClient={supabaseClient}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <ProfileProvider>
-            <Layout>
+          <Layout>
               <PizzaTimeEasterEgg />
-              <Component {...pageProps} />
-            </Layout>
+            <Component {...pageProps} />
+          </Layout>
           </ProfileProvider>
         </ThemeProvider>
       </SessionContextProvider>

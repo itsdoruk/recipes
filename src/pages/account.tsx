@@ -260,10 +260,10 @@ export default function AccountPage() {
       
       // Use the new updateProfile method from ProfileContext
       await updateProfile({
-        username: form.username,
-        bio: form.bio,
-        show_email: form.show_email,
-        dietary_restrictions: form.dietary_restrictions,
+          username: form.username,
+          bio: form.bio,
+          show_email: form.show_email,
+          dietary_restrictions: form.dietary_restrictions,
         cooking_skill_level: form.cooking_skill_level
       });
 

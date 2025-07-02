@@ -25,6 +25,7 @@ import RecipeCard from '@/components/RecipeCard';
 import { formatDistanceToNow } from 'date-fns';
 import RecipePageSkeleton from '@/components/RecipePageSkeleton';
 import Avatar from '@/components/Avatar';
+import { MdEdit, MdDelete } from 'react-icons/md';
 
 function hasUserId(recipe: any): recipe is { user_id: string } {
   return recipe && typeof recipe.user_id === 'string';
@@ -126,10 +127,49 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
   const [ownerProfile, setOwnerProfile] = useState<any>(null);
   const [ownerProfileLoading, setOwnerProfileLoading] = useState(true);
   const [showNutrition, setShowNutrition] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check if user is admin
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!user?.id) {
+        setIsAdmin(false);
+        return;
+      }
+      
+      try {
+        const { data: profileData, error } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('user_id', user.id)
+          .single();
+          
+        if (!error && profileData?.is_admin) {
+          setIsAdmin(true);
+        } else {
+          setIsAdmin(false);
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        setIsAdmin(false);
+      }
+    };
+    
+    checkAdminStatus();
+  }, [user?.id, supabase]);
 
   const handleDelete = async () => {
-    if (!recipe || !user || recipe.user_id !== user.id) return;
-    if (!confirm('are you sure you want to delete this recipe?')) return;
+    if (!recipe || !user) return;
+    
+    // Only allow deletion if user is owner or admin
+    if (recipe.user_id !== user.id && !isAdmin) return;
+    
+    const confirmMessage = isAdmin && recipe.user_id !== user.id 
+      ? 'Are you sure you want to delete this user\'s recipe as an admin?' 
+      : 'Are you sure you want to delete this recipe?';
+    
+    if (!confirm(confirmMessage)) return;
+    
     setIsDeleting(true);
     try {
       let deleteQuery = supabase.from('recipes').delete();
@@ -142,7 +182,7 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
       }
       const { error: deleteError } = await deleteQuery;
       if (deleteError) throw deleteError;
-      router.push('/');
+      router.push('/home');
     } catch (err) {
       console.error('Error deleting recipe:', err);
       setError('failed to delete recipe');
@@ -189,6 +229,7 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
   }
 
   const isOwner = user?.id && hasUserId(recipe) && user.id === recipe.user_id;
+  const canDelete = isOwner || isAdmin;
 
   return (
     <>
@@ -231,13 +272,12 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
                 <span className="font-medium prose prose-invert">AI Recipe</span>
               ) : (
                 <>
-                  {ownerProfile?.avatar_url && (
-                    <img
-                      src={ownerProfile.avatar_url}
-                      alt={ownerProfile.username || '[recipes] user'}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  )}
+                  <Avatar
+                    avatar_url={ownerProfile?.avatar_url}
+                    username={ownerProfile?.username || '[recipes] user'}
+                    size={32}
+                    className="bg-gray-200 text-gray-800 dark:bg-gray-900 dark:text-gray-200 font-bold"
+                  />
                   <Link
                     href={`/user/${recipe.user_id}`}
                     className="text-gray-500 dark:text-gray-400 hover:underline"
@@ -249,22 +289,24 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
               <span className="text-gray-500 dark:text-gray-400">
                 • {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString() : ''}
               </span>
-              {isOwner && hasId(recipe) && (
+              {canDelete && hasId(recipe) && (
                 <div className="flex gap-2 ml-auto">
                   <Link
                     href={`/edit-recipe/${recipe.id}`}
-                    className="p-2 bg-transparent border-none shadow-none outline-none hover:opacity-80 transition-opacity flex items-center"
+                    className="w-10 h-10 flex items-center justify-center bg-transparent text-yellow-500 hover:scale-125 hover:opacity-80 active:scale-95 transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label="Edit recipe"
+                    title="Edit recipe"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M4 13.5V16h2.5l7.06-7.06-2.5-2.5L4 13.5z"/><path d="M14.06 6.94a1.5 1.5 0 0 0 0-2.12l-1.88-1.88a1.5 1.5 0 0 0-2.12 0l-1.06 1.06 4 4 1.06-1.06z"/></svg>
+                    <MdEdit className="w-6 h-6" />
                   </Link>
                   <button
                     onClick={handleDelete}
                     disabled={isDeleting}
-                    className="p-2 bg-transparent border-none shadow-none outline-none text-red-500 hover:opacity-80 transition-opacity flex items-center"
+                    className="w-10 h-10 flex items-center justify-center bg-transparent text-red-500 hover:scale-125 hover:opacity-80 active:scale-95 transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label="Delete recipe"
+                    title={isAdmin && !isOwner ? "Delete recipe (admin)" : "Delete recipe"}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20"><path d="M6 6v8m4-8v8m4-8v8M3 6h14M5 6V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg>
+                    <MdDelete className="w-6 h-6" />
                   </button>
                 </div>
               )}
@@ -308,8 +350,8 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
           </div>
 
           {showNutrition && (
-            <div>
-              <h2 className="text-xl mb-4 mt-8">nutrition</h2>
+          <div>
+            <h2 className="text-xl mb-4 mt-8">nutrition</h2>
               {(() => {
                 // Bulletproof Spoonacular detection
                 const recipeType = typeof recipe.recipe_type === 'string' ? recipe.recipe_type.trim().toLowerCase() : '';
@@ -367,62 +409,62 @@ export default function RecipePage({ recipe, lastUpdated, error: serverError }: 
                 }
                 // Not a Spoonacular recipe: show full grid
                 return (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                      { label: 'Calories', key: 'calories', spoonacularName: 'Calories' },
-                      { label: 'Protein', key: 'protein', spoonacularName: 'Protein' },
-                      { label: 'Fat', key: 'fat', spoonacularName: 'Fat' },
-                      { label: 'Carbohydrates', key: 'carbohydrates', spoonacularName: 'Carbohydrates' }
-                    ].map(({ label, key, spoonacularName }) => {
-                      let value = 'N/A';
-                      // 1. Try database nutrition format (for all recipe types)
-                      if (recipe.nutrition && typeof recipe.nutrition === 'object') {
-                        const nutritionValue = recipe.nutrition[key as keyof typeof recipe.nutrition];
-                        if (nutritionValue && typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
-                          value = nutritionValue;
-                        }
-                      }
-                      // 2. Try Spoonacular API nutrition format (fallback)
-                      else if (
-                        recipe.nutrition &&
-                        typeof recipe.nutrition === 'object' &&
-                        Array.isArray((recipe.nutrition as any).nutrients)
-                      ) {
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Calories', key: 'calories', spoonacularName: 'Calories' },
+                { label: 'Protein', key: 'protein', spoonacularName: 'Protein' },
+                { label: 'Fat', key: 'fat', spoonacularName: 'Fat' },
+                { label: 'Carbohydrates', key: 'carbohydrates', spoonacularName: 'Carbohydrates' }
+              ].map(({ label, key, spoonacularName }) => {
+                let value = 'N/A';
+                // 1. Try database nutrition format (for all recipe types)
+                if (recipe.nutrition && typeof recipe.nutrition === 'object') {
+                  const nutritionValue = recipe.nutrition[key as keyof typeof recipe.nutrition];
+                  if (nutritionValue && typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
+                    value = nutritionValue;
+                  }
+                }
+                // 2. Try Spoonacular API nutrition format (fallback)
+                else if (
+                  recipe.nutrition &&
+                  typeof recipe.nutrition === 'object' &&
+                  Array.isArray((recipe.nutrition as any).nutrients)
+                ) {
                         const nutrients = (recipe.nutrition as any).nutrients as { name: string; amount: number; unit: string }[];
-                        const nutrient = nutrients.find(
+                  const nutrient = nutrients.find(
                           (n) => n.name === spoonacularName
-                        );
-                        if (nutrient) {
-                          value = `${Math.round(nutrient.amount)} ${nutrient.unit}`;
-                        }
-                      }
-                      // 3. Try legacy nutrition fields (for backward compatibility)
-                      else if (recipe[key as keyof typeof recipe]) {
-                        const nutritionValue = recipe[key as keyof typeof recipe];
-                        if (typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
-                          value = nutritionValue;
-                        } else if (typeof nutritionValue === 'number') {
-                          value = nutritionValue.toString();
-                        }
-                      }
-                      // 4. Fallback: extract from summary or description
-                      else {
-                        const fallback = extractNutritionFromText(recipe.summary || recipe.description || '');
-                        if (fallback[key as keyof typeof fallback] && fallback[key as keyof typeof fallback] !== 'N/A') {
+                  );
+                  if (nutrient) {
+                    value = `${Math.round(nutrient.amount)} ${nutrient.unit}`;
+                  }
+                }
+                // 3. Try legacy nutrition fields (for backward compatibility)
+                else if (recipe[key as keyof typeof recipe]) {
+                  const nutritionValue = recipe[key as keyof typeof recipe];
+                  if (typeof nutritionValue === 'string' && nutritionValue !== 'unknown') {
+                    value = nutritionValue;
+                  } else if (typeof nutritionValue === 'number') {
+                    value = nutritionValue.toString();
+                  }
+                }
+                // 4. Fallback: extract from summary or description
+                else {
+                  const fallback = extractNutritionFromText(recipe.summary || recipe.description || '');
+                  if (fallback[key as keyof typeof fallback] && fallback[key as keyof typeof fallback] !== 'N/A') {
                           value = fallback[key as keyof typeof fallback] as string;
-                        }
-                      }
-                      return (
+                  }
+                }
+                return (
                         <div key={key} className="text-center">
-                          <div className="text-lg font-bold">{value}</div>
-                          <div className="text-gray-500 dark:text-gray-400 text-sm">{label.toLowerCase()}</div>
-                        </div>
-                      );
-                    })}
+                    <div className="text-lg font-bold">{value}</div>
+                    <div className="text-gray-500 dark:text-gray-400 text-sm">{label.toLowerCase()}</div>
                   </div>
                 );
-              })()}
+              })}
             </div>
+                );
+              })()}
+          </div>
           )}
 
           {recipe.ingredients && (

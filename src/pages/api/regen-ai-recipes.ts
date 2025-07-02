@@ -8,6 +8,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const supabase = getServerClient();
+    
+    // Get the current session
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    // Check if user is admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('user_id', session.user.id)
+      .single();
+      
+    if (profileError) {
+      console.error('Error checking admin status:', profileError);
+      return res.status(500).json({ error: 'Failed to verify admin status' });
+    }
+    
+    if (!profile?.is_admin) {
+      return res.status(403).json({ error: 'Forbidden: Admin access required' });
+    }
+    
     // Delete all AI recipes
     const { error: deleteError } = await supabase
       .from('recipes')

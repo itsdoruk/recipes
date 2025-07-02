@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { useUser } from '@supabase/auth-helpers-react';
+import { useAuth } from '@/lib/hooks/useAuth';
 import { getSupabaseClient } from '@/lib/supabase';
-import { FaPlus, FaTrash, FaEdit, FaCheck, FaTimes, FaShoppingCart, FaStickyNote, FaSave } from 'react-icons/fa';
+import { FaPlus, FaCheck, FaTimes, FaShoppingCart, FaStickyNote, FaSave } from 'react-icons/fa';
+import { MdEdit, MdDelete } from 'react-icons/md';
 
 interface ShoppingItem {
   id: string;
@@ -40,7 +41,7 @@ const CATEGORIES = [
 
 export default function ShoppingList() {
   const router = useRouter();
-  const user = useUser();
+  const { session, user, loading: sessionLoading } = useAuth();
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([]);
   const [cookingNotes, setCookingNotes] = useState<CookingNote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,12 +67,15 @@ export default function ShoppingList() {
   const [activeTab, setActiveTab] = useState<'shopping' | 'notes'>('shopping');
 
   useEffect(() => {
-    if (!user) {
-      router.push('/login');
+    if (sessionLoading) return;
+    if (!session) {
+      router.push('/login?redirectTo=/shopping-list');
       return;
     }
-    loadData();
-  }, [user]);
+    if (user) {
+      loadData();
+    }
+  }, [session, sessionLoading, user]);
 
   // Helper to handle and log errors
   const handleSupabaseError = (context: string, error: any) => {
@@ -304,23 +308,47 @@ export default function ShoppingList() {
   const completedCount = shoppingItems.filter(item => item.completed).length;
   const totalCount = shoppingItems.length;
 
-  if (isLoading) {
+  if (sessionLoading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
-          <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
+        <div className="animate-pulse space-y-8">
+          {/* Skeleton for add new item form */}
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-4 items-end">
+            <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl" />
+            <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl" />
+            <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-xl" />
+            <div className="h-12 w-12 bg-gray-200 dark:bg-gray-700 rounded-xl" />
+          </div>
+          {/* Skeleton for notes textarea */}
+          <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded-xl" />
+          {/* Skeleton for section title */}
+          <div className="h-8 w-1/3 bg-gray-200 dark:bg-gray-700 rounded mb-4" />
+          {/* Skeleton for shopping list items */}
+          <div className="space-y-2">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-4 border border-outline rounded-xl">
+                <div className="w-5 h-5 bg-gray-200 dark:bg-gray-700 rounded" />
+                <div className="flex-1 flex items-center gap-2">
+                  <div className="h-5 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
+                  <div className="h-5 w-12 bg-gray-200 dark:bg-gray-700 rounded" />
+                  <div className="h-5 w-12 bg-gray-300 dark:bg-gray-800 rounded-full" />
+                </div>
+                <div className="flex gap-2">
+                  <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-xl" />
+                  <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-xl" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
-  // Hero Section
-  const HeroSection = () => (
-    <div className="flex justify-between items-center">
-    <h1 className="text-2xl">discover</h1>
-  </div>
-  );
+  // Show nothing while redirecting to login
+  if (!session) {
+    return null;
+  }
 
   // Empty State Component
   const EmptyState = ({ type }: { type: 'shopping' | 'notes' }) => (
@@ -362,16 +390,34 @@ export default function ShoppingList() {
     </div>
   );
 
+  // Hero Section from commit 3213128ff4759e7a47cc0899ae7ad3cb9f567bf5
+  const HeroSection = () => (
+    <div className="mb-8">
+      <div className="flex items-center gap-4">
+        <div className="relative w-16 h-16 rounded-full overflow-hidden flex items-center justify-center bg-[var(--background)]">
+          <FaShoppingCart className="w-8 h-8 text-[var(--foreground)]" />
+        </div>
+        <div>
+          <h1 className="text-2xl dark:text-white">
+            shopping list & notes
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400">
+            manage your grocery list and keep track of your cooking experiments
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <Head>
-        <title>shopping list & notes | [recipes]</title>
+        <title>The Shopping List | [recipes]</title>
       </Head>
 
       <main className="max-w-2xl mx-auto px-4 py-8 rounded-2xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+        <HeroSection />
         <div className="space-y-8">
-          <HeroSection />
-
           {error && (
             <div className="p-4 border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
               <p className="text-red-600 dark:text-red-400">{error}</p>
@@ -427,15 +473,20 @@ export default function ShoppingList() {
                     placeholder="quantity (e.g., 2 lbs)"
                     className="w-full px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  <select
-                    value={newItemCategory}
-                    onChange={(e) => setNewItemCategory(e.target.value)}
-                    className="w-full px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    {CATEGORIES.map(category => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                  </select>
+                  <div className="relative w-full">
+                    <select
+                      value={newItemCategory}
+                      onChange={(e) => setNewItemCategory(e.target.value)}
+                      className="w-full px-6 py-3 pr-10 border border-outline bg-transparent text-[var(--foreground)] appearance-none hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {CATEGORIES.map(category => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" /></svg>
+                    </span>
+                  </div>
                   <button
                     onClick={addShoppingItem}
                     disabled={!newItemName.trim()}
@@ -457,7 +508,7 @@ export default function ShoppingList() {
               {/* Shopping List Items */}
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-2xl font-semibold">shopping list</h2>
+                  <h2 className="text-2xl font-semibold">The Shopping List</h2>
                   {completedCount > 0 && (
                     <button
                       onClick={clearCompletedItems}
@@ -496,15 +547,20 @@ export default function ShoppingList() {
                                 onChange={(e) => setEditItemQuantity(e.target.value)}
                                 className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
-                              <select
-                                value={editItemCategory}
-                                onChange={(e) => setEditItemCategory(e.target.value)}
-                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              >
-                                {CATEGORIES.map(category => (
-                                  <option key={category} value={category}>{category}</option>
-                                ))}
-                              </select>
+                              <div className="relative w-full">
+                                <select
+                                  value={editItemCategory}
+                                  onChange={(e) => setEditItemCategory(e.target.value)}
+                                  className="px-6 py-3 pr-10 border border-outline bg-transparent text-[var(--foreground)] appearance-none hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
+                                >
+                                  {CATEGORIES.map(category => (
+                                    <option key={category} value={category}>{category}</option>
+                                  ))}
+                                </select>
+                                <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center">
+                                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" /></svg>
+                                </span>
+                              </div>
                             </div>
                             <textarea
                               value={editItemNotes}
@@ -566,22 +622,19 @@ export default function ShoppingList() {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => startEditItem(item)}
-                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-10 h-10 flex items-center justify-center bg-transparent text-yellow-500 hover:scale-125 hover:opacity-80 active:scale-95 transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                                 aria-label="Edit item"
+                                title="Edit item"
                               >
-                                <svg className="w-5 h-5 text-blue-500 hover:text-blue-600 transition-colors duration-200" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
-                                  <path d="M4 13.5V16h2.5l7.06-7.06-2.5-2.5L4 13.5z"/>
-                                  <path d="M14.06 6.94a1.5 1.5 0 0 0 0-2.12l-1.88-1.88a1.5 1.5 0 0 0-2.12 0l-1.06 1.06 4 4 1.06-1.06z"/>
-                                </svg>
+                                <MdEdit className="w-6 h-6" />
                               </button>
                               <button
                                 onClick={() => deleteShoppingItem(item.id)}
-                                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-10 h-10 flex items-center justify-center bg-transparent text-red-500 hover:scale-125 hover:opacity-80 active:scale-95 transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                                 aria-label="Delete item"
+                                title="Delete item"
                               >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
-                                  <path d="M6 6v8m4-8v8m4-8v8M3 6h14M5 6V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/>
-                                </svg>
+                                <MdDelete className="w-6 h-6" />
                               </button>
                             </div>
                           </div>
@@ -651,17 +704,19 @@ export default function ShoppingList() {
                               <div className="flex gap-2 items-center">
                                 <button
                                   onClick={saveEditNote}
-                                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="w-10 h-10 flex items-center justify-center bg-transparent text-yellow-500 hover:scale-125 hover:opacity-80 active:scale-95 transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                                  aria-label="Save note"
+                                  title="Save note"
                                 >
-                                  <FaSave className="w-3 h-3" />
-                                  save
+                                  <MdEdit className="w-6 h-6" />
                                 </button>
                                 <button
                                   onClick={cancelEditNote}
-                                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="w-10 h-10 flex items-center justify-center bg-transparent text-red-500 hover:scale-125 hover:opacity-80 active:scale-95 transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                                  aria-label="Cancel edit"
+                                  title="Cancel edit"
                                 >
-                                  <FaTimes className="w-3 h-3" />
-                                  cancel
+                                  <MdDelete className="w-6 h-6" />
                                 </button>
                               </div>
                             </div>
@@ -680,22 +735,19 @@ export default function ShoppingList() {
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => startEditNote(note)}
-                                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="w-10 h-10 flex items-center justify-center bg-transparent text-yellow-500 hover:scale-125 hover:opacity-80 active:scale-95 transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                                   aria-label="Edit note"
+                                  title="Edit note"
                                 >
-                                  <svg className="w-5 h-5 text-blue-500 hover:text-blue-600 transition-colors duration-200" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
-                                    <path d="M4 13.5V16h2.5l7.06-7.06-2.5-2.5L4 13.5z"/>
-                                    <path d="M14.06 6.94a1.5 1.5 0 0 0 0-2.12l-1.88-1.88a1.5 1.5 0 0 0-2.12 0l-1.06 1.06 4 4 1.06-1.06z"/>
-                                  </svg>
+                                  <MdEdit className="w-6 h-6" />
                                 </button>
                                 <button
                                   onClick={() => deleteCookingNote(note.id)}
-                                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="w-10 h-10 flex items-center justify-center bg-transparent text-red-500 hover:scale-125 hover:opacity-80 active:scale-95 transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                                   aria-label="Delete note"
+                                  title="Delete note"
                                 >
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
-                                    <path d="M6 6v8m4-8v8m4-8v8M3 6h14M5 6V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/>
-                                  </svg>
+                                  <MdDelete className="w-6 h-6" />
                                 </button>
                               </div>
                             </div>

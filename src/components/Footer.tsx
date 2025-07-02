@@ -22,12 +22,12 @@ export default function Footer() {
       <div className="flex flex-col items-center gap-1 text-sm md:flex-row md:justify-between md:gap-0">
         <span className="flex items-center gap-2">
           made with <span aria-label="love" role="img">❤️</span> by{' '}
-          <a
+        <a
             href="https://github.com/itsdoruk"
-            target="_blank"
-            rel="noopener noreferrer"
+          target="_blank"
+          rel="noopener noreferrer"
             className="hover:underline font-semibold"
-          >
+        >
             @itsdoruk
           </a>
           {' '}• <a href="https://github.com/itsdoruk/recipes" target="_blank" rel="noopener noreferrer" className="hover:underline">[recipes]</a>

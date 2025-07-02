@@ -314,7 +314,7 @@ export const getAIRecipes = async (): Promise<{ recipes: any[]; error: Error | n
       throw new Error('Failed to initialize Supabase client');
     }
 
-    // Fetch more AI recipes to improve deduplication
+    // Fetch AI recipes with cache-busting to ensure fresh data on each call
     const { data: recipes, error } = await supabase
       .from('recipes')
       .select('*')
@@ -339,6 +339,7 @@ export const getAIRecipes = async (): Promise<{ recipes: any[]; error: Error | n
     });
 
     // Shuffle and return only the top 15 unique recipes
+    // This ensures different recipes are shown on each call
     const shuffledRecipes = uniqueRecipes.sort(() => Math.random() - 0.5).slice(0, 15);
 
     return { recipes: shuffledRecipes, error: null };
