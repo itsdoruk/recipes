@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getBrowserClient } from '@/lib/supabase/browserClient';
-import Avatar from './Avatar';
+import Avatar from '@/components/Avatar';
 import { parseRecipeId } from '@/lib/recipeIdUtils';
 
 interface MessageRecipeCardProps {

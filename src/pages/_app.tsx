@@ -7,6 +7,7 @@ import { SessionContextProvider } from '@supabase/auth-helpers-react';
 import { useState, useEffect } from 'react';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import PizzaTimeEasterEgg from '@/components/PizzaTimeEasterEgg';
+import { ProfileProvider } from '@/contexts/ProfileContext';
 
 export default function App({ Component, pageProps }: AppProps) {
   const [supabaseClient] = useState(() => getBrowserClient());
@@ -14,11 +15,13 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <ErrorBoundary>
       <SessionContextProvider supabaseClient={supabaseClient}>
-        <ThemeProvider attribute="class">
-          <Layout>
-            <PizzaTimeEasterEgg />
-            <Component {...pageProps} />
-          </Layout>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ProfileProvider>
+            <Layout>
+              <PizzaTimeEasterEgg />
+              <Component {...pageProps} />
+            </Layout>
+          </ProfileProvider>
         </ThemeProvider>
       </SessionContextProvider>
     </ErrorBoundary>

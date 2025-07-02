@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useUser } from '@supabase/auth-helpers-react';
 import { getSupabaseClient } from '@/lib/supabase';
-import Avatar from './Avatar';
+import Avatar from '@/components/Avatar';
 import dynamic from 'next/dynamic';
 import ReportModal from './ReportModal';
 import ShareDialog from './ShareDialog';
@@ -272,13 +272,15 @@ function RecipeCardContent({
       <div className="flex items-center gap-4 h-16 px-4 border-t border-outline bg-transparent absolute bottom-0 left-0 w-full" onClick={e => e.stopPropagation()}>
         <Avatar
           avatar_url={
-            profile && profile.avatar_url && recipeType === 'user'
+            recipeType === 'user' && profile && profile.avatar_url
               ? profile.avatar_url
+              : recipeType === 'spoonacular' || user_id === 'spoonacular'
+              ? null
               : undefined
           }
           username={
             recipeType === 'user' && profile && profile.username
-              ? profile.username.toLowerCase()
+              ? profile.username
               : recipeType === 'ai' || user_id === '00000000-0000-0000-0000-000000000000'
               ? 'ai recipe'
               : recipeType === 'spoonacular' || user_id === 'spoonacular'
@@ -286,7 +288,11 @@ function RecipeCardContent({
               : '[recipes] user'
           }
           size={24}
-          className="bg-gray-200 text-gray-800 dark:bg-gray-900 dark:text-gray-200 font-bold"
+          className={
+            recipeType === 'spoonacular' || user_id === 'spoonacular'
+              ? 'bg-gray-800 text-gray-200 dark:bg-gray-700 dark:text-gray-200 font-bold'
+              : 'bg-gray-200 text-gray-800 dark:bg-gray-900 dark:text-gray-200 font-bold'
+          }
         />
         <span className="text-xs font-normal align-middle lowercase" style={{ lineHeight: '24px' }}>
           {recipeType === 'user' && profile && profile.username

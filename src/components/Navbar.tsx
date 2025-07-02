@@ -6,7 +6,7 @@ import { useTheme } from 'next-themes';
 import Image from 'next/image';
 import { useRef } from 'react';
 import Avatar from './Avatar';
-import { useProfile } from '@/hooks/useProfile';
+import { useProfileContext } from '@/contexts/ProfileContext';
 import { getBrowserClient } from '@/lib/supabase/browserClient';
 import { useWarningBanner } from '@/hooks/useWarningBanner';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -36,14 +36,10 @@ export default function Navbar() {
   const { theme, setTheme } = useTheme();
   const [showSettings, setShowSettings] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const { profile, isLoading } = useProfile();
+  const { profile, isLoading } = useProfileContext();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [userResults, setUserResults] = useState<{ user_id: string; username: string | null; avatar_url: string | null }[]>([]);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
   const { warnings, shouldShowBanner, dismissBanner } = useWarningBanner();
   const supabaseClient = getBrowserClient();
   const { sendFollowNotification } = useFollowNotifications();
@@ -175,41 +171,6 @@ export default function Navbar() {
   };
 
   const isActive = (path: string) => router.pathname === path;
-
-  const handleUserSearch = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearch(value);
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    if (value.trim().length === 0) {
-      setUserResults([]);
-      setShowUserDropdown(false);
-      return;
-    }
-    searchTimeout.current = setTimeout(async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_id, username, avatar_url')
-        .or(`username.ilike.%${value}%,email.ilike.%${value}%`)
-        .limit(8);
-      if (!error && data) {
-        setUserResults(data);
-        setShowUserDropdown(true);
-      } else {
-        setUserResults([]);
-        setShowUserDropdown(false);
-      }
-    }, 300);
-  };
-
-  const handleAcceptFollowRequest = async (notification: Notification) => {
-    // This function is no longer needed since all accounts are public
-    console.log('[Follow Request] Follow requests are no longer supported - all accounts are public');
-  };
-
-  const handleRejectFollowRequest = async (notification: Notification) => {
-    // This function is no longer needed since all accounts are public
-    console.log('[Follow Request] Follow requests are no longer supported - all accounts are public');
-  };
 
   // Prevent background scroll when mobile menu is open
   useEffect(() => {
@@ -425,11 +386,15 @@ export default function Navbar() {
                         style={{ background: "var(--background)", color: "var(--foreground)" }}
                       >
                         <div className="px-4 py-3 border-b border-outline">
-                          <p className="text-sm" style={{ color: 'var(--foreground)', fontFamily: 'inherit' }}>
+                          <p className="text-sm text-gray-400">
                             {profile?.username && profile.username !== 'anonymous'
                               ? `@${profile.username.toLowerCase()}`
                               : '[recipes] user'}
                           </p>
+                          {/* Only show email if show_email is true */}
+                          {profile?.show_email && ((profile?.email || (user?.email ?? ''))) ? (
+                            <p className="text-xs text-gray-400 mt-1 break-all">{profile.email || (user?.email ?? '')}</p>
+                          ) : null}
                         </div>
                         <Link
                           href={`/user/${user?.id}`}

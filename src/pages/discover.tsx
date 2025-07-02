@@ -190,31 +190,36 @@ export default function DiscoverPage() {
     }
   };
 
-  // Fetch blocked users separately
+  // Fetch blocked users only when user changes
   useEffect(() => {
     if (!user) return;
-    
     const fetchBlockedUsers = async () => {
       try {
         const { data: blockedData } = await supabase
           .from('blocked_users')
           .select('blocked_user_id')
           .eq('user_id', user.id);
-        setBlockedUsers(blockedData?.map((b: BlockedUser) => b.blocked_user_id) || []);
+        const newBlocked = blockedData?.map((b: BlockedUser) => b.blocked_user_id) || [];
+        // Only update if changed
+        setBlockedUsers(prev => {
+          if (prev.length === newBlocked.length && prev.every((id, i) => id === newBlocked[i])) return prev;
+          return newBlocked;
+        });
       } catch (error) {
         console.error('Error fetching blocked users:', error);
       }
     };
-    
     fetchBlockedUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Fetch recipes when preferences or blockedUsers change
   useEffect(() => {
-    // Fetch recipes when user, blockedUsers, or preferences change
     if (user) {
-    fetchRecipes();
+      fetchRecipes();
     }
-  }, [user, blockedUsers, preferences]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preferences, blockedUsers]);
 
   useEffect(() => {
     // Only fetch AI recipes when preferences change
@@ -404,6 +409,10 @@ export default function DiscoverPage() {
         <div className="space-y-8">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl">discover</h1>
+            <div className="flex items-center gap-4">
+              {/* Notification bell and avatar/profile */}
+              {/* Existing avatar/profile code here */}
+            </div>
           </div>
           {currentStep <= 3 ? (
             <div className="space-y-8">
@@ -515,16 +524,6 @@ export default function DiscoverPage() {
             <div className="space-y-8">
               <div className="flex justify-between items-center">
                 <h2 className="text-lg">your preferences</h2>
-                <button 
-                  onClick={() => {
-                    setPreferences({});
-                    fetchRecipes();
-                    fetchAiRecipes();
-                  }}
-                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  reset all
-                </button>
               </div>
               
               <div className="flex flex-wrap gap-2">

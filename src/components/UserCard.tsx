@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import ReportModal from './ReportModal';
 import { Database } from '@/types/supabase';
 import UserCardSkeleton from './UserCardSkeleton';
+import Avatar from '@/components/Avatar';
 
 interface UserCardProps {
   user: {
@@ -43,19 +44,12 @@ function UserCard({ user }: UserCardProps) {
     return (
       <div className="block border border-outline shadow-sm bg-white dark:bg-gray-900 p-4 w-full h-full rounded-xl opacity-50" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="flex items-center gap-4">
-          {user.avatar_url ? (
-            <Image
-              src={user.avatar_url}
-              alt={user.username || 'user avatar'}
-              width={48}
-              height={48}
-              className="object-cover rounded-full bg-gray-100 dark:bg-gray-800"
-            />
-          ) : (
-            <div className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xl font-bold select-none">
-              {user.username?.[0]?.toUpperCase() || 'A'}
-            </div>
-          )}
+          <Avatar
+            avatar_url={user.user_id === 'spoonacular' ? null : user.avatar_url}
+            username={user.user_id === 'spoonacular' ? 'spoonacular' : user.username}
+            size={48}
+            className={user.user_id === 'spoonacular' ? 'bg-gray-800 text-gray-200 dark:bg-gray-700 dark:text-gray-200 font-bold' : 'bg-gray-200 text-gray-800 dark:bg-gray-900 dark:text-gray-200 font-bold'}
+          />
           <div>
             <div className="font-semibold text-lg">{user.username || '[recipes] user'}</div>
             <div className="text-sm text-gray-500">blocked user</div>
@@ -70,19 +64,12 @@ function UserCard({ user }: UserCardProps) {
       <div className="block border border-outline shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-xl p-4 w-full h-full rounded-xl" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <div className="flex items-center justify-between">
           <Link href={`/user/${user.user_id}`} className="flex items-center gap-4 flex-1 group">
-            {user.avatar_url ? (
-              <Image
-                src={user.avatar_url}
-                alt={user.username || 'user avatar'}
-                width={48}
-                height={48}
-                className="object-cover rounded-full bg-gray-100 dark:bg-gray-800 transition-transform duration-300 group-hover:scale-125"
-              />
-            ) : (
-              <div className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xl font-bold select-none transition-transform duration-300 group-hover:scale-125">
-                {user.username?.[0]?.toUpperCase() || 'A'}
-              </div>
-            )}
+            <Avatar
+              avatar_url={user.user_id === 'spoonacular' ? null : user.avatar_url}
+              username={user.user_id === 'spoonacular' ? 'spoonacular' : user.username}
+              size={48}
+              className={user.user_id === 'spoonacular' ? 'bg-gray-800 text-gray-200 dark:bg-gray-700 dark:text-gray-200 font-bold' : 'bg-gray-200 text-gray-800 dark:bg-gray-900 dark:text-gray-200 font-bold'}
+            />
             <div>
               <div className="font-semibold text-lg transition-colors duration-300 group-hover:text-blue-500 dark:group-hover:text-blue-400">{user.username || '[recipes] user'}</div>
               {user.bio && <div className="text-gray-500 text-sm mt-1">{user.bio}</div>}

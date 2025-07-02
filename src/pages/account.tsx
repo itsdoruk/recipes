@@ -9,7 +9,7 @@ import Modal from '@/components/Modal';
 import EmptyStarredRecipes from '@/components/EmptyStarredRecipes';
 import { useUser } from '@/lib/hooks/useUser';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { useProfile } from '@/hooks/useProfile';
+import { useProfileContext } from '@/contexts/ProfileContext';
 import { Database } from '@/types/supabase';
 import RecipeCard from '@/components/RecipeCard';
 import { unlinkGoogleAccount } from '@/lib/auth-utils';
@@ -48,7 +48,7 @@ interface FormData {
 export default function AccountPage() {
   const router = useRouter();
   const { session, loading: sessionLoading } = useAuth();
-  const { profile: userProfile, isLoading: profileLoading, refreshProfile } = useProfile();
+  const { profile: userProfile, isLoading: profileLoading, updateProfile } = useProfileContext();
   const supabase = useSupabaseClient();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [form, setForm] = useState<FormData>({
@@ -257,23 +257,18 @@ export default function AccountPage() {
 
     try {
       setSaving(true);
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          username: form.username,
-          bio: form.bio,
-          show_email: form.show_email,
-          dietary_restrictions: form.dietary_restrictions,
-          cooking_skill_level: form.cooking_skill_level,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', session.user.id);
+      
+      // Use the new updateProfile method from ProfileContext
+      await updateProfile({
+        username: form.username,
+        bio: form.bio,
+        show_email: form.show_email,
+        dietary_restrictions: form.dietary_restrictions,
+        cooking_skill_level: form.cooking_skill_level
+      });
 
-      if (updateError) throw updateError;
       setSuccess('Profile updated successfully!');
-      if (typeof refreshProfile === 'function') {
-        await refreshProfile();
-      }
+      
       if (session?.user?.id) {
         router.push(`/user/${session.user.id}`);
       } else {
@@ -323,9 +318,17 @@ export default function AccountPage() {
       .getPublicUrl(filePath);
     setUploadProgress(80);
     setAvatarUrl(publicUrl);
+    
+    // Update profile with new avatar URL
+    try {
+      await updateProfile({ avatar_url: publicUrl });
+      setSuccess('avatar uploaded!');
+    } catch (error) {
+      setError('failed to update profile with new avatar');
+    }
+    
     setIsUploading(false);
     setUploadProgress(100);
-    setSuccess('avatar uploaded!');
   };
 
   const handleUnblock = async (userId: string) => {
