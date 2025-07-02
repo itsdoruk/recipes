@@ -36,7 +36,7 @@ A modern, community-driven recipe app built with Next.js, Supabase, and Vercel.
 - [Vercel](https://vercel.com/) (Deployment)
 - [Tailwind CSS](https://tailwindcss.com/) (Styling)
 - [Spoonacular API](https://spoonacular.com/food-api) (External recipes)
-- [OpenAI](https://openai.com/) (AI recipe suggestions)
+- [Hack Club AI](https://ai.hackclub.com/) (AI recipe suggestions)
 
 ---
 
