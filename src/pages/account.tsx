@@ -439,8 +439,8 @@ export default function AccountPage() {
                 <h1 className="text-3xl text-[var(--foreground)] lowercase">{form.username || 'your username'}</h1>
                 <p className="text-base text-gray-500 dark:text-gray-400">{form.bio || 'add a short bio to let others know about you'}</p>
                 <div className="flex gap-2 mt-2">
-                  <label htmlFor="avatar-upload" className="px-4 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg cursor-pointer text-sm font-medium">
-                    Change Avatar
+                  <label htmlFor="avatar-upload" className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base cursor-pointer font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                    change avatar
                   </label>
               <input
                     id="avatar-upload"
