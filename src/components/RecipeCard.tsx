@@ -212,7 +212,7 @@ function RecipeCardContent({
 
   const cardClass = loading && !hideLoadingAnimation
     ? "animate-pulse cursor-wait"
-    : "cursor-pointer transition-all duration-300 hover:scale-110 hover:shadow-2xl";
+    : "cursor-pointer transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:shadow-lg hover:border-accent";
 
   const cardContent = (
     <div className="h-[400px] flex flex-col rounded-xl overflow-hidden border border-outline shadow-md transition-all duration-300" style={{ background: "var(--background)", color: "var(--foreground)" }}>

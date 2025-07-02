@@ -267,7 +267,7 @@ export default function EditRecipePage() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                    className="px-4 py-2 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isSaving}
                   >
                     upload image
@@ -276,7 +276,7 @@ export default function EditRecipePage() {
                     type="url"
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
-                    className="flex-1 px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                    className="flex-1 px-4 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                     placeholder="or paste image url"
                     disabled={isSaving}
                   />
@@ -306,7 +306,7 @@ export default function EditRecipePage() {
                 type="text"
                 value={recipe.title}
                 onChange={e => setRecipe({ ...recipe, title: e.target.value })}
-                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                 maxLength={100}
                 required
                 disabled={isSaving}
@@ -319,7 +319,7 @@ export default function EditRecipePage() {
                 value={recipe.description}
                 onChange={e => setRecipe({ ...recipe, description: e.target.value })}
                 rows={3}
-                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                className="w-full px-4 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                 maxLength={2000}
                 required
                 disabled={isSaving}
@@ -332,7 +332,7 @@ export default function EditRecipePage() {
                 <select
                   value={recipe.cuisine_type || ''}
                   onChange={e => setRecipe({ ...recipe, cuisine_type: e.target.value })}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSaving}
                 >
                   <option value="">select cuisine</option>
@@ -346,7 +346,7 @@ export default function EditRecipePage() {
                 <select
                   value={recipe.diet_type || ''}
                   onChange={e => setRecipe({ ...recipe, diet_type: e.target.value })}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSaving}
                 >
                   <option value="">select diet</option>
@@ -372,7 +372,7 @@ export default function EditRecipePage() {
                       setRecipe({ ...recipe, cooking_time: '' });
                     }
                   }}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   min={1}
                   disabled={isSaving}
                 />
@@ -387,7 +387,7 @@ export default function EditRecipePage() {
                       setRecipe({ ...recipe, cooking_time: `${value} ${e.target.value}` });
                     }
                   }}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSaving}
                 >
                   <option value="mins">mins</option>
@@ -403,7 +403,7 @@ export default function EditRecipePage() {
                 value={recipe.ingredients.join('\n')}
                 onChange={e => setRecipe({ ...recipe, ingredients: e.target.value.split('\n') })}
                 rows={4}
-                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                className="w-full px-4 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                 required
                 disabled={isSaving}
               />
@@ -415,7 +415,7 @@ export default function EditRecipePage() {
                 value={recipe.instructions.join('\n')}
                 onChange={e => setRecipe({ ...recipe, instructions: e.target.value.split('\n') })}
                 rows={4}
-                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                className="w-full px-4 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                 required
                 disabled={isSaving}
               />
@@ -428,7 +428,7 @@ export default function EditRecipePage() {
                   type="text"
                   value={recipe.calories === null || recipe.calories === 'unknown' ? '' : recipe.calories}
                   onChange={e => setRecipe({ ...recipe, calories: e.target.value || 'unknown' })}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSaving}
                 />
               </div>
@@ -438,7 +438,7 @@ export default function EditRecipePage() {
                   type="text"
                   value={recipe.protein === null || recipe.protein === 'unknown' ? '' : recipe.protein}
                   onChange={e => setRecipe({ ...recipe, protein: e.target.value || 'unknown' })}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSaving}
                 />
               </div>
@@ -448,7 +448,7 @@ export default function EditRecipePage() {
                   type="text"
                   value={recipe.fat === null || recipe.fat === 'unknown' ? '' : recipe.fat}
                   onChange={e => setRecipe({ ...recipe, fat: e.target.value || 'unknown' })}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSaving}
                 />
               </div>
@@ -458,7 +458,7 @@ export default function EditRecipePage() {
                   type="text"
                   value={recipe.carbohydrates === null || recipe.carbohydrates === 'unknown' ? '' : recipe.carbohydrates}
                   onChange={e => setRecipe({ ...recipe, carbohydrates: e.target.value || 'unknown' })}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSaving}
                 />
               </div>
@@ -474,7 +474,7 @@ export default function EditRecipePage() {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-6 py-3 border border-outline bg-[var(--background)] text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? 'saving...' : 'save changes'}
               </button>

@@ -174,7 +174,7 @@ export default function FollowersPage() {
               <p className="text-red-500">{error}</p>
               <button 
                 onClick={() => window.location.reload()}
-                className="mt-2 text-sm px-4 py-2 bg-red-100 dark:bg-red-900/30 rounded-lg hover:opacity-90"
+                className="mt-2 text-sm px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 refresh page
               </button>

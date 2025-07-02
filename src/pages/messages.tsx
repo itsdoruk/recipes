@@ -422,7 +422,7 @@ export default function MessagesPage() {
               />
               <button
                 onClick={() => handleSearch(searchQuery)}
-                className="px-5 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg"
+                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 search
               </button>
@@ -479,7 +479,7 @@ export default function MessagesPage() {
               </p>
               <button 
                 onClick={() => searchInputRef.current?.focus()}
-                className="px-5 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-lg"
+                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 find neighbors
               </button>

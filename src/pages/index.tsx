@@ -79,12 +79,12 @@ export default function Index() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/home">
-                <button className="px-8 py-4 text-lg font-bold rounded-full bg-accent text-white shadow-lg hover:bg-accent/90 active:bg-accent/80 transition flex items-center">
+                <button className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed">
                   explore recipes
                 </button>
               </Link>
               <Link href="/create">
-                <button className="px-8 py-4 text-lg font-bold rounded-full bg-accent text-white shadow-lg hover:bg-accent/90 active:bg-accent/80 transition">
+                <button className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed">
                   share a recipe
                 </button>
               </Link>
@@ -160,7 +160,7 @@ export default function Index() {
             </p>
             <Link href="/login">
               <button
-                className="px-3 py-2 border border-outline rounded-lg bg-transparent text-black dark:text-white font-normal"
+                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 join [recipes] today
               </button>

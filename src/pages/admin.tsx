@@ -1056,7 +1056,7 @@ export default function AdminPanel() {
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? toLower('saving...') : toLower('save changes')}
               </button>

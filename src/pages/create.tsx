@@ -238,7 +238,7 @@ export default function CreateRecipePage() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                    className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isSubmitting}
                   >
                     upload image
@@ -247,7 +247,7 @@ export default function CreateRecipePage() {
                     type="url"
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
-                    className="flex-1 px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                    className="flex-1 px-4 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                     placeholder="or paste image url"
                     disabled={isSubmitting}
                   />
@@ -278,7 +278,7 @@ export default function CreateRecipePage() {
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                 maxLength={100}
                 required
                 disabled={isSubmitting}
@@ -291,7 +291,7 @@ export default function CreateRecipePage() {
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 rows={3}
-                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                className="w-full px-4 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                 maxLength={2000}
                 required
                 disabled={isSubmitting}
@@ -304,7 +304,7 @@ export default function CreateRecipePage() {
                 <select
                   value={cuisineType}
                   onChange={e => setCuisineType(e.target.value)}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSubmitting}
                 >
                   <option value="">select cuisine</option>
@@ -318,7 +318,7 @@ export default function CreateRecipePage() {
                 <select
                   value={dietType}
                   onChange={e => setDietType(e.target.value)}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSubmitting}
                 >
                   <option value="">select diet</option>
@@ -336,7 +336,7 @@ export default function CreateRecipePage() {
                   type="number"
                   value={cookingTimeValue}
                   onChange={e => setCookingTimeValue(e.target.value)}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   min={1}
                   disabled={isSubmitting}
                 />
@@ -346,7 +346,7 @@ export default function CreateRecipePage() {
                 <select
                   value={cookingTimeUnit}
                   onChange={e => setCookingTimeUnit(e.target.value)}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSubmitting}
                 >
                   <option value="mins">mins</option>
@@ -362,7 +362,7 @@ export default function CreateRecipePage() {
                 value={ingredients}
                 onChange={e => setIngredients(e.target.value)}
                 rows={4}
-                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                className="w-full px-4 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                 required
                 disabled={isSubmitting}
               />
@@ -374,7 +374,7 @@ export default function CreateRecipePage() {
                 value={instructions}
                 onChange={e => setInstructions(e.target.value)}
                 rows={4}
-                className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                className="w-full px-4 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                 required
                 disabled={isSubmitting}
               />
@@ -387,7 +387,7 @@ export default function CreateRecipePage() {
                   type="text"
                   value={calories}
                   onChange={e => setCalories(e.target.value)}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSubmitting}
                 />
               </div>
@@ -397,7 +397,7 @@ export default function CreateRecipePage() {
                   type="text"
                   value={protein}
                   onChange={e => setProtein(e.target.value)}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSubmitting}
                 />
               </div>
@@ -407,7 +407,7 @@ export default function CreateRecipePage() {
                   type="text"
                   value={fat}
                   onChange={e => setFat(e.target.value)}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSubmitting}
                 />
               </div>
@@ -417,7 +417,7 @@ export default function CreateRecipePage() {
                   type="text"
                   value={carbohydrates}
                   onChange={e => setCarbohydrates(e.target.value)}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   disabled={isSubmitting}
                 />
               </div>
@@ -433,7 +433,7 @@ export default function CreateRecipePage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-3 border border-outline bg-[var(--background)] text-[var(--foreground)] hover:opacity-80 transition-opacity rounded-lg text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? 'creating...' : 'create recipe'}
               </button>

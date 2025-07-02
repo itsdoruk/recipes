@@ -178,20 +178,20 @@ export default function TimerPage() {
                 <button
                   onClick={handleStart}
                   disabled={isRunning || (!inputHours && !inputMinutes && !inputSeconds)}
-                  className="flex-1 min-w-[100px] px-4 py-2 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
+                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   start
                 </button>
                 <button
                   onClick={handleStop}
                   disabled={!isRunning}
-                  className="flex-1 min-w-[100px] px-4 py-2 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
+                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   stop
                 </button>
                 <button
                   onClick={handleReset}
-                  className="flex-1 min-w-[100px] px-4 py-2 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
+                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   reset
                 </button>
