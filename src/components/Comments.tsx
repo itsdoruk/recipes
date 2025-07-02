@@ -8,6 +8,18 @@ import { marked } from 'marked';
 import { useCommentNotifications } from '@/hooks/useNotifications';
 import { MdEdit, MdDelete, MdReport } from 'react-icons/md';
 
+// Add custom renderer for quotes to show | instead of >
+const renderer = new marked.Renderer();
+renderer.blockquote = (quote) => {
+  return `<div class=\"border-l-4 border-gray-300 dark:border-gray-600 pl-4 my-2\">${quote}</div>`;
+};
+renderer.hr = () => {
+  return '<hr class="my-4 border-t border-outline dark:border-gray-700" />';
+};
+
+// Configure marked to use the custom renderer
+marked.setOptions({ renderer, breaks: true });
+
 interface Comment {
   id: string;
   content: string;
@@ -247,10 +259,68 @@ export default function Comments({ recipeId }: CommentsProps) {
         }
         break;
       case 'list':
-        newText = insertMarkdown(currentText, start, end, '- ');
+        if (start === end) {
+          // No selection: insert a single bullet
+          const insert = '- list item';
+          setContent(currentText.substring(0, start) + insert + currentText.substring(end));
+          setTimeout(() => {
+            if (textarea) textarea.setSelectionRange(start + 2, start + 11); // select 'list item'
+          }, 0);
+          return;
+        } else {
+          // Prefix each selected line with '- '
+          const selectedText = currentText.substring(start, end);
+          const lines = selectedText.split('\n');
+          const bulleted = lines
+            .map(line => {
+              const trimmed = line.trim();
+              if (!trimmed) return ''; // Skip empty lines
+              // Remove existing bullets if present
+              const cleanLine = trimmed.replace(/^[-*]\s*/, '');
+              return `- ${cleanLine}`;
+            })
+            .filter(line => line !== '') // Remove empty lines
+            .join('\n');
+          
+          const newText = currentText.substring(0, start) + bulleted + currentText.substring(end);
+          setContent(newText);
+          setTimeout(() => {
+            if (textarea) textarea.setSelectionRange(start, start + bulleted.length);
+          }, 0);
+          return;
+        }
         break;
       case 'quote':
-        newText = insertMarkdown(currentText, start, end, '> ');
+        if (start === end) {
+          // No selection: insert a single quote
+          const insert = '> quote text';
+          setContent(currentText.substring(0, start) + insert + currentText.substring(end));
+          setTimeout(() => {
+            if (textarea) textarea.setSelectionRange(start + 2, start + 12); // select 'quote text'
+          }, 0);
+          return;
+        } else {
+          // Prefix each selected line with '> '
+          const selectedText = currentText.substring(start, end);
+          const lines = selectedText.split('\n');
+          const quoted = lines
+            .map(line => {
+              const trimmed = line.trim();
+              if (!trimmed) return ''; // Skip empty lines
+              // Remove existing quote prefix if present
+              const cleanLine = trimmed.replace(/^>\s*/, '');
+              return `> ${cleanLine}`;
+            })
+            .filter(line => line !== '') // Remove empty lines
+            .join('\n');
+          
+          const newText = currentText.substring(0, start) + quoted + currentText.substring(end);
+          setContent(newText);
+          setTimeout(() => {
+            if (textarea) textarea.setSelectionRange(start, start + quoted.length);
+          }, 0);
+          return;
+        }
         break;
     }
     

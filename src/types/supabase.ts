@@ -253,8 +253,8 @@ export interface Message {
 
 export interface Conversation {
   id: string;
-  user1_id: string;
-  user2_id: string;
+  user_id: string;
+  other_user_id: string;
   created_at: string;
   updated_at: string;
   last_message_at: string | null;

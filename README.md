@@ -1,5 +1,7 @@
 # <center>[recipes]</center>
 
+If you're looking for the API setup, check out [SUPABASE_AND_API_DOCS.md](./SUPABASE_AND_API_DOCS.md).
+
 [![Vercel](https://img.shields.io/badge/deployed%20on-vercel-000?logo=vercel)](https://vercel.com/)
 [![License: WTFPL](https://img.shields.io/badge/license-WTFPL-green.svg)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/itsdoruk/recipes?label=last%20commit)](https://github.com/itsdoruk/recipes/commits/main)

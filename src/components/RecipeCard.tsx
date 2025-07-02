@@ -247,14 +247,14 @@ function RecipeCardContent({
       </div>
       <div className="flex-1 flex flex-col p-4 pt-2">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-medium line-clamp-1" style={{ color: "var(--foreground)" }}>{stripBoldTags(recipeTitle)}</h2>
+          <h2 className="text-lg font-medium line-clamp-1 truncate overflow-hidden text-ellipsis" style={{ color: "var(--foreground)" }}>{stripBoldTags(recipeTitle)}</h2>
         </div>
         {funDescription && (
           <p className="text-sm-600 dark:text-gray-400 mb-2 line-clamp-1">
             {funDescription}
           </p>
         )}
-        <p className="text-sm mb-4 line-clamp-2" style={{ color: "var(--foreground)" }}>
+        <p className="text-sm mb-4 line-clamp-2 overflow-hidden text-ellipsis" style={{ color: "var(--foreground)" }}>
           {stripBoldTags(formatDescription(recipeDescription))}
         </p>
         <div className="mt-auto">

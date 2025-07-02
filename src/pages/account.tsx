@@ -457,7 +457,7 @@ export default function AccountPage() {
                   <button
                     type="button"
                     onClick={handleSignOut}
-                    className="px-6 py-3 border border-outline bg-transparent text-[var(--danger)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-3 border border-outline bg-transparent text-[var(--danger)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     sign out
                   </button>
@@ -474,7 +474,7 @@ export default function AccountPage() {
                 type="text"
                 value={form.username}
                 onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))}
-                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                     required
                     minLength={3}
                     maxLength={32}
@@ -485,7 +485,7 @@ export default function AccountPage() {
               <select
                 value={form.cooking_skill_level}
                 onChange={(e) => setForm(prev => ({ ...prev, cooking_skill_level: e.target.value }))}
-                className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
               >
                 <option value="">select skill level</option>
                 <option value="beginner">beginner</option>
@@ -501,7 +501,7 @@ export default function AccountPage() {
                   value={form.bio}
                   onChange={(e) => setForm(prev => ({ ...prev, bio: e.target.value }))}
                   rows={3}
-                  className="w-full px-4 py-3 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full px-4 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   maxLength={160}
                 />
               </div>
@@ -511,7 +511,7 @@ export default function AccountPage() {
                   type="text"
                   value={form.dietary_restrictions.join(', ')}
                   onChange={e => setForm(prev => ({ ...prev, dietary_restrictions: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
-                  className="w-full h-12 px-4 border border-outline bg-transparent hover:opacity-80 transition-opacity rounded-xl text-[var(--foreground)]"
+                  className="w-full h-12 px-4 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl"
                   placeholder="e.g. vegetarian, gluten-free, dairy-free"
                 />
               </div>
@@ -529,7 +529,7 @@ export default function AccountPage() {
               <button
                 type="submit"
                   disabled={loading || !formChanged}
-                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'saving...' : 'save changes'}
               </button>
@@ -548,27 +548,27 @@ export default function AccountPage() {
               <div className="flex flex-wrap gap-4">
                 <button
                   onClick={() => router.push('/account/change-password')}
-                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   change password
                 </button>
                 <button
                   onClick={() => router.push('/account/change-email')}
-                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   change email
                 </button>
                 {hasGoogleAccount && (
                   <button
                     onClick={() => setShowUnlinkGoogleModal(true)}
-                    className="px-6 py-3 border border-outline bg-transparent text-[var(--danger)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-3 border border-outline bg-transparent text-[var(--danger)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     remove google account
                   </button>
                 )}
                 <button
                   onClick={() => router.push('/account/delete')}
-                  className="px-6 py-3 border border-outline bg-transparent text-[var(--danger)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-3 border border-outline bg-transparent text-[var(--danger)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   delete account
                 </button>
@@ -595,7 +595,7 @@ export default function AccountPage() {
                         setSelectedUser(blockedUser);
                         setShowUnblockModal(true);
                       }}
-                        className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       unblock
                     </button>
@@ -656,13 +656,13 @@ export default function AccountPage() {
                 setShowUnblockModal(false);
                 setSelectedUser(null);
               }}
-              className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
               cancel
             </button>
             <button
               onClick={() => selectedUser && handleUnblock(selectedUser.user_id)}
-              className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isSubmitting}
             >
               unblock
@@ -688,14 +688,14 @@ export default function AccountPage() {
           <div className="flex justify-end gap-4">
             <button
               onClick={() => setShowUnlinkGoogleModal(false)}
-              className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isUnlinkingGoogle}
             >
               cancel
             </button>
             <button
               onClick={handleUnlinkGoogle}
-              className="px-6 py-3 border border-outline bg-transparent text-[var(--warning)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-[1.03] transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 border border-outline bg-transparent text-[var(--warning)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isUnlinkingGoogle}
             >
               {isUnlinkingGoogle ? 'removing...' : 'remove'}
