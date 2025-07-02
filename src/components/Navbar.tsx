@@ -364,9 +364,17 @@ export default function Navbar() {
                                 notifications.map((notification) => (
                                   <div 
                                     key={notification.id} 
-                                    className={`relative w-full px-4 py-3 text-left hover:opacity-80 transition-opacity border-b border-outline last:border-b-0 ${!notification.read ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
+                                    className={`relative w-full px-4 py-3 text-left border-b border-outline last:border-b-0 transition-all duration-150
+                                      ${!notification.read ? 'bg-blue-50 dark:bg-blue-900/10 animate-fade-in' : ''}
+                                      hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:scale-[1.02] hover:shadow-lg active:scale-95 focus-visible:ring-2 focus-visible:ring-blue-400 cursor-pointer`}
                                     style={{ cursor: notification.type === 'follow_request' ? 'default' : 'pointer' }}
+                                    tabIndex={0}
                                     onClick={() => handleNotificationClick(notification)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter' || e.key === ' ') handleNotificationClick(notification);
+                                    }}
+                                    aria-label={getNotificationDisplayText(notification)}
+                                    role="button"
                                   >
                                     <div className="flex items-start gap-3">
                                       <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">

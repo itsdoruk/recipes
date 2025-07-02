@@ -219,7 +219,7 @@ function RecipeCardContent({
       {recipeImageUrl ? (
         <div className="relative w-full h-48 flex-shrink-0">
           <Image
-            src={recipeImageUrl}
+            src={'/getpizzedoff.jpg'}
             alt={recipeTitle}
             fill
             className="object-cover"

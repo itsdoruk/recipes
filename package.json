@@ -33,6 +33,7 @@
     "react-hot-toast": "^2.4.1",
     "react-i18next": "^14.0.5",
     "react-icons": "^5.0.1",
+    "react-konami-code": "^2.3.0",
     "react-modal": "^3.16.1",
     "swr": "^2.2.5",
     "uuid": "^9.0.1",

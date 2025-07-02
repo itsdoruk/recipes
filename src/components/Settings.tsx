@@ -209,7 +209,7 @@ export default function Settings() {
             onClick={() => {
               setShowNutrition((v) => !v);
             }}
-            className={`px-6 py-3 border hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base lowercase disabled:opacity-50 disabled:cursor-not-allowed ${showNutrition ? 'border-outline bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-transparent text-black border-black'}`}
+            className={`px-6 py-3 border border-outline bg-transparent text-[var(--foreground)] hover:opacity-80 hover:bg-[var(--hover-bg,rgba(0,0,0,0.04))] hover:scale-105 hover:shadow-lg transition-all duration-150 rounded-xl text-base lowercase disabled:opacity-50 disabled:cursor-not-allowed ${showNutrition ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300' : ''}`}
             aria-pressed={showNutrition}
           >
             {showNutrition ? 'on' : 'off'}

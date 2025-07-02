@@ -495,4 +495,35 @@ export async function unlinkGoogleAccount(): Promise<{ error: Error | null }> {
     console.error('Error in unlinkGoogleAccount:', error);
     return { error: error as Error };
   }
+}
+
+export async function signInWithGithub(redirectTo?: string): Promise<{ error: Error | null }> {
+  try {
+    const supabase = getSupabaseClient();
+    // Debug: Log the current origin
+    console.log('Current origin:', window.location.origin);
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        // Let Supabase handle the redirect automatically
+        // This will use the default Supabase callback URL
+      },
+    });
+    if (error) {
+      console.error('Error signing in with GitHub:', error);
+      return { error };
+    }
+    if (!data.url) {
+      console.error('No URL returned from GitHub OAuth');
+      return { error: new Error('No URL returned from GitHub OAuth') };
+    }
+    // Debug: Log the GitHub OAuth URL
+    console.log('GitHub OAuth URL:', data.url);
+    // Redirect to GitHub's OAuth page
+    window.location.href = data.url;
+    return { error: null };
+  } catch (error) {
+    console.error('Error in signInWithGithub:', error);
+    return { error: error as Error };
+  }
 } 
